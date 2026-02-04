@@ -24,13 +24,20 @@
 
 // export default App;
 
-import { Button } from "@mui/material";
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ProcurementProvider } from './context/ProcurementContext';
+import { FacultyStaffDashboard } from './pages/Dashboard/FacultyStaffDashboard';
 
 function App() {
   return (
-    <div>
-      <Button variant="contained">MUI Works 333</Button>
-    </div>
+    <ProcurementProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<FacultyStaffDashboard />} />
+          <Route path="/dashboard" element={<FacultyStaffDashboard />} />
+        </Routes>
+      </Router>
+    </ProcurementProvider>
   );
 }
 
