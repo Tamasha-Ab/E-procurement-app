@@ -24,14 +24,36 @@
 
 // export default App;
 
-import { Button } from "@mui/material";
 
-function App() {
+// import { Button } from "@mui/material";
+
+// function App() {
+//   return (
+//     <div>
+//       <Button variant="contained">MUI Works 333</Button>
+//     </div>
+//   );
+// }
+
+// export default App;
+
+import Layout from "./components/Layout";
+import { Routes, Route } from "react-router-dom";
+import { Typography } from "@mui/material";
+
+const Dashboard = () => (
+  <Typography variant="h4">Dashboard Page</Typography>
+);
+
+const App = () => {
   return (
-    <div>
-      <Button variant="contained">MUI Works 333</Button>
-    </div>
+    <Layout>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+      </Routes>
+    </Layout>
   );
-}
+};
 
 export default App;
