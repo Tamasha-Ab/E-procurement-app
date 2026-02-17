@@ -6,6 +6,8 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { AuthProvider } from "./contexts/AuthContext";
+import { BrowserRouter } from "react-router-dom";
 
 const theme = createTheme({
   palette: {
@@ -21,6 +23,11 @@ createRoot(document.getElementById("root")).render(
       <CssBaseline />
       <AuthProvider><BrowserRouter> <App /></BrowserRouter></AuthProvider>
      
+      <BrowserRouter>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrowserRouter>
     </ThemeProvider>
-  </StrictMode>
+  </StrictMode>,
 );

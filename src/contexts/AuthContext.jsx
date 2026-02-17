@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState } from "react";
+import { ROLES } from "../constants/roles";
 
 const AuthContext = createContext();
 
@@ -63,9 +65,18 @@ export const AuthProvider = ({ children }) => {
       registerUser,
       logout
     }}>
+  // TEMP: fake logged-in user role
+  const [user] = useState({
+    name: "Damindi",
+    role: ROLES.STAFF, // change role to test UI
+  });
+
+  return (
+    <AuthContext.Provider value={{ user }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
+export const useAuth = () => useContext(AuthContext);
 export const useAuth = () => useContext(AuthContext);
