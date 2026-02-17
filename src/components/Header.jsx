@@ -13,6 +13,8 @@ import logo from "../assets/logo.jpeg";
 
 const Header = () => {
   const { user } = useAuth();
+  const displayName = user?.name || "Guest";
+  const displayRole = user?.role || "";
 
   return (
     <AppBar
@@ -44,11 +46,11 @@ const Header = () => {
           {/* User */}
           <Box sx={{ display: "flex", alignItems: "center", ml: 2 }}>
             <Avatar sx={{ bgcolor: "secondary.main", width: 32, height: 32 }}>
-              {user.name.charAt(0)}
+              {displayName.charAt(0)}
             </Avatar>
             <Box sx={{ ml: 1 }}>
-              <Typography variant="body2">{user.name}</Typography>
-              <Typography variant="caption">{user.role}</Typography>
+              <Typography variant="body2">{displayName}</Typography>
+              {displayRole && <Typography variant="caption">{displayRole}</Typography>}
             </Box>
           </Box>
         </Box>

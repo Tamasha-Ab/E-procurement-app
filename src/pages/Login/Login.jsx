@@ -50,7 +50,8 @@ function Login({ onClose, openRegister }) {
   const onSubmit = async (data) => {
     setLoginError("");
     try {
-      const res = await login(data);
+      const creds = { username: data.username, password: data.password };
+      const res = await login(creds);
       if (res?.user?.role === "Admin") {
         navigate("/admin");
       } else {
@@ -90,32 +91,30 @@ function Login({ onClose, openRegister }) {
         <div className="space-y-5 animate-fadeIn">
           {/* Email Field */}
           <div className="space-y-1.5">
-            <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
-              University Email <span className="text-red-500">*</span>
+            <label htmlFor="username" className="block text-sm font-semibold text-gray-700">
+              Username <span className="text-red-500">*</span>
             </label>
             <div className="relative flex items-center">
-              <EmailIcon className="absolute text-gray-400 left-3" style={{ fontSize: 18 }} />
+              <PersonIcon className="absolute text-gray-400 left-3" style={{ fontSize: 18 }} />
               <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                {...register("email", {
-                  required: "Email is required",
-                  pattern: {
-                    value: /^\S+@\S+\.\S+$/,
-                    message: "Please enter a valid email address"
-                  }
+                id="username"
+                type="text"
+                autoComplete="username"
+                {...register("username", {
+                  required: "Username is required",
+                  minLength: { value: 3, message: "Please enter a valid username" }
                 })}
-                placeholder="Enter your university email"
+                placeholder="Enter your username"
                 className="w-full py-3 pl-10 pr-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300"
                 disabled={isSubmitting}
               />
             </div>
-            {errors.email && (
+            {errors.username && (
               <p className="flex items-center gap-1 mt-1 text-xs text-red-500">
-                <ErrorIcon style={{ fontSize: 12 }} /> {errors.email.message}
+                <ErrorIcon style={{ fontSize: 12 }} /> {errors.username.message}
               </p>
             )}
+            {/* <p className="mt-1 text-xs text-gray-500">Use your account username (not your email).</p> */}
           </div>
 
           {/* Password Field */}
