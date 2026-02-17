@@ -5,15 +5,15 @@ import {
   Typography,
   Button,
   Dialog,
-  DialogTitle,
   DialogContent,
-  IconButton,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
-import Login from "./pages/Login/Login.jsx";
+import Login from "./pages/Login/login.jsx";
 import Register from "./pages/Register/Register.jsx";
+import Layout from "./components/Layout.jsx";
+import { Routes, Route } from "react-router-dom";
+import Dashboard from "./pages/Dashboard/dashboard.jsx";
 
-function App() {
+const App = () => {
   const [openLogin, setOpenLogin] = useState(false);
   const [openRegister, setOpenRegister] = useState(false);
 
@@ -57,14 +57,14 @@ function App() {
         </Container>
       </Box>
 
-      <Container sx={{ py: 6 }}>
+      {/* <Container sx={{ py: 6 }}>
         <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
           Core features
         </Typography>
         <Typography color="text.secondary">
           Role-based access, catalog management, approval workflows, bidding portal, and dashboards.
         </Typography>
-      </Container>
+      </Container> */}
 
       {/* Login Dialog */}
       <Dialog open={openLogin} onClose={() => setOpenLogin(false)} fullWidth maxWidth="sm">
@@ -81,7 +81,6 @@ function App() {
 
       {/* Register Dialog */}
       <Dialog open={openRegister} onClose={() => setOpenRegister(false)} fullWidth maxWidth="sm">
-    
         <DialogContent dividers>
           <Register
             onClose={() => setOpenRegister(false)}
@@ -92,36 +91,14 @@ function App() {
           />
         </DialogContent>
       </Dialog>
+
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </Layout>
     </Box>
-
-// import { Button } from "@mui/material";
-
-// function App() {
-//   return (
-//     <div>
-//       <Button variant="contained">MUI Works 333</Button>
-//     </div>
-//   );
-// }
-
-// export default App;
-
-import Layout from "./components/Layout";
-import { Routes, Route } from "react-router-dom";
-import { Typography } from "@mui/material";
-
-const Dashboard = () => (
-  <Typography variant="h4">Dashboard Page</Typography>
-);
-
-const App = () => {
-  return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-      </Routes>
-    </Layout>
   );
 };
 

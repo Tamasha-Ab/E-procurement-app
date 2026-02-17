@@ -21,7 +21,10 @@ const Sidebar = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const menuItems = sidebarConfig[user.role] || [];
+  const displayName = user?.name || "Guest";
+  const displayRole = user?.role || "GUEST";
+
+  const menuItems = sidebarConfig[displayRole] || [];
 
   return (
     <Drawer
@@ -64,10 +67,10 @@ const Sidebar = () => {
           <AccountCircleIcon sx={{ mr: 1 }} />
           <Box>
             <Typography variant="body1" fontWeight={500}>
-              {user.name}
+              {displayName}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {user.role}
+              {displayRole}
             </Typography>
           </Box>
         </Box>

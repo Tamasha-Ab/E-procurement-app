@@ -1,6 +1,4 @@
 import React, { createContext, useContext, useState } from "react";
-import { createContext, useContext, useState } from "react";
-import { ROLES } from "../constants/roles";
 
 const AuthContext = createContext();
 
@@ -9,32 +7,40 @@ export const AuthProvider = ({ children }) => {
 
   // Login against backend /api/auth/login
   const login = async (credentials) => {
-    // Backend expects 'username' and 'password' in the request body.
     const payload = {
       username: credentials.username || credentials.email || credentials.user || "",
       password: credentials.password || "",
     };
 
+    console.debug("[AuthContext] sending login payload:", payload);
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    // Read raw text first (some backends return plain text on errors)
+    const text = await res.text().catch(() => "");
+    let body = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch (e) {
+      body = null;
+    }
 
-    const body = await res.json().catch(() => ({}));
+    console.debug("[AuthContext] login response status:", res.status, "statusText:", res.statusText);
+    console.debug("[AuthContext] login response body:", body, "rawText:", text);
 
     if (!res.ok) {
-      const message = body.message || body.error || "Invalid username or password";
+      const message = (body && (body.message || body.error)) || text || res.statusText || "Invalid username or password";
       throw new Error(message);
     }
 
-    // On success the backend returns token and user DTO
-    const userDto = body.user || body.userResponse || body.data || null;
-    const token = body.token || body.accessToken || null;
+    const userDto = (body && (body.user || body.userResponse || body.data)) || null;
+    const token = (body && (body.token || body.accessToken)) || null;
 
     if (userDto) setUser(userDto);
 
-    return { user: userDto, token, message: body.message };
+    return { user: userDto, token, message: (body && body.message) || null };
   };
 
   // Register against backend /api/auth/register
@@ -44,15 +50,20 @@ export const AuthProvider = ({ children }) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-
-    const body = await res.json().catch(() => ({}));
+    const text = await res.text().catch(() => "");
+    let body = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch (e) {
+      body = null;
+    }
 
     if (!res.ok) {
-      const message = body.message || body.error || `Server error (${res.status})`;
+      const message = (body && (body.message || body.error)) || text || `Server error (${res.status})`;
       throw new Error(message);
     }
 
-    return { success: true, message: body.message || "Registration successful" };
+    return { success: true, message: (body && body.message) || "Registration successful" };
   };
 
   const logout = () => setUser(null);
@@ -65,18 +76,10 @@ export const AuthProvider = ({ children }) => {
       registerUser,
       logout
     }}>
-  // TEMP: fake logged-in user role
-  const [user] = useState({
-    name: "Damindi",
-    role: ROLES.STAFF, // change role to test UI
-  });
-
-  return (
-    <AuthContext.Provider value={{ user }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => useContext(AuthContext);
-export const useAuth = () => useContext(AuthContext);
+
