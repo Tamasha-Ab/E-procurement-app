@@ -185,7 +185,7 @@ export default function Register({ openLogin }) {
         size: "large",
         shape: "pill",
         text: "signup_with",
-        width: googleButtonRef.current.offsetWidth || 320,
+        width: "100%",
       });
 
       setIsGoogleReady(true);
@@ -260,14 +260,14 @@ export default function Register({ openLogin }) {
 
   if (submitState === "success") {
     return (
-      <div className="w-full animate-slideUp">
-        <div className="max-w-sm px-6 py-4 mx-auto mb-6 bg-white rounded-2xl">
-          <div className="flex flex-col items-center gap-4 mb-4 sm:flex-row">
+      <div className="w-full px-6 py-6 animate-slideUp md:px-8 md:py-8">
+        <div className="max-w-sm px-6 py-5 mx-auto mb-6 border border-[#dbe7ee] bg-[linear-gradient(145deg,#ffffff,#f2f8fb)] rounded-[28px] shadow-[0_18px_38px_rgba(15,41,64,0.08)]">
+          <div className="flex flex-col items-center gap-4 sm:flex-row">
             <div className="flex-shrink-0">
               <img
                 src="/Images/Logo/Astraea_Logo-removebg-preview.png"
                 alt="Astraea Logo"
-                className="object-contain w-48 h-auto"
+                className="object-contain w-44 h-auto sm:w-48"
               />
             </div>
             <div className="flex-1 text-center sm:text-left">
@@ -293,7 +293,7 @@ export default function Register({ openLogin }) {
           </button>
         </div>
 
-        <div className="p-6 mt-4 text-center border-t border-gray-200 bg-gray-50">
+        <div className="p-5 mt-4 text-center border border-[#dbe7ee] bg-[#f7fbfd] rounded-[24px]">
           <h5 className="mb-1 text-sm font-semibold text-gray-700">Astraea E-Procurement Platform</h5>
           <p className="text-xs text-gray-500">&copy; {new Date().getFullYear()} Astraea. All rights reserved.</p>
         </div>
@@ -302,14 +302,14 @@ export default function Register({ openLogin }) {
   }
 
   return (
-    <div className="w-full animate-slideUp">
-      <div className="px-6 py-4 mx-auto mb-6 bg-white rounded-2xl">
-        <div className="flex flex-col items-center gap-4 mb-4 sm:flex-row">
+    <div className="w-full px-6 py-6 animate-slideUp md:px-8 md:py-8">
+      <div className="px-6 py-5 mx-auto mb-6 border border-[#dbe7ee] bg-[linear-gradient(145deg,#ffffff,#f2f8fb)] rounded-[28px] shadow-[0_18px_38px_rgba(15,41,64,0.08)]">
+        <div className="flex flex-col items-center gap-4 sm:flex-row">
           <div className="flex-shrink-0">
             <img
               src="/Images/Logo/Astraea_Logo-removebg-preview.png"
               alt="Astraea Logo"
-              className="object-contain w-48 h-auto"
+              className="object-contain w-44 h-auto sm:w-48"
             />
           </div>
           <div className="flex-1 text-center sm:text-left">
@@ -343,7 +343,7 @@ export default function Register({ openLogin }) {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="px-8 pb-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="px-1 pb-2 md:px-2">
         {step === 1 && (
           <div className="space-y-5 animate-fadeIn">
             <div className="space-y-1.5">
@@ -417,7 +417,17 @@ export default function Register({ openLogin }) {
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                disabled={!isRoleReady}
+                className="flex items-center justify-center w-full gap-2 px-4 py-3 mt-2 font-semibold text-white transition-colors bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Continue to Account Details
+                <ArrowForwardIcon style={{ fontSize: 18 }} />
+              </button>
+
               <p className="text-sm font-semibold text-gray-700">Sign up with Google</p>
               {!googleClientId && (
                 <p className="text-xs text-amber-600">Set `VITE_GOOGLE_CLIENT_ID` to enable Google Sign-Up.</p>
@@ -436,7 +446,10 @@ export default function Register({ openLogin }) {
                 </div>
               ) : (
                 <>
-                  <div ref={googleButtonRef} className={`min-h-[44px] w-full ${!googleClientId ? "hidden" : ""}`} />
+                  <div
+                    ref={googleButtonRef}
+                    className={`min-h-[46px] w-full overflow-hidden rounded-xl border border-gray-200 bg-white ${!googleClientId ? "hidden" : ""}`}
+                  />
                   {googleClientId && !isGoogleReady && (
                     <div className="flex items-center justify-center w-full px-4 py-3 text-sm text-gray-500 border border-gray-200 rounded-xl">
                       Loading Google Sign-Up...
@@ -467,15 +480,6 @@ export default function Register({ openLogin }) {
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              disabled={!isRoleReady}
-              className="flex items-center justify-center w-full gap-2 px-4 py-3 mt-4 font-semibold text-white transition-colors bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Continue to Account Details
-              <ArrowForwardIcon style={{ fontSize: 18 }} />
-            </button>
           </div>
         )}
 
@@ -654,7 +658,7 @@ export default function Register({ openLogin }) {
         </p>
       </div>
 
-      <div className="p-6 text-center border-t border-gray-200 bg-gray-50">
+      <div className="p-5 mt-3 text-center border border-[#dbe7ee] bg-[#f7fbfd] rounded-[24px]">
         <h5 className="mb-1 text-sm font-semibold text-gray-700">Astraea E-Procurement Platform</h5>
         <p className="text-xs text-gray-500">&copy; {new Date().getFullYear()} Astraea. All rights reserved.</p>
       </div>

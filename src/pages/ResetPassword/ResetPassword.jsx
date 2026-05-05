@@ -22,10 +22,11 @@ export default function ResetPassword() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    const form = event.currentTarget;
     setError("");
     setSuccess("");
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const resetToken = String(formData.get("resetToken") || "").trim();
     const newPassword = String(formData.get("newPassword") || "");
     const confirmPassword = String(formData.get("confirmPassword") || "");
@@ -47,7 +48,7 @@ export default function ResetPassword() {
     try {
       const result = await resetPassword(resetToken, newPassword);
       setSuccess(result.message || "Password reset successful.");
-      event.currentTarget.reset();
+      form.reset();
       setTimeout(() => navigate("/"), 1400);
     } catch (submitError) {
       setError(submitError.message || "Could not reset password.");
