@@ -1,37 +1,102 @@
-// function App() {
-//   return (
-//     <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
-//       <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md w-full">
-//         <h1 className="text-4xl font-bold text-gray-800 mb-4 text-center">
-//           E-Procurement App
-//         </h1>
-//         <p className="text-gray-600 mb-6 text-center">
-//           Built with React + Vite + Tailwind CSS
-//         </p>
-//         <button className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold shadow-md hover:shadow-lg">
-//           Get Started
-//         </button>
+import React, { useState } from "react";
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  Dialog,
+  DialogContent,
+} from "@mui/material";
+import { Routes, Route, useLocation } from "react-router-dom";
+import Login from "./pages/Login/Login.jsx";
+import Register from "./pages/Register/Register.jsx";
+import ResetPassword from "./pages/ResetPassword/ResetPassword.jsx";
+import Layout from "./components/Layout.jsx";
+import Dashboard from "./pages/Dashboard/dashboard.jsx";
 
-//         <div className="mt-6 pt-6 border-t border-gray-200">
-//           <p className="text-sm text-gray-500 text-center">
-//             Spring Boot Backend + MySQL Database
-//           </p>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
+const App = () => {
+  const location = useLocation();
+  const [openLogin, setOpenLogin] = useState(false);
+  const [openRegister, setOpenRegister] = useState(false);
+  const isResetPasswordPage = location.pathname === "/reset-password";
 
-// export default App;
-
-import { Button } from "@mui/material";
-
-function App() {
   return (
-    <div>
-      <Button variant="contained">MUI Works 333</Button>
-    </div>
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+      {!isResetPasswordPage && (
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "60vh",
+            background: "linear-gradient(135deg,#0ea5e9 0%,#7c3aed 100%)",
+            color: "white",
+          }}
+        >
+          <Container sx={{ textAlign: "center", py: 8 }}>
+            <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
+              Astraea
+            </Typography>
+            <Typography variant="h6" sx={{ mb: 4, opacity: 0.95 }}>
+              University E-Procurement System - Transparent, auditable, intelligent.
+            </Typography>
+
+            <Box sx={{ display: "inline-flex", gap: 2 }}>
+              <Button variant="contained" color="primary" onClick={() => setOpenLogin(true)}>
+                Login
+              </Button>
+              <Button
+                variant="outlined"
+                color="inherit"
+                onClick={() => setOpenRegister(true)}
+                sx={{ borderColor: "rgba(255,255,255,0.7)", color: "white" }}
+              >
+                Sign Up
+              </Button>
+            </Box>
+          </Container>
+        </Box>
+      )}
+
+      <Dialog open={!isResetPasswordPage && openLogin} onClose={() => setOpenLogin(false)} fullWidth maxWidth="sm">
+        <DialogContent dividers>
+          <Login
+            onClose={() => setOpenLogin(false)}
+            openRegister={() => {
+              setOpenLogin(false);
+              setOpenRegister(true);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!isResetPasswordPage && openRegister} onClose={() => setOpenRegister(false)} fullWidth maxWidth="sm">
+        <DialogContent dividers>
+          <Register
+            onClose={() => setOpenRegister(false)}
+            openLogin={() => {
+              setOpenRegister(false);
+              setOpenLogin(true);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {isResetPasswordPage ? (
+        <Routes>
+          <Route path="/reset-password" element={<ResetPassword />} />
+        </Routes>
+      ) : (
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+          </Routes>
+        </Layout>
+      )}
+    </Box>
   );
-}
+};
 
 export default App;
