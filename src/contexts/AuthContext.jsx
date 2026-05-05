@@ -150,11 +150,7 @@ export const AuthProvider = ({ children }) => {
     });
 
     const { body } = await parseResponse(res);
-    return {
-      message: body?.message || "Reset token generated.",
-      resetToken: body?.data?.resetToken || "",
-      expiresAt: body?.data?.expiresAt || null,
-    };
+    return { message: body?.message || "Password reset email sent." };
   };
 
   const resetPassword = async (resetToken, newPassword) => {

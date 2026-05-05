@@ -113,7 +113,7 @@ function Login({ onClose, openRegister }) {
         size: "large",
         shape: "pill",
         text: "signin_with",
-        width: googleButtonRef.current.offsetWidth || 320,
+        width: "100%",
       });
 
       setIsGoogleReady(true);
@@ -189,14 +189,14 @@ function Login({ onClose, openRegister }) {
   };
 
   return (
-    <div className="w-full animate-slideUp">
-      <div className="px-6 py-4 mx-auto mb-6 bg-white rounded-2xl">
-        <div className="flex flex-col items-center gap-4 mb-4 sm:flex-row">
+    <div className="w-full px-6 py-6 animate-slideUp md:px-8 md:py-8">
+      <div className="mx-auto mb-6 rounded-[28px] border border-[#dbe7ee] bg-[linear-gradient(145deg,#ffffff,#f2f8fb)] px-6 py-5 shadow-[0_18px_38px_rgba(15,41,64,0.08)]">
+        <div className="flex flex-col items-center gap-4 sm:flex-row">
           <div className="flex-shrink-0">
             <img
               src="/Images/Logo/Astraea_Logo-removebg-preview.png"
               alt="Astraea Logo"
-              className="object-contain w-48 h-auto"
+              className="object-contain w-44 h-auto sm:w-48"
               onError={(e) => {
                 e.target.style.display = "none";
                 e.target.nextSibling.style.display = "flex";
@@ -210,7 +210,7 @@ function Login({ onClose, openRegister }) {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="px-8 pb-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="px-1 pb-2 md:px-2">
         <div className="space-y-5 animate-fadeIn">
           <div className="space-y-1.5">
             <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
@@ -343,7 +343,7 @@ function Login({ onClose, openRegister }) {
             )}
             <div
               ref={googleButtonRef}
-              className={`min-h-[44px] w-full ${!googleClientId ? "hidden" : ""}`}
+              className={`min-h-[46px] w-full overflow-hidden rounded-xl border border-gray-200 bg-white ${!googleClientId ? "hidden" : ""}`}
             />
             {googleClientId && !isGoogleReady && (
               <div className="flex items-center justify-center w-full px-4 py-3 text-sm text-gray-500 border border-gray-200 rounded-xl">
@@ -360,7 +360,7 @@ function Login({ onClose, openRegister }) {
         </div>
       </form>
 
-      <div className="pb-4 text-center">
+      <div className="pt-2 pb-4 text-center">
         <p className="text-sm text-gray-600">
           Don't have an account?{" "}
           <button type="button" onClick={() => openRegister?.()} className="font-medium text-blue-600 transition-colors hover:text-blue-800">
@@ -369,7 +369,7 @@ function Login({ onClose, openRegister }) {
         </p>
       </div>
 
-      <div className="p-6 text-center border-t border-gray-200 bg-gray-50">
+      <div className="mt-3 rounded-[24px] border border-[#dbe7ee] bg-[#f7fbfd] p-5 text-center">
         <h5 className="mb-1 text-sm font-semibold text-gray-700">
           Astraea E-Procurement Platform
         </h5>
