@@ -1,61 +1,46 @@
-import {
-  AppBar,
-  Toolbar,
-  Typography,
-  Box,
-  IconButton,
-  Avatar,
-  Badge,
-} from "@mui/material";
-import NotificationsIcon from "@mui/icons-material/Notifications";
+import { Box, IconButton } from "@mui/material";
+import NotificationsOutlinedIcon from "@mui/icons-material/NotificationsOutlined";
 import { useAuth } from "../contexts/AuthContext";
-import logo from "../assets/logo.jpeg";
 
 const Header = () => {
   const { user } = useAuth();
-  const displayName = user?.name || "Guest";
-  const displayRole = user?.role || "";
+  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.username || "Astraea User";
+  const displayRole = user?.subRole || user?.mainRole || "";
 
   return (
-    <AppBar
-      position="fixed"
-      sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
-    >
-      <Toolbar>
-        {/* ===== LOGO + TITLE ===== */}
-        <Box sx={{ display: "flex", alignItems: "center" }}>
+    <Box className="fixed inset-x-0 top-0 z-40 border-b border-white/50 bg-white/88 backdrop-blur-xl">
+      <Box className="flex items-center justify-between px-6 py-4 md:px-8">
+        <Box className="flex items-center gap-4">
           <img
-            src={logo}
+            src="/Images/Logo/Astraea_Logo-removebg-preview.png"
             alt="Astraea Logo"
-            style={{ height: 36, marginRight: 10 }}
+            className="h-11 w-auto object-contain"
           />
-          <Typography variant="h6" noWrap>
-            Astraea e-Procurement
-          </Typography>
+          <Box>
+            <div className="text-xs font-semibold uppercase tracking-[0.26em] text-[#166e8c]">
+              Astraea
+            </div>
+            <div className="text-lg font-bold text-[#10283f]">E-Procurement Workspace</div>
+          </Box>
         </Box>
 
-        {/* ===== RIGHT SIDE ICONS ===== */}
-        <Box sx={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
-          {/* Notifications */}
-          <IconButton color="inherit">
-            <Badge badgeContent={3} color="error">
-              <NotificationsIcon />
-            </Badge>
+        <Box className="flex items-center gap-4">
+          <IconButton sx={{ color: "#0f2940", backgroundColor: "#eef5f8" }}>
+            <NotificationsOutlinedIcon />
           </IconButton>
 
-          {/* User */}
-          <Box sx={{ display: "flex", alignItems: "center", ml: 2 }}>
-            <Avatar sx={{ bgcolor: "secondary.main", width: 32, height: 32 }}>
-              {displayName.charAt(0)}
-            </Avatar>
-            <Box sx={{ ml: 1 }}>
-              <Typography variant="body2">{displayName}</Typography>
-              {displayRole && <Typography variant="caption">{displayRole}</Typography>}
+          <Box className="flex items-center gap-3 rounded-2xl bg-[#0f2940] px-4 py-2 text-white shadow-[0_14px_30px_rgba(15,41,64,0.22)]">
+            <Box className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#166e8c] text-base font-bold">
+              {displayName.charAt(0).toUpperCase()}
+            </Box>
+            <Box className="hidden sm:block">
+              <div className="text-sm font-semibold">{displayName}</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-300">{displayRole}</div>
             </Box>
           </Box>
         </Box>
-      </Toolbar>
-    </AppBar>
+      </Box>
+    </Box>
   );
 };
 
