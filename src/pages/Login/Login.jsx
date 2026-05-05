@@ -1,26 +1,48 @@
-// src/pages/Login/Login.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useAuth } from "../../contexts/AuthContext";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
-// Material UI Icons
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import EmailIcon from '@mui/icons-material/Email';
-import LockIcon from '@mui/icons-material/Lock';
-import PersonIcon from '@mui/icons-material/Person';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import LockIcon from "@mui/icons-material/Lock";
+import EmailIcon from "@mui/icons-material/Email";
+import ErrorIcon from "@mui/icons-material/Error";
+import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 
 function Login({ onClose, openRegister }) {
+  const googleButtonRef = useRef(null);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting }
+  } = useForm({
+    defaultValues: {
+      email: "",
+      password: "",
+      rememberMe: true,
+    },
+  });
+  const { login, googleLogin, forgotPassword } = useAuth();
+  const navigate = useNavigate();
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isGoogleReady, setIsGoogleReady] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotMessage, setForgotMessage] = useState("");
+  const [forgotError, setForgotError] = useState("");
+  const [isForgotSubmitting, setIsForgotSubmitting] = useState(false);
+
   useEffect(() => {
     document.title = "Astraea - Sign In";
 
-    // Add keyframe animations (same as register page)
-    const style = document.createElement('style');
+    const style = document.createElement("style");
     style.textContent = `
       @keyframes slideUp {
         from { opacity: 0; transform: translateY(20px); }
@@ -38,34 +60,136 @@ function Login({ onClose, openRegister }) {
       .animate-spin    { animation: spin 1s linear infinite; }
     `;
     document.head.appendChild(style);
-    return () => { document.head.removeChild(style); };
+    return () => document.head.removeChild(style);
   }, []);
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm();
-  const { login } = useAuth();
-  const navigate = useNavigate();
-  const [showPassword, setShowPassword] = useState(false);
-  const [loginError, setLoginError] = useState("");
+  const navigateByRole = (user) => {
+    if (user?.mainRole === "ADMIN") {
+      navigate("/admin");
+      return;
+    }
+
+    navigate("/dashboard");
+    onClose?.();
+  };
+
+  useEffect(() => {
+    if (!googleClientId || !googleButtonRef.current) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const initialiseGoogleButton = () => {
+      if (cancelled || !window.google?.accounts?.id || !googleButtonRef.current) {
+        return;
+      }
+
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async (response) => {
+          setLoginError("");
+          setIsGoogleLoading(true);
+
+          try {
+            const result = await googleLogin(response.credential);
+            if (!result?.token) {
+              setLoginError(result?.message || "Your account is pending admin approval.");
+              return;
+            }
+            navigateByRole(result.user);
+          } catch (error) {
+            console.error("Google login failed:", error);
+            setLoginError(error.message || "Google sign-in failed. Please try again.");
+          } finally {
+            setIsGoogleLoading(false);
+          }
+        },
+      });
+
+      googleButtonRef.current.innerHTML = "";
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: "outline",
+        size: "large",
+        shape: "pill",
+        text: "signin_with",
+        width: googleButtonRef.current.offsetWidth || 320,
+      });
+
+      setIsGoogleReady(true);
+    };
+
+    const existingScript = document.querySelector('script[data-google-identity="true"]');
+    if (existingScript && window.google?.accounts?.id) {
+      initialiseGoogleButton();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const script = existingScript || document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleIdentity = "true";
+    script.onload = initialiseGoogleButton;
+    script.onerror = () => {
+      if (!cancelled) {
+        setLoginError("Google Sign-In could not be loaded. Check your internet connection.");
+      }
+    };
+
+    if (!existingScript) {
+      document.head.appendChild(script);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [googleClientId, googleLogin]);
 
   const onSubmit = async (data) => {
     setLoginError("");
     try {
-      const creds = { username: data.username, password: data.password };
-      const res = await login(creds);
-      if (res?.user?.role === "Admin") {
-        navigate("/admin");
-      } else {
-        navigate("/dashboard");
-      }
-    } catch (err) {
-      console.error("Login failed:", err);
-      setLoginError(err.message || "Invalid email or password. Please try again.");
+      const creds = { email: data.email, password: data.password, rememberMe: data.rememberMe };
+      const result = await login(creds);
+      navigateByRole(result?.user);
+    } catch (error) {
+      console.error("Login failed:", error);
+      setLoginError(error.message || "Invalid email or password. Please try again.");
+    }
+  };
+
+  const resetForgotState = () => {
+    setShowForgotPassword(false);
+    setForgotEmail("");
+    setForgotMessage("");
+    setForgotError("");
+  };
+
+  const handleForgotPasswordRequest = async (event) => {
+    event.preventDefault();
+    setForgotError("");
+    setForgotMessage("");
+
+    if (!forgotEmail.trim()) {
+      setForgotError("Email is required");
+      return;
+    }
+
+    setIsForgotSubmitting(true);
+    try {
+      const result = await forgotPassword(forgotEmail.trim());
+      setForgotMessage(result.message || "Password reset email sent.");
+    } catch (error) {
+      setForgotError(error.message || "Could not send password reset email.");
+    } finally {
+      setIsForgotSubmitting(false);
     }
   };
 
   return (
     <div className="w-full animate-slideUp">
-      {/* Branding header - logo left, text right */}
       <div className="px-6 py-4 mx-auto mb-6 bg-white rounded-2xl">
         <div className="flex flex-col items-center gap-4 mb-4 sm:flex-row">
           <div className="flex-shrink-0">
@@ -86,38 +210,37 @@ function Login({ onClose, openRegister }) {
         </div>
       </div>
 
-      {/* Form */}
       <form onSubmit={handleSubmit(onSubmit)} className="px-8 pb-6">
         <div className="space-y-5 animate-fadeIn">
-          {/* Email Field */}
           <div className="space-y-1.5">
-            <label htmlFor="username" className="block text-sm font-semibold text-gray-700">
-              Username <span className="text-red-500">*</span>
+            <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
+              Email <span className="text-red-500">*</span>
             </label>
             <div className="relative flex items-center">
-              <PersonIcon className="absolute text-gray-400 left-3" style={{ fontSize: 18 }} />
+              <EmailIcon className="absolute text-gray-400 left-3" style={{ fontSize: 18 }} />
               <input
-                id="username"
-                type="text"
-                autoComplete="username"
-                {...register("username", {
-                  required: "Username is required",
-                  minLength: { value: 3, message: "Please enter a valid username" }
+                id="email"
+                type="email"
+                autoComplete="email"
+                {...register("email", {
+                  required: "Email is required",
+                  pattern: {
+                    value: /^\S+@\S+\.\S+$/,
+                    message: "Please enter a valid email address"
+                  }
                 })}
-                placeholder="Enter your username"
+                placeholder="Enter your email"
                 className="w-full py-3 pl-10 pr-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300"
                 disabled={isSubmitting}
               />
             </div>
-            {errors.username && (
+            {errors.email && (
               <p className="flex items-center gap-1 mt-1 text-xs text-red-500">
-                <ErrorIcon style={{ fontSize: 12 }} /> {errors.username.message}
+                <ErrorIcon style={{ fontSize: 12 }} /> {errors.email.message}
               </p>
             )}
-            {/* <p className="mt-1 text-xs text-gray-500">Use your account username (not your email).</p> */}
           </div>
 
-          {/* Password Field */}
           <div className="space-y-1.5">
             <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
               Password <span className="text-red-500">*</span>
@@ -145,10 +268,7 @@ function Login({ onClose, openRegister }) {
                 className="absolute text-gray-400 transition-colors right-3 hover:text-blue-600"
                 disabled={isSubmitting}
               >
-                {showPassword ? 
-                  <VisibilityOffIcon style={{ fontSize: 18 }} /> : 
-                  <VisibilityIcon style={{ fontSize: 18 }} />
-                }
+                {showPassword ? <VisibilityOffIcon style={{ fontSize: 18 }} /> : <VisibilityIcon style={{ fontSize: 18 }} />}
               </button>
             </div>
             {errors.password && (
@@ -158,11 +278,11 @@ function Login({ onClose, openRegister }) {
             )}
           </div>
 
-          {/* Remember Me & Forgot Password */}
           <div className="flex items-center justify-between text-sm">
             <label className="flex items-center text-gray-600 cursor-pointer">
               <input
                 type="checkbox"
+                {...register("rememberMe")}
                 className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 disabled={isSubmitting}
               />
@@ -170,7 +290,12 @@ function Login({ onClose, openRegister }) {
             </label>
             <button
               type="button"
-              onClick={() => {/* Handle forgot password */}}
+              onClick={() => {
+                setShowForgotPassword(true);
+                setForgotEmail(watch("email") || "");
+                setForgotError("");
+                setForgotMessage("");
+              }}
               className="font-medium text-blue-600 transition-colors hover:text-blue-800"
               disabled={isSubmitting}
             >
@@ -178,7 +303,6 @@ function Login({ onClose, openRegister }) {
             </button>
           </div>
 
-          {/* Login Error */}
           {loginError && (
             <div className="p-4 border border-red-200 bg-red-50 rounded-xl">
               <p className="flex items-center gap-2 text-sm text-red-600">
@@ -187,7 +311,6 @@ function Login({ onClose, openRegister }) {
             </div>
           )}
 
-          {/* Submit Button - matching register page style */}
           <button
             type="submit"
             disabled={isSubmitting}
@@ -206,18 +329,46 @@ function Login({ onClose, openRegister }) {
             )}
           </button>
 
+          <div className="flex items-center gap-3 my-1">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs font-medium tracking-wide text-gray-400 uppercase">or</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          <div className="space-y-2">
+            {!googleClientId && (
+              <p className="text-xs text-amber-600">
+                Set `VITE_GOOGLE_CLIENT_ID` to enable Google Sign-In.
+              </p>
+            )}
+            <div
+              ref={googleButtonRef}
+              className={`min-h-[44px] w-full ${!googleClientId ? "hidden" : ""}`}
+            />
+            {googleClientId && !isGoogleReady && (
+              <div className="flex items-center justify-center w-full px-4 py-3 text-sm text-gray-500 border border-gray-200 rounded-xl">
+                Loading Google Sign-In...
+              </div>
+            )}
+            {isGoogleLoading && (
+              <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+                <HourglassEmptyIcon style={{ fontSize: 18 }} className="animate-spin" />
+                Verifying Google account...
+              </div>
+            )}
+          </div>
         </div>
       </form>
 
-      {/* Register link - matching register page style */}
       <div className="pb-4 text-center">
-          <p className="text-sm text-gray-600">
-          Don't have an account? {" "}
-          <button type="button" onClick={() => openRegister?.()} className="font-medium text-blue-600 transition-colors hover:text-blue-800">Register here</button>
+        <p className="text-sm text-gray-600">
+          Don't have an account?{" "}
+          <button type="button" onClick={() => openRegister?.()} className="font-medium text-blue-600 transition-colors hover:text-blue-800">
+            Register here
+          </button>
         </p>
       </div>
 
-      {/* Footer - exactly matching register page */}
       <div className="p-6 text-center border-t border-gray-200 bg-gray-50">
         <h5 className="mb-1 text-sm font-semibold text-gray-700">
           Astraea E-Procurement Platform
@@ -226,6 +377,78 @@ function Login({ onClose, openRegister }) {
           &copy; {new Date().getFullYear()} Astraea. All rights reserved.
         </p>
       </div>
+
+      {showForgotPassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-800">Forgot Password</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Enter your email and we&apos;ll send you a password reset link.
+              </p>
+            </div>
+
+            <div className="px-6 py-5">
+              <form onSubmit={handleForgotPasswordRequest} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="forgotEmail" className="block text-sm font-semibold text-gray-700">
+                    Email
+                  </label>
+                  <div className="relative flex items-center">
+                    <EmailIcon className="absolute text-gray-400 left-3" style={{ fontSize: 18 }} />
+                    <input
+                      id="forgotEmail"
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(event) => setForgotEmail(event.target.value)}
+                      placeholder="Enter your account email"
+                      className="w-full py-3 pl-10 pr-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300"
+                      disabled={isForgotSubmitting}
+                    />
+                  </div>
+                </div>
+
+                {forgotMessage && (
+                  <div className="p-3 border border-emerald-200 bg-emerald-50 rounded-xl text-sm text-emerald-700">
+                    {forgotMessage}
+                  </div>
+                )}
+
+                {forgotError && (
+                  <div className="p-3 border border-red-200 bg-red-50 rounded-xl text-sm text-red-600">
+                    {forgotError}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={resetForgotState}
+                    className="flex-1 px-4 py-3 font-semibold text-gray-600 transition-colors border-2 border-gray-300 rounded-xl hover:border-blue-400 hover:text-blue-600"
+                    disabled={isForgotSubmitting}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex items-center justify-center flex-1 gap-2 px-4 py-3 font-semibold text-white transition-colors bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50"
+                    disabled={isForgotSubmitting}
+                  >
+                    {isForgotSubmitting ? (
+                      <>
+                        <HourglassEmptyIcon style={{ fontSize: 18 }} className="animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      "Send Reset Link"
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
