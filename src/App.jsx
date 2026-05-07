@@ -14,6 +14,13 @@ import ResetPassword from "./pages/ResetPassword/ResetPassword.jsx";
 import Layout from "./components/Layout.jsx";
 import Dashboard from "./pages/Dashboard/dashboard.jsx";
 import { useAuth } from "./contexts/AuthContext";
+import CreateRequisition from "./pages/Staff/CreateRequisition.jsx";
+import MyRequisitions from "./pages/Staff/MyRequisitions.jsx";
+import RequisitionDetails from "./pages/Staff/RequisitionDetails.jsx";
+import HodApprovals from "./pages/Approvals/HodApprovals.jsx";
+import DeanApprovals from "./pages/Approvals/DeanApprovals.jsx";
+import TecApprovals from "./pages/Approvals/TecApprovals.jsx";
+import VcApprovals from "./pages/Approvals/VcApprovals.jsx";
 
 const roleCards = [
   {
@@ -191,6 +198,13 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/requisition/create" element={<CreateRequisition />} />
+            <Route path="/requisitions" element={<MyRequisitions />} />
+            <Route path="/requisitions/:rrId" element={<RequisitionDetails />} />
+            <Route path="/approvals/hod" element={<HodApprovals />} />
+            <Route path="/approvals/dean" element={<DeanApprovals />} />
+            <Route path="/approvals/tec" element={<TecApprovals />} />
+            <Route path="/approvals/vc" element={<VcApprovals />} />
             <Route path="*" element={<Dashboard />} />
           </Routes>
         </Layout>

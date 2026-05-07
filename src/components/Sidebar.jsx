@@ -4,6 +4,9 @@ import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceW
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
+import AddCircleRoundedIcon from "@mui/icons-material/AddCircleRounded";
+import EngineeringRoundedIcon from "@mui/icons-material/EngineeringRounded";
+import RateReviewRoundedIcon from "@mui/icons-material/RateReviewRounded";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -13,32 +16,60 @@ const getMenuItems = (user) => {
 
   if (mainRole === "ADMIN") {
     return [
-      { label: "Overview", icon: DashboardRoundedIcon },
-      { label: "User Governance", icon: AssignmentTurnedInRoundedIcon },
-      { label: "System Audit", icon: ReceiptLongRoundedIcon },
+      { label: "Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
+      { label: "User Governance", icon: AssignmentTurnedInRoundedIcon, path: "/dashboard" },
+      { label: "System Audit", icon: ReceiptLongRoundedIcon, path: "/dashboard" },
     ];
   }
 
   if (mainRole === "FINANCE") {
     return [
-      { label: "Finance Dashboard", icon: DashboardRoundedIcon },
-      { label: "Budget Control", icon: AccountBalanceWalletRoundedIcon },
-      { label: "Approvals", icon: AssignmentTurnedInRoundedIcon },
+      { label: "Finance Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
+      { label: "Budget Control", icon: AccountBalanceWalletRoundedIcon, path: "/dashboard" },
+      { label: "Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/dashboard" },
     ];
   }
 
   if (mainRole === "VENDOR") {
     return [
-      { label: "Vendor Dashboard", icon: DashboardRoundedIcon },
-      { label: "Open Opportunities", icon: StorefrontRoundedIcon },
-      { label: "My Submissions", icon: ReceiptLongRoundedIcon },
+      { label: "Vendor Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
+      { label: "Open Opportunities", icon: StorefrontRoundedIcon, path: "/dashboard" },
+      { label: "My Submissions", icon: ReceiptLongRoundedIcon, path: "/dashboard" },
+    ];
+  }
+
+  if (subRole === "HOD") {
+    return [
+      { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
+      { label: "HOD Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/approvals/hod" },
+    ];
+  }
+
+  if (subRole === "DEAN") {
+    return [
+      { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
+      { label: "Dean Approvals", icon: RateReviewRoundedIcon, path: "/approvals/dean" },
+    ];
+  }
+
+  if (subRole === "TEC") {
+    return [
+      { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
+      { label: "Technical Reviews", icon: EngineeringRoundedIcon, path: "/approvals/tec" },
+    ];
+  }
+
+  if (subRole === "VC") {
+    return [
+      { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
+      { label: "VC Approvals", icon: RateReviewRoundedIcon, path: "/approvals/vc" },
     ];
   }
 
   return [
-    { label: "Request Overview", icon: DashboardRoundedIcon },
-    { label: subRole === "TEC" ? "Technical Reviews" : "My Requisitions", icon: AssignmentTurnedInRoundedIcon },
-    { label: "Workflow Trail", icon: ReceiptLongRoundedIcon },
+    { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
+    { label: "Create Requisition", icon: AddCircleRoundedIcon, path: "/requisition/create" },
+    { label: "My Requisitions", icon: AssignmentTurnedInRoundedIcon, path: "/requisitions" },
   ];
 };
 
@@ -66,7 +97,7 @@ const Sidebar = () => {
               <button
                 key={item.label}
                 type="button"
-                onClick={() => navigate("/dashboard")}
+                onClick={() => navigate(item.path)}
                 className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition hover:bg-[#eef5f8]"
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#edf7fb] text-[#166e8c]">
