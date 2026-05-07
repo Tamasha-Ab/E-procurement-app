@@ -13,6 +13,10 @@ import Register from "./pages/Register/Register.jsx";
 import ResetPassword from "./pages/ResetPassword/ResetPassword.jsx";
 import Layout from "./components/Layout.jsx";
 import Dashboard from "./pages/Dashboard/dashboard.jsx";
+import AdminDashboard from "./pages/Admin/AdminDashboard.jsx";
+import AdminUsers from "./pages/Admin/AdminUsers.jsx";
+import AdminFaculties from "./pages/Admin/AdminFaculties.jsx";
+import AdminDepartments from "./pages/Admin/AdminDepartments.jsx";
 import { useAuth } from "./contexts/AuthContext";
 
 const roleCards = [
@@ -165,7 +169,7 @@ function LandingPage({ onOpenLogin, onOpenRegister }) {
 const App = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [openLogin, setOpenLogin] = useState(false);
   const [openRegister, setOpenRegister] = useState(false);
   const isResetPasswordPage = location.pathname === "/reset-password";
@@ -189,9 +193,12 @@ const App = () => {
       ) : isAuthenticated ? (
         <Layout>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="*" element={<Dashboard />} />
+            <Route path="/" element={user?.mainRole === "ADMIN" ? <AdminDashboard /> : <Dashboard />} />
+            <Route path="/dashboard" element={user?.mainRole === "ADMIN" ? <AdminDashboard /> : <Dashboard />} />
+            <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/faculties" element={<AdminFaculties />} />
+            <Route path="/admin/departments" element={<AdminDepartments />} />
+            <Route path="*" element={user?.mainRole === "ADMIN" ? <AdminDashboard /> : <Dashboard />} />
           </Routes>
         </Layout>
       ) : (
