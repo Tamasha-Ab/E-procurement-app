@@ -13,6 +13,8 @@ import Register from "./pages/Register/Register.jsx";
 import ResetPassword from "./pages/ResetPassword/ResetPassword.jsx";
 import Layout from "./components/Layout.jsx";
 import Dashboard from "./pages/Dashboard/dashboard.jsx";
+import BursarBudgetWorkspace from "./pages/Bursar/BursarBudgetWorkspace.jsx";
+import BursarAuditTrail from "./pages/Bursar/BursarAuditTrail.jsx";
 import { useAuth } from "./contexts/AuthContext";
 
 const roleCards = [
@@ -191,6 +193,8 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/bursar/budgets" element={<BursarBudgetWorkspace />} />
+            <Route path="/bursar/audit-trail" element={<BursarAuditTrail />} />
             <Route path="*" element={<Dashboard />} />
           </Routes>
         </Layout>

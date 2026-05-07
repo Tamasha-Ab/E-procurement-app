@@ -13,32 +13,39 @@ const getMenuItems = (user) => {
 
   if (mainRole === "ADMIN") {
     return [
-      { label: "Overview", icon: DashboardRoundedIcon },
-      { label: "User Governance", icon: AssignmentTurnedInRoundedIcon },
-      { label: "System Audit", icon: ReceiptLongRoundedIcon },
+      { label: "Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
+      { label: "User Governance", icon: AssignmentTurnedInRoundedIcon, path: "/dashboard" },
+      { label: "System Audit", icon: ReceiptLongRoundedIcon, path: "/dashboard" },
+    ];
+  }
+
+  if (mainRole === "FINANCE" && subRole === "BURSAR") {
+    return [
+      { label: "Finance Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
+      { label: "Budget Control", icon: AccountBalanceWalletRoundedIcon, path: "/bursar/budgets?tab=budgets" },
+      { label: "Budget Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/bursar/budgets?tab=approvals" },
+      { label: "Audit Trail", icon: ReceiptLongRoundedIcon, path: "/bursar/audit-trail" },
     ];
   }
 
   if (mainRole === "FINANCE") {
     return [
-      { label: "Finance Dashboard", icon: DashboardRoundedIcon },
-      { label: "Budget Control", icon: AccountBalanceWalletRoundedIcon },
-      { label: "Approvals", icon: AssignmentTurnedInRoundedIcon },
+      { label: "Finance Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
     ];
   }
 
   if (mainRole === "VENDOR") {
     return [
-      { label: "Vendor Dashboard", icon: DashboardRoundedIcon },
-      { label: "Open Opportunities", icon: StorefrontRoundedIcon },
-      { label: "My Submissions", icon: ReceiptLongRoundedIcon },
+      { label: "Vendor Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
+      { label: "Open Opportunities", icon: StorefrontRoundedIcon, path: "/dashboard" },
+      { label: "My Submissions", icon: ReceiptLongRoundedIcon, path: "/dashboard" },
     ];
   }
 
   return [
-    { label: "Request Overview", icon: DashboardRoundedIcon },
-    { label: subRole === "TEC" ? "Technical Reviews" : "My Requisitions", icon: AssignmentTurnedInRoundedIcon },
-    { label: "Workflow Trail", icon: ReceiptLongRoundedIcon },
+    { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
+    { label: subRole === "TEC" ? "Technical Reviews" : "My Requisitions", icon: AssignmentTurnedInRoundedIcon, path: "/dashboard" },
+    { label: "Workflow Trail", icon: ReceiptLongRoundedIcon, path: "/dashboard" },
   ];
 };
 
@@ -66,7 +73,7 @@ const Sidebar = () => {
               <button
                 key={item.label}
                 type="button"
-                onClick={() => navigate("/dashboard")}
+                onClick={() => navigate(item.path || "/dashboard")}
                 className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition hover:bg-[#eef5f8]"
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#edf7fb] text-[#166e8c]">
