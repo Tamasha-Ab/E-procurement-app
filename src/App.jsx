@@ -26,6 +26,7 @@ import HodApprovals from "./pages/Approvals/HodApprovals.jsx";
 import DeanApprovals from "./pages/Approvals/DeanApprovals.jsx";
 import TecApprovals from "./pages/Approvals/TecApprovals.jsx";
 import VcApprovals from "./pages/Approvals/VcApprovals.jsx";
+import ProcurementWorkspace from "./pages/Procurement/ProcurementWorkspace.jsx";
 
 const roleCards = [
   {
@@ -216,15 +217,17 @@ const App = () => {
             <Route path="/approvals/dean" element={<DeanApprovals />} />
             <Route path="/approvals/tec" element={<TecApprovals />} />
             <Route path="/approvals/vc" element={<VcApprovals />} />
+            <Route path="/procurement/tenders" element={<ProcurementWorkspace />} />
+            <Route path="/vendor/tenders" element={<ProcurementWorkspace />} />
             <Route path="*" element={<Dashboard />} />
             <Route path="/" element={user?.mainRole === "ADMIN" ? <AdminDashboard /> : <Dashboard />} />
             <Route path="/dashboard" element={user?.mainRole === "ADMIN" ? <AdminDashboard /> : <Dashboard />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/faculties" element={<AdminFaculties />} />
             <Route path="/admin/departments" element={<AdminDepartments />} />
-            <Route path="/vendor/opportunities" element={<VendorDashboard />} />
-            <Route path="/vendor/submissions" element={<VendorDashboard />} />
-            <Route path="/vendor/purchase-orders" element={<VendorDashboard />} />
+            <Route path="/vendor/opportunities" element={<ProcurementWorkspace />} />
+            <Route path="/vendor/submissions" element={<ProcurementWorkspace />} />
+            <Route path="/vendor/purchase-orders" element={<ProcurementWorkspace />} />
             <Route path="*" element={dashboardElement} />
           </Routes>
         </Layout>
