@@ -260,7 +260,9 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Status Snapshot</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">
+            {staffView ? "Status Snapshot" : "Approval Summary"}
+          </div>
           <div className="mt-4 space-y-4">
             {staffView ? (
               [
@@ -274,10 +276,14 @@ export default function Dashboard() {
                 </div>
               ))
             ) : (
-              ["Pending lists", "Approval comments", "Workflow status updates"].map((item) => (
-                <div key={item} className="rounded-[22px] bg-slate-50 p-4">
-                  <div className="text-sm font-semibold text-[#10283f]">{item}</div>
-                  <div className="mt-1 text-sm text-slate-600">{statusLabel(displayRole)} module is ready.</div>
+              [
+                ["Pending Requests", pendingCount ?? 0],
+                ["Current Stage", statusLabel(displayRole)],
+                [displayRole === "TEC" ? "Review Action" : "Decision Actions", displayRole === "TEC" ? "Complete Review" : "Approve / Return / Reject"],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-[22px] bg-slate-50 p-4">
+                  <div className="text-sm font-semibold text-[#10283f]">{label}</div>
+                  <div className="mt-1 text-lg font-black text-[#166e8c]">{value}</div>
                 </div>
               ))
             )}
