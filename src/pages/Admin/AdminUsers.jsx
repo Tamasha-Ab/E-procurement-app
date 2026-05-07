@@ -127,11 +127,19 @@ export default function AdminUsers() {
   };
 
   const approve = async (user, approved) => {
-    await adminApi.users.approve(user.userId, {
-      approved,
-      rejectionReason: approved ? null : "Rejected by administrator",
-    });
-    await load();
+    setError("");
+
+    try {
+      await adminApi.users.approve(user.userId, {
+        status: approved ? "APPROVED" : "REJECTED",
+        rejectionReason: approved ? "" : "Rejected by administrator",
+        mainRole: user.mainRole || null,
+        subRole: user.subRole || null,
+      });
+      await load();
+    } catch (approvalError) {
+      setError(approvalError.message);
+    }
   };
 
   const toggle = async (user) => {

@@ -7,7 +7,7 @@ import {
   Dialog,
   DialogContent,
 } from "@mui/material";
-import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import Login from "./pages/Login/Login.jsx";
 import Register from "./pages/Register/Register.jsx";
 import ResetPassword from "./pages/ResetPassword/ResetPassword.jsx";
@@ -17,6 +17,7 @@ import AdminDashboard from "./pages/Admin/AdminDashboard.jsx";
 import AdminUsers from "./pages/Admin/AdminUsers.jsx";
 import AdminFaculties from "./pages/Admin/AdminFaculties.jsx";
 import AdminDepartments from "./pages/Admin/AdminDepartments.jsx";
+import VendorDashboard from "./pages/Vendor/VendorDashboard.jsx";
 import { useAuth } from "./contexts/AuthContext";
 
 const roleCards = [
@@ -168,11 +169,15 @@ function LandingPage({ onOpenLogin, onOpenRegister }) {
 
 const App = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const [openLogin, setOpenLogin] = useState(false);
   const [openRegister, setOpenRegister] = useState(false);
   const isResetPasswordPage = location.pathname === "/reset-password";
+  const dashboardElement = user?.mainRole === "ADMIN"
+    ? <AdminDashboard />
+    : user?.mainRole === "VENDOR"
+      ? <VendorDashboard />
+      : <Dashboard />;
 
   const landing = useMemo(
     () => (
@@ -193,12 +198,15 @@ const App = () => {
       ) : isAuthenticated ? (
         <Layout>
           <Routes>
-            <Route path="/" element={user?.mainRole === "ADMIN" ? <AdminDashboard /> : <Dashboard />} />
-            <Route path="/dashboard" element={user?.mainRole === "ADMIN" ? <AdminDashboard /> : <Dashboard />} />
+            <Route path="/" element={dashboardElement} />
+            <Route path="/dashboard" element={dashboardElement} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/faculties" element={<AdminFaculties />} />
             <Route path="/admin/departments" element={<AdminDepartments />} />
-            <Route path="*" element={user?.mainRole === "ADMIN" ? <AdminDashboard /> : <Dashboard />} />
+            <Route path="/vendor/opportunities" element={<VendorDashboard />} />
+            <Route path="/vendor/submissions" element={<VendorDashboard />} />
+            <Route path="/vendor/purchase-orders" element={<VendorDashboard />} />
+            <Route path="*" element={dashboardElement} />
           </Routes>
         </Layout>
       ) : (

@@ -34,8 +34,9 @@ const getMenuItems = (user) => {
   if (mainRole === "VENDOR") {
     return [
       { label: "Vendor Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
-      { label: "Open Opportunities", icon: StorefrontRoundedIcon, path: "/dashboard" },
-      { label: "My Submissions", icon: ReceiptLongRoundedIcon, path: "/dashboard" },
+      { label: "Open Opportunities", icon: StorefrontRoundedIcon, path: "/vendor/opportunities" },
+      { label: "My Submissions", icon: ReceiptLongRoundedIcon, path: "/vendor/submissions" },
+      { label: "Purchase Orders", icon: AssignmentTurnedInRoundedIcon, path: "/vendor/purchase-orders" },
     ];
   }
 

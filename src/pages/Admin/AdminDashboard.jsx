@@ -8,11 +8,22 @@ import { adminApi } from "../../api/adminApi";
 const emptyStats = {
   totalUsers: 0,
   activeUsers: 0,
-  pendingUsers: 0,
+  pendingApprovals: 0,
   approvedUsers: 0,
 };
 
 const numberValue = (value) => Number(value || 0).toLocaleString();
+
+const normalizeStats = (stats, pendingPage) => ({
+  ...emptyStats,
+  ...stats,
+  pendingApprovals:
+    stats?.pendingApprovals ??
+    stats?.pendingUsers ??
+    pendingPage?.totalElements ??
+    pendingPage?.content?.length ??
+    0,
+});
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState(emptyStats);
@@ -39,7 +50,7 @@ export default function AdminDashboard() {
 
         if (!mounted) return;
 
-        setStats({ ...emptyStats, ...userStats });
+        setStats(normalizeStats(userStats, pendingPage));
         setFaculties(Array.isArray(facultyList) ? facultyList : []);
         setDepartments(Array.isArray(departmentList) ? departmentList : []);
         setPendingUsers(pendingPage.content || []);
@@ -58,7 +69,7 @@ export default function AdminDashboard() {
 
   const cards = [
     { label: "Total Users", value: numberValue(stats.totalUsers), icon: PeopleAltRoundedIcon },
-    { label: "Pending Approvals", value: numberValue(stats.pendingUsers), icon: PendingActionsRoundedIcon },
+    { label: "Pending Approvals", value: numberValue(stats.pendingApprovals), icon: PendingActionsRoundedIcon },
     { label: "Faculties", value: numberValue(faculties.length), icon: AccountBalanceRoundedIcon },
     { label: "Departments", value: numberValue(departments.length), icon: BusinessRoundedIcon },
   ];
