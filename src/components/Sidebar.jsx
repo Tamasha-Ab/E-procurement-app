@@ -26,11 +26,19 @@ const getMenuItems = (user) => {
     ];
   }
 
+  if (mainRole === "FINANCE" && subRole === "BURSAR") {
+    return [
+      { label: "Finance Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
+      { label: "Budget Control", icon: AccountBalanceWalletRoundedIcon, path: "/bursar/budgets?tab=budgets" },
+      { label: "Budget Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/bursar/budgets?tab=approvals" },
+      { label: "Audit Trail", icon: ReceiptLongRoundedIcon, path: "/bursar/audit-trail" },
+      
+    ];
+  }
+
   if (mainRole === "FINANCE") {
     return [
       { label: "Finance Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
-      { label: "Budget Control", icon: AccountBalanceWalletRoundedIcon, path: "/dashboard" },
-      { label: "Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/dashboard" },
     ];
   }
 
@@ -102,6 +110,7 @@ const Sidebar = () => {
               <button
                 key={item.label}
                 type="button"
+                onClick={() => navigate(item.path || "/dashboard")}
                 onClick={() => navigate(item.path)}
                 className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition hover:bg-[#eef5f8]"
               >

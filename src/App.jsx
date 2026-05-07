@@ -13,6 +13,8 @@ import Register from "./pages/Register/Register.jsx";
 import ResetPassword from "./pages/ResetPassword/ResetPassword.jsx";
 import Layout from "./components/Layout.jsx";
 import Dashboard from "./pages/Dashboard/dashboard.jsx";
+import BursarBudgetWorkspace from "./pages/Bursar/BursarBudgetWorkspace.jsx";
+import BursarAuditTrail from "./pages/Bursar/BursarAuditTrail.jsx";
 import AdminDashboard from "./pages/Admin/AdminDashboard.jsx";
 import AdminUsers from "./pages/Admin/AdminUsers.jsx";
 import AdminFaculties from "./pages/Admin/AdminFaculties.jsx";
@@ -202,6 +204,8 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/bursar/budgets" element={<BursarBudgetWorkspace />} />
+            <Route path="/bursar/audit-trail" element={<BursarAuditTrail />} />
             <Route path="/requisition/create" element={<CreateRequisition />} />
             <Route path="/requisitions" element={<MyRequisitions />} />
             <Route path="/requisitions/:rrId" element={<RequisitionDetails />} />
