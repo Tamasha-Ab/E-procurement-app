@@ -7,7 +7,7 @@ import {
   Dialog,
   DialogContent,
 } from "@mui/material";
-import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import Login from "./pages/Login/Login.jsx";
 import Register from "./pages/Register/Register.jsx";
 import ResetPassword from "./pages/ResetPassword/ResetPassword.jsx";
@@ -19,6 +19,7 @@ import AdminDashboard from "./pages/Admin/AdminDashboard.jsx";
 import AdminUsers from "./pages/Admin/AdminUsers.jsx";
 import AdminFaculties from "./pages/Admin/AdminFaculties.jsx";
 import AdminDepartments from "./pages/Admin/AdminDepartments.jsx";
+import VendorDashboard from "./pages/Vendor/VendorDashboard.jsx";
 import { useAuth } from "./contexts/AuthContext";
 import CreateRequisition from "./pages/Staff/CreateRequisition.jsx";
 import MyRequisitions from "./pages/Staff/MyRequisitions.jsx";
@@ -27,6 +28,7 @@ import HodApprovals from "./pages/Approvals/HodApprovals.jsx";
 import DeanApprovals from "./pages/Approvals/DeanApprovals.jsx";
 import TecApprovals from "./pages/Approvals/TecApprovals.jsx";
 import VcApprovals from "./pages/Approvals/VcApprovals.jsx";
+import ProcurementWorkspace from "./pages/Procurement/ProcurementWorkspace.jsx";
 
 const roleCards = [
   {
@@ -177,11 +179,15 @@ function LandingPage({ onOpenLogin, onOpenRegister }) {
 
 const App = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const [openLogin, setOpenLogin] = useState(false);
   const [openRegister, setOpenRegister] = useState(false);
   const isResetPasswordPage = location.pathname === "/reset-password";
+  const dashboardElement = user?.mainRole === "ADMIN"
+    ? <AdminDashboard />
+    : user?.mainRole === "VENDOR"
+      ? <VendorDashboard />
+      : <Dashboard />;
 
   const landing = useMemo(
     () => (
@@ -202,6 +208,8 @@ const App = () => {
       ) : isAuthenticated ? (
         <Layout>
           <Routes>
+            <Route path="/" element={dashboardElement} />
+            <Route path="/dashboard" element={dashboardElement} />
             <Route path="/" element={<Dashboard />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/bursar/budgets" element={<BursarBudgetWorkspace />} />
@@ -213,13 +221,18 @@ const App = () => {
             <Route path="/approvals/dean" element={<DeanApprovals />} />
             <Route path="/approvals/tec" element={<TecApprovals />} />
             <Route path="/approvals/vc" element={<VcApprovals />} />
+            <Route path="/procurement/tenders" element={<ProcurementWorkspace />} />
+            <Route path="/vendor/tenders" element={<ProcurementWorkspace />} />
             <Route path="*" element={<Dashboard />} />
             <Route path="/" element={user?.mainRole === "ADMIN" ? <AdminDashboard /> : <Dashboard />} />
             <Route path="/dashboard" element={user?.mainRole === "ADMIN" ? <AdminDashboard /> : <Dashboard />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/faculties" element={<AdminFaculties />} />
             <Route path="/admin/departments" element={<AdminDepartments />} />
-            <Route path="*" element={user?.mainRole === "ADMIN" ? <AdminDashboard /> : <Dashboard />} />
+            <Route path="/vendor/opportunities" element={<ProcurementWorkspace />} />
+            <Route path="/vendor/submissions" element={<ProcurementWorkspace />} />
+            <Route path="/vendor/purchase-orders" element={<ProcurementWorkspace />} />
+            <Route path="*" element={dashboardElement} />
           </Routes>
         </Layout>
       ) : (

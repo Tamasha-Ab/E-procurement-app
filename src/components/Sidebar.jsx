@@ -37,16 +37,23 @@ const getMenuItems = (user) => {
   }
 
   if (mainRole === "FINANCE") {
-    return [
+    const financeItems = [
       { label: "Finance Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
     ];
+
+    if (subRole === "PROCUREMENT_OFFICER") {
+      financeItems.push({ label: "Tender Workspace", icon: StorefrontRoundedIcon, path: "/procurement/tenders" });
+    }
+
+    return financeItems;
   }
 
   if (mainRole === "VENDOR") {
     return [
       { label: "Vendor Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
-      { label: "Open Opportunities", icon: StorefrontRoundedIcon, path: "/dashboard" },
-      { label: "My Submissions", icon: ReceiptLongRoundedIcon, path: "/dashboard" },
+      { label: "Tender Workspace", icon: StorefrontRoundedIcon, path: "/vendor/tenders" },
+      { label: "My Submissions", icon: ReceiptLongRoundedIcon, path: "/vendor/submissions" },
+      { label: "Purchase Orders", icon: AssignmentTurnedInRoundedIcon, path: "/vendor/purchase-orders" },
     ];
   }
 
@@ -68,6 +75,7 @@ const getMenuItems = (user) => {
     return [
       { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
       { label: "Technical Reviews", icon: EngineeringRoundedIcon, path: "/approvals/tec" },
+      { label: "Tender Evaluation", icon: StorefrontRoundedIcon, path: "/procurement/tenders" },
     ];
   }
 
@@ -75,6 +83,7 @@ const getMenuItems = (user) => {
     return [
       { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
       { label: "VC Approvals", icon: RateReviewRoundedIcon, path: "/approvals/vc" },
+      { label: "Offer Approvals", icon: StorefrontRoundedIcon, path: "/procurement/tenders" },
     ];
   }
 
