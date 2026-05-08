@@ -120,7 +120,6 @@ const Sidebar = () => {
                 key={item.label}
                 type="button"
                 onClick={() => navigate(item.path || "/dashboard")}
-                onClick={() => navigate(item.path)}
                 className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition hover:bg-[#eef5f8]"
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#edf7fb] text-[#166e8c]">
