@@ -9,6 +9,7 @@ export const procurementApi = {
   },
   rfqs: {
     list: (token) => apiRequest(`${procurementBase}/rfqs?page=0&size=20`, { token }),
+    readyForSpecifications: (token) => apiRequest(`${procurementBase}/rfqs/ready-for-specifications`, { token }),
     detail: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}`, { token }),
     create: (token, payload) => apiRequest(`${procurementBase}/rfqs`, { token, method: "POST", body: payload }),
     inviteVendors: (token, rfqId, payload) =>
@@ -23,6 +24,7 @@ export const procurementApi = {
     create: (token, rfqId, payload) =>
       apiRequest(`${procurementBase}/rfqs/${rfqId}/specifications`, { token, method: "POST", body: payload }),
     list: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}/specifications`, { token }),
+    pendingVc: (token) => apiRequest(`${procurementBase}/specifications/pending-vc`, { token }),
     decide: (token, specId, payload) =>
       apiRequest(`${procurementBase}/specifications/${specId}/vc-decision`, { token, method: "PATCH", body: payload }),
   },
@@ -44,6 +46,7 @@ export const procurementApi = {
   offers: {
     create: (token, rfqId, payload) =>
       apiRequest(`${procurementBase}/rfqs/${rfqId}/offer-letters`, { token, method: "POST", body: payload }),
+    pendingVc: (token) => apiRequest(`${procurementBase}/offer-letters/pending-vc`, { token }),
     decide: (token, offerLetterId, payload) =>
       apiRequest(`${procurementBase}/offer-letters/${offerLetterId}/vc-decision`, { token, method: "PATCH", body: payload }),
   },
