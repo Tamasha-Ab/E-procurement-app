@@ -176,22 +176,50 @@ function SelectField({ value, onChange, options, placeholder = "Select an option
 }
 
 function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
+  const [activeSection, setActiveSection] = useState("rfq");
   const [rfqForm, setRfqForm] = useState(initialRfq);
-  const [vendorIds, setVendorIds] = useState("");
   const [selectedRfq, setSelectedRfq] = useState(null);
+  const [readyRequests, setReadyRequests] = useState([]);
   const [rfqs, setRfqs] = useState([]);
+  const [vendors, setVendors] = useState([]);
+  const [vendorSearch, setVendorSearch] = useState("");
+  const [selectedVendorIds, setSelectedVendorIds] = useState([]);
+  const [acceptedOffers, setAcceptedOffers] = useState([]);
   const [pos, setPos] = useState([]);
   const [poForm, setPoForm] = useState({ offerLetterId: "", poNumber: "", deliveryDeadline: "" });
   const [loading, setLoading] = useState(false);
 
+  const sections = [
+    { id: "rfq", label: "Create RFQ" },
+    { id: "vendors", label: "Invite Vendors" },
+    { id: "po", label: "Purchase Orders" },
+  ];
+
+  const readyRequestOptions = readyRequests.map((request) => ({
+    value: request.rrId,
+    label: `${request.rrNumber || `RR ${request.rrId}`} - ${request.title || "Untitled"} - ${formatMoney(request.estimatedTotalAmount)}`,
+  }));
+  const rfqOptions = rfqs.map((rfq) => ({
+    value: rfq.rfqId,
+    label: `${rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - ${rfq.title || "Untitled"} - ${rfq.status || "DRAFT"}`,
+  }));
+  const acceptedOfferOptions = acceptedOffers.map((offer) => ({
+    value: offer.offerLetterId,
+    label: `${offer.letterNumber || `Offer ${offer.offerLetterId}`} - ${offer.vendorName || "Vendor"} - ${formatMoney(offer.offerAmount)}`,
+  }));
+
   const load = async () => {
     setLoading(true);
     try {
-      const [rfqData, poData] = await Promise.all([
+      const [readyData, rfqData, offerData, poData] = await Promise.all([
+        procurementApi.requisitions.ready(token),
         procurementApi.rfqs.list(token),
+        procurementApi.purchaseOrders.acceptedOffers(token),
         procurementApi.purchaseOrders.list(token),
       ]);
+      setReadyRequests(getArray(readyData));
       setRfqs(getArray(rfqData));
+      setAcceptedOffers(getArray(offerData));
       setPos(getArray(poData));
     } catch (err) {
       setError(err.message || "Could not load procurement data.");
@@ -200,8 +228,28 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
     }
   };
 
+  const searchVendors = async (event) => {
+    event?.preventDefault();
+    setError("");
+    setMessage("");
+    try {
+      const data = await procurementApi.vendors.search(token, vendorSearch);
+      const users = getArray(data).filter((user) => user.vendorId);
+      setVendors(users);
+      if (!users.length) {
+        setMessage("No approved vendors found for that business name.");
+      }
+    } catch (err) {
+      setError(err.message || "Could not search vendors.");
+    }
+  };
+
   useEffect(() => {
     load();
+  }, [token]);
+
+  useEffect(() => {
+    searchVendors();
   }, [token]);
 
   const updateRfq = (event) => {
@@ -237,10 +285,9 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
     setError("");
     setMessage("");
     try {
-      const ids = vendorIds.split(",").map((id) => Number(id.trim())).filter(Boolean);
-      await procurementApi.rfqs.inviteVendors(token, selectedRfq.rfqId, { vendorIds: ids });
+      await procurementApi.rfqs.inviteVendors(token, selectedRfq.rfqId, { vendorIds: selectedVendorIds.map(Number) });
       setMessage("Vendors invited to the selected RFQ.");
-      setVendorIds("");
+      setSelectedVendorIds([]);
     } catch (err) {
       setError(err.message || "Could not invite vendors.");
     }
@@ -265,56 +312,146 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
   };
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-      <ActionCard eyebrow="RFQ Setup" title="Create RFQ from Approved RR">
-        <form onSubmit={createRfq} className="space-y-4">
-          <Field label="Approved RR ID"><input className={inputClass} name="rrId" value={rfqForm.rrId} onChange={updateRfq} required /></Field>
-          <Field label="RFQ Title"><input className={inputClass} name="title" value={rfqForm.title} onChange={updateRfq} required /></Field>
-          <Field label="Description"><textarea className={inputClass} name="description" rows={3} value={rfqForm.description} onChange={updateRfq} /></Field>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Submission Deadline"><input className={inputClass} type="datetime-local" name="submissionDeadline" value={rfqForm.submissionDeadline} onChange={updateRfq} required /></Field>
-            <Field label="Bid Opening Time"><input className={inputClass} type="datetime-local" name="bidOpeningDateTime" value={rfqForm.bidOpeningDateTime} onChange={updateRfq} /></Field>
-          </div>
-          <Field label="Objection Deadline"><input className={inputClass} type="datetime-local" name="objectionDeadline" value={rfqForm.objectionDeadline} onChange={updateRfq} /></Field>
-          <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
-            <input type="checkbox" name="publishNow" checked={rfqForm.publishNow} onChange={updateRfq} />
-            Publish immediately
-          </label>
-          <button className={buttonClass} type="submit">Create RFQ</button>
-        </form>
-      </ActionCard>
+    <div className="space-y-6">
+      <section className={cardClass}>
+        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Tender Workspace</div>
+        <h2 className="mt-3 text-2xl font-black text-[#10283f]">Procurement officer actions</h2>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {sections.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => setActiveSection(section.id)}
+              className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${
+                activeSection === section.id ? "bg-[#166e8c] text-white" : "bg-[#edf7fb] text-[#166e8c] hover:bg-[#d9edf5]"
+              }`}
+            >
+              {section.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
-      <ActionCard eyebrow="Tender List" title="Invite Vendors">
-        {loading ? <EmptyState text="Loading RFQs..." /> : <RfqList rfqs={rfqs} selectedId={selectedRfq?.rfqId} onSelect={setSelectedRfq} />}
-        <form onSubmit={inviteVendors} className="space-y-4">
-          <Field label="Vendor IDs, separated by commas">
-            <input className={inputClass} value={vendorIds} onChange={(event) => setVendorIds(event.target.value)} placeholder="Example: 1,2,3" />
-          </Field>
-          <button className={buttonClass} type="submit" disabled={!selectedRfq}>Invite Vendors</button>
-        </form>
-      </ActionCard>
+      {activeSection === "rfq" && (
+        <ActionCard eyebrow="RFQ Setup" title="Create RFQ from Approved RR">
+          <form onSubmit={createRfq} className="space-y-4">
+            <Field label="Approved Requisition Request">
+              <SelectField
+                value={rfqForm.rrId}
+                onChange={(e) => setRfqForm((current) => ({ ...current, rrId: e.target.value }))}
+                options={readyRequestOptions}
+                placeholder={loading ? "Loading approved requests..." : "Select approved RR"}
+                required
+              />
+            </Field>
+            <Field label="RFQ Title"><input className={inputClass} name="title" value={rfqForm.title} onChange={updateRfq} required /></Field>
+            <Field label="Description"><textarea className={inputClass} name="description" rows={3} value={rfqForm.description} onChange={updateRfq} /></Field>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Submission Deadline"><input className={inputClass} type="datetime-local" name="submissionDeadline" value={rfqForm.submissionDeadline} onChange={updateRfq} required /></Field>
+              <Field label="Bid Opening Time"><input className={inputClass} type="datetime-local" name="bidOpeningDateTime" value={rfqForm.bidOpeningDateTime} onChange={updateRfq} /></Field>
+            </div>
+            <Field label="Objection Deadline"><input className={inputClass} type="datetime-local" name="objectionDeadline" value={rfqForm.objectionDeadline} onChange={updateRfq} /></Field>
+            <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
+              <input type="checkbox" name="publishNow" checked={rfqForm.publishNow} onChange={updateRfq} />
+              Publish immediately
+            </label>
+            <button className={buttonClass} type="submit">Create RFQ</button>
+          </form>
+        </ActionCard>
+      )}
 
-      <ActionCard eyebrow="Purchase Order" title="Generate PO After Offer Acceptance">
-        <form onSubmit={createPo} className="space-y-4">
-          <Field label="Accepted Offer Letter ID"><input className={inputClass} value={poForm.offerLetterId} onChange={(e) => setPoForm((c) => ({ ...c, offerLetterId: e.target.value }))} required /></Field>
-          <Field label="PO Number"><input className={inputClass} value={poForm.poNumber} onChange={(e) => setPoForm((c) => ({ ...c, poNumber: e.target.value }))} /></Field>
-          <Field label="Delivery Deadline"><input className={inputClass} type="date" value={poForm.deliveryDeadline} onChange={(e) => setPoForm((c) => ({ ...c, deliveryDeadline: e.target.value }))} /></Field>
-          <button className={buttonClass} type="submit">Generate PO</button>
-        </form>
-      </ActionCard>
+      {activeSection === "vendors" && (
+        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <ActionCard eyebrow="Tender List" title="Select RFQ">
+            <Field label="RFQ">
+              <SelectField
+                value={selectedRfq?.rfqId || ""}
+                onChange={(e) => setSelectedRfq(rfqs.find((rfq) => String(rfq.rfqId) === e.target.value) || null)}
+                options={rfqOptions}
+                placeholder={loading ? "Loading RFQs..." : "Select RFQ"}
+                required
+              />
+            </Field>
+            <RfqList rfqs={selectedRfq ? [selectedRfq] : []} selectedId={selectedRfq?.rfqId} />
+          </ActionCard>
 
-      <ActionCard eyebrow="PO Tracking" title="Purchase Orders">
-        <DataTable
-          rows={pos}
-          empty="No purchase orders found."
-          columns={[
-            { key: "purchaseOrderId", label: "PO ID" },
-            { key: "poNumber", label: "PO Number" },
-            { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
-            { key: "totalAmount", label: "Amount", render: (row) => formatMoney(row.totalAmount) },
-          ]}
-        />
-      </ActionCard>
+          <ActionCard eyebrow="Vendor Search" title="Search Vendors by Business Name">
+            <form onSubmit={searchVendors} className="flex flex-col gap-3 md:flex-row">
+              <input
+                className={inputClass}
+                value={vendorSearch}
+                onChange={(event) => setVendorSearch(event.target.value)}
+                placeholder="Business name, example: ABC Suppliers"
+              />
+              <button className={buttonClass} type="submit">Search</button>
+            </form>
+            <form onSubmit={inviteVendors} className="space-y-4">
+              <div className="max-h-[320px] space-y-3 overflow-y-auto rounded-[24px] border border-[#dce8ef] p-3">
+                {!vendors.length && <EmptyState text="Search approved vendors by business name, then select one or more vendors." />}
+                {vendors.map((vendor) => (
+                  <label key={`${vendor.userId}-${vendor.vendorId}`} className="flex items-start gap-3 rounded-[20px] bg-[#f8fcff] p-4">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={selectedVendorIds.includes(String(vendor.vendorId))}
+                      onChange={(event) => {
+                        setSelectedVendorIds((current) =>
+                          event.target.checked
+                            ? [...current, String(vendor.vendorId)]
+                            : current.filter((id) => id !== String(vendor.vendorId))
+                        );
+                      }}
+                    />
+                    <span>
+                      <span className="block text-sm font-black text-[#10283f]">{vendor.vendorName || vendor.username}</span>
+                      <span className="block text-xs leading-6 text-slate-600">
+                        Vendor ID {vendor.vendorId} | {vendor.email}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <button className={buttonClass} type="submit" disabled={!selectedRfq || !selectedVendorIds.length}>
+                Invite Selected Vendors
+              </button>
+            </form>
+          </ActionCard>
+        </div>
+      )}
+
+      {activeSection === "po" && (
+        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <ActionCard eyebrow="Purchase Order" title="Generate PO After Offer Acceptance">
+            <form onSubmit={createPo} className="space-y-4">
+              <Field label="Accepted Offer Letter">
+                <SelectField
+                  value={poForm.offerLetterId}
+                  onChange={(e) => setPoForm((c) => ({ ...c, offerLetterId: e.target.value }))}
+                  options={acceptedOfferOptions}
+                  placeholder="Select accepted offer letter"
+                  required
+                />
+              </Field>
+              <Field label="PO Number"><input className={inputClass} value={poForm.poNumber} onChange={(e) => setPoForm((c) => ({ ...c, poNumber: e.target.value }))} /></Field>
+              <Field label="Delivery Deadline"><input className={inputClass} type="date" value={poForm.deliveryDeadline} onChange={(e) => setPoForm((c) => ({ ...c, deliveryDeadline: e.target.value }))} /></Field>
+              <button className={buttonClass} type="submit">Generate PO</button>
+            </form>
+          </ActionCard>
+
+          <ActionCard eyebrow="PO Tracking" title="Purchase Orders">
+            <DataTable
+              rows={pos}
+              empty="No purchase orders found."
+              columns={[
+                { key: "purchaseOrderId", label: "PO ID" },
+                { key: "poNumber", label: "PO Number" },
+                { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
+                { key: "totalAmount", label: "Amount", render: (row) => formatMoney(row.totalAmount) },
+              ]}
+            />
+          </ActionCard>
+        </div>
+      )}
     </div>
   );
 }
