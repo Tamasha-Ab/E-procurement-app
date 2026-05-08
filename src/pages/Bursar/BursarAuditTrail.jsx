@@ -4,9 +4,11 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Collapse,
   TextField,
   Typography,
 } from "@mui/material";
+import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
@@ -18,6 +20,16 @@ const formatDateTime = (value) => {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+};
+
+const formatCurrency = (value) => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "Not recorded";
+  return new Intl.NumberFormat("en-LK", {
+    style: "currency",
+    currency: "LKR",
+    minimumFractionDigits: 2,
+  }).format(amount);
 };
 
 const getResponseMessage = (body, fallback) =>
@@ -34,6 +46,7 @@ export default function BursarAuditTrail() {
   const [rrId, setRrId] = useState("");
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
   const isBursar = user?.mainRole === "FINANCE" && user?.subRole === "BURSAR";
 
   const authHeaders = useMemo(
@@ -93,6 +106,18 @@ export default function BursarAuditTrail() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleEntry = (approvalId) => {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(approvalId)) {
+        next.delete(approvalId);
+      } else {
+        next.add(approvalId);
+      }
+      return next;
+    });
   };
 
   if (!isBursar) {
@@ -176,49 +201,102 @@ export default function BursarAuditTrail() {
             </div>
           )}
 
-          {entries.map((entry) => (
-            <article key={entry.approvalId} className="rounded-[24px] border border-[#e0ebf1] bg-[#fbfdff] p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="flex gap-4">
-                  <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#edf7fb] text-[#166e8c]">
-                    <HistoryRoundedIcon fontSize="small" />
-                  </span>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Typography className="!text-lg !font-bold !text-[#10283f]">
-                        {formatActionLabel(entry.action)}
-                      </Typography>
-                      <Chip label={entry.actionRole || "ROLE"} size="small" sx={{ bgcolor: "#edf7fb", color: "#166e8c", fontWeight: 700 }} />
+          {entries.map((entry) => {
+            const isExpanded = expandedIds.has(entry.approvalId);
+
+            return (
+              <article key={entry.approvalId} className="rounded-[24px] border border-[#e0ebf1] bg-[#fbfdff] p-5">
+                <button
+                  type="button"
+                  className="w-full text-left"
+                  onClick={() => toggleEntry(entry.approvalId)}
+                  aria-expanded={isExpanded}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex gap-4">
+                      <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#edf7fb] text-[#166e8c]">
+                        <HistoryRoundedIcon fontSize="small" />
+                      </span>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Typography className="!text-lg !font-bold !text-[#10283f]">
+                            {formatActionLabel(entry.action)}
+                          </Typography>
+                          <Chip label={entry.actionRole || "ROLE"} size="small" sx={{ bgcolor: "#edf7fb", color: "#166e8c", fontWeight: 700 }} />
+                        </div>
+                        <Typography className="!mt-2 !text-sm !leading-7 !text-slate-600">
+                          {entry.rrNumber || `RR ID ${entry.rrId}`} - {entry.requestTitle || "Requisition request"}
+                        </Typography>
+                        <Typography className="!mt-1 !text-xs !font-semibold !uppercase !tracking-[0.16em] !text-slate-500">
+                          Requester: {entry.requestedByName || "Not recorded"}
+                        </Typography>
+                      </div>
                     </div>
-                    <Typography className="!mt-2 !text-sm !leading-7 !text-slate-600">
-                      RR ID {entry.rrId} - {entry.actionByName || `User ${entry.actionById}`}
-                    </Typography>
+                    <div className="flex items-center justify-between gap-4 lg:justify-end lg:text-right">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Timestamp</div>
+                        <div className="mt-1 text-sm font-bold text-[#10283f]">{formatDateTime(entry.createdAt)}</div>
+                      </div>
+                      <KeyboardArrowDownRoundedIcon
+                        className={`text-[#166e8c] transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                      />
+                    </div>
                   </div>
-                </div>
-                <div className="text-left lg:text-right">
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Timestamp</div>
-                  <div className="mt-1 text-sm font-bold text-[#10283f]">{formatDateTime(entry.createdAt)}</div>
-                </div>
-              </div>
+                </button>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">From</div>
-                  <div className="mt-2 text-sm font-bold text-[#10283f]">{entry.fromStatus || "Not set"}</div>
-                </div>
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">To</div>
-                  <div className="mt-2 text-sm font-bold text-[#10283f]">{entry.toStatus || "Not set"}</div>
-                </div>
-              </div>
+                <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                  <div className="mt-4 rounded-[22px] border border-[#dce8ef] bg-white p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#166e8c]">Requisition Details</div>
+                        <h3 className="mt-2 text-lg font-bold text-[#10283f]">{entry.itemName || "Item not recorded"}</h3>
+                        <p className="mt-2 text-sm leading-7 text-slate-600">
+                          {entry.itemDescription || entry.requestDescription || "No item description recorded."}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-[#edf7fb] px-4 py-3 text-sm font-bold text-[#166e8c]">
+                        Requested by {entry.requestedByName || "Not recorded"}
+                      </div>
+                    </div>
 
-              {entry.comment && (
-                <div className="mt-4 rounded-2xl bg-[#fff9ec] p-4 text-sm leading-7 text-[#6f4c00]">
-                  {entry.comment}
-                </div>
-              )}
-            </article>
-          ))}
+                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <DetailBlock label="Quantity" value={`${entry.quantity ?? "Not recorded"}${entry.unitOfMeasure ? ` ${entry.unitOfMeasure}` : ""}`} />
+                      <DetailBlock label="Estimated Unit Price" value={formatCurrency(entry.estimatedUnitPrice)} />
+                      <DetailBlock label="Estimated Total Price" value={formatCurrency(entry.estimatedTotalPrice)} />
+                      <DetailBlock label="Department" value={entry.departmentName || "Not recorded"} />
+                    </div>
+
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <DetailBlock label="Faculty" value={entry.facultyName || "Not recorded"} />
+                      <DetailBlock label="Requester User Name" value={entry.requestedByName || "Not recorded"} />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-2xl bg-slate-50 p-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">From</div>
+                      <div className="mt-2 text-sm font-bold text-[#10283f]">{entry.fromStatus || "Not set"}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">To</div>
+                      <div className="mt-2 text-sm font-bold text-[#10283f]">{entry.toStatus || "Not set"}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Action By</div>
+                    <div className="mt-2 text-sm font-bold text-[#10283f]">{entry.actionByName || `User ${entry.actionById}`}</div>
+                  </div>
+
+                  {entry.comment && (
+                    <div className="mt-4 rounded-2xl bg-[#fff9ec] p-4 text-sm leading-7 text-[#6f4c00]">
+                      {entry.comment}
+                    </div>
+                  )}
+                </Collapse>
+              </article>
+            );
+          })}
         </div>
       </section>
 
@@ -239,3 +317,12 @@ const primaryButtonSx = {
   fontWeight: 800,
   "&:hover": { bgcolor: "#145f79" },
 };
+
+function DetailBlock({ label, value }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</div>
+      <div className="mt-2 text-sm font-bold text-[#10283f]">{value}</div>
+    </div>
+  );
+}
