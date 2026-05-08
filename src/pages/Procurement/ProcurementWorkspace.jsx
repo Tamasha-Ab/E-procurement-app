@@ -162,23 +162,64 @@ function DataTable({ rows, columns, empty }) {
   );
 }
 
+function SelectField({ value, onChange, options, placeholder = "Select an option", required = false, disabled = false }) {
+  return (
+    <select className={inputClass} value={value} onChange={onChange} required={required} disabled={disabled}>
+      <option value="">{placeholder}</option>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
+  const [activeSection, setActiveSection] = useState("rfq");
   const [rfqForm, setRfqForm] = useState(initialRfq);
-  const [vendorIds, setVendorIds] = useState("");
   const [selectedRfq, setSelectedRfq] = useState(null);
+  const [readyRequests, setReadyRequests] = useState([]);
   const [rfqs, setRfqs] = useState([]);
+  const [vendors, setVendors] = useState([]);
+  const [vendorSearch, setVendorSearch] = useState("");
+  const [selectedVendorIds, setSelectedVendorIds] = useState([]);
+  const [acceptedOffers, setAcceptedOffers] = useState([]);
   const [pos, setPos] = useState([]);
   const [poForm, setPoForm] = useState({ offerLetterId: "", poNumber: "", deliveryDeadline: "" });
   const [loading, setLoading] = useState(false);
 
+  const sections = [
+    { id: "rfq", label: "Create RFQ" },
+    { id: "vendors", label: "Invite Vendors" },
+    { id: "po", label: "Purchase Orders" },
+  ];
+
+  const readyRequestOptions = readyRequests.map((request) => ({
+    value: request.rrId,
+    label: `${request.rrNumber || `RR ${request.rrId}`} - ${request.title || "Untitled"} - ${formatMoney(request.estimatedTotalAmount)}`,
+  }));
+  const rfqOptions = rfqs.map((rfq) => ({
+    value: rfq.rfqId,
+    label: `${rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - ${rfq.title || "Untitled"} - ${rfq.status || "DRAFT"}`,
+  }));
+  const acceptedOfferOptions = acceptedOffers.map((offer) => ({
+    value: offer.offerLetterId,
+    label: `${offer.letterNumber || `Offer ${offer.offerLetterId}`} - ${offer.vendorName || "Vendor"} - ${formatMoney(offer.offerAmount)}`,
+  }));
+
   const load = async () => {
     setLoading(true);
     try {
-      const [rfqData, poData] = await Promise.all([
+      const [readyData, rfqData, offerData, poData] = await Promise.all([
+        procurementApi.requisitions.ready(token),
         procurementApi.rfqs.list(token),
+        procurementApi.purchaseOrders.acceptedOffers(token),
         procurementApi.purchaseOrders.list(token),
       ]);
+      setReadyRequests(getArray(readyData));
       setRfqs(getArray(rfqData));
+      setAcceptedOffers(getArray(offerData));
       setPos(getArray(poData));
     } catch (err) {
       setError(err.message || "Could not load procurement data.");
@@ -187,8 +228,28 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
     }
   };
 
+  const searchVendors = async (event) => {
+    event?.preventDefault();
+    setError("");
+    setMessage("");
+    try {
+      const data = await procurementApi.vendors.search(token, vendorSearch);
+      const users = getArray(data).filter((user) => user.vendorId);
+      setVendors(users);
+      if (!users.length) {
+        setMessage("No approved vendors found for that business name.");
+      }
+    } catch (err) {
+      setError(err.message || "Could not search vendors.");
+    }
+  };
+
   useEffect(() => {
     load();
+  }, [token]);
+
+  useEffect(() => {
+    searchVendors();
   }, [token]);
 
   const updateRfq = (event) => {
@@ -224,10 +285,9 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
     setError("");
     setMessage("");
     try {
-      const ids = vendorIds.split(",").map((id) => Number(id.trim())).filter(Boolean);
-      await procurementApi.rfqs.inviteVendors(token, selectedRfq.rfqId, { vendorIds: ids });
+      await procurementApi.rfqs.inviteVendors(token, selectedRfq.rfqId, { vendorIds: selectedVendorIds.map(Number) });
       setMessage("Vendors invited to the selected RFQ.");
-      setVendorIds("");
+      setSelectedVendorIds([]);
     } catch (err) {
       setError(err.message || "Could not invite vendors.");
     }
@@ -252,77 +312,232 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
   };
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-      <ActionCard eyebrow="RFQ Setup" title="Create RFQ from Approved RR">
-        <form onSubmit={createRfq} className="space-y-4">
-          <Field label="Approved RR ID"><input className={inputClass} name="rrId" value={rfqForm.rrId} onChange={updateRfq} required /></Field>
-          <Field label="RFQ Title"><input className={inputClass} name="title" value={rfqForm.title} onChange={updateRfq} required /></Field>
-          <Field label="Description"><textarea className={inputClass} name="description" rows={3} value={rfqForm.description} onChange={updateRfq} /></Field>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Submission Deadline"><input className={inputClass} type="datetime-local" name="submissionDeadline" value={rfqForm.submissionDeadline} onChange={updateRfq} required /></Field>
-            <Field label="Bid Opening Time"><input className={inputClass} type="datetime-local" name="bidOpeningDateTime" value={rfqForm.bidOpeningDateTime} onChange={updateRfq} /></Field>
-          </div>
-          <Field label="Objection Deadline"><input className={inputClass} type="datetime-local" name="objectionDeadline" value={rfqForm.objectionDeadline} onChange={updateRfq} /></Field>
-          <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
-            <input type="checkbox" name="publishNow" checked={rfqForm.publishNow} onChange={updateRfq} />
-            Publish immediately
-          </label>
-          <button className={buttonClass} type="submit">Create RFQ</button>
-        </form>
-      </ActionCard>
+    <div className="space-y-6">
+      <section className={cardClass}>
+        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Tender Workspace</div>
+        <h2 className="mt-3 text-2xl font-black text-[#10283f]">Procurement officer actions</h2>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {sections.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => setActiveSection(section.id)}
+              className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${
+                activeSection === section.id ? "bg-[#166e8c] text-white" : "bg-[#edf7fb] text-[#166e8c] hover:bg-[#d9edf5]"
+              }`}
+            >
+              {section.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
-      <ActionCard eyebrow="Tender List" title="Invite Vendors">
-        {loading ? <EmptyState text="Loading RFQs..." /> : <RfqList rfqs={rfqs} selectedId={selectedRfq?.rfqId} onSelect={setSelectedRfq} />}
-        <form onSubmit={inviteVendors} className="space-y-4">
-          <Field label="Vendor IDs, separated by commas">
-            <input className={inputClass} value={vendorIds} onChange={(event) => setVendorIds(event.target.value)} placeholder="Example: 1,2,3" />
-          </Field>
-          <button className={buttonClass} type="submit" disabled={!selectedRfq}>Invite Vendors</button>
-        </form>
-      </ActionCard>
+      {activeSection === "rfq" && (
+        <ActionCard eyebrow="RFQ Setup" title="Create RFQ from Approved RR">
+          <form onSubmit={createRfq} className="space-y-4">
+            <Field label="Approved Requisition Request">
+              <SelectField
+                value={rfqForm.rrId}
+                onChange={(e) => setRfqForm((current) => ({ ...current, rrId: e.target.value }))}
+                options={readyRequestOptions}
+                placeholder={loading ? "Loading approved requests..." : "Select approved RR"}
+                required
+              />
+            </Field>
+            <Field label="RFQ Title"><input className={inputClass} name="title" value={rfqForm.title} onChange={updateRfq} required /></Field>
+            <Field label="Description"><textarea className={inputClass} name="description" rows={3} value={rfqForm.description} onChange={updateRfq} /></Field>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Submission Deadline"><input className={inputClass} type="datetime-local" name="submissionDeadline" value={rfqForm.submissionDeadline} onChange={updateRfq} required /></Field>
+              <Field label="Bid Opening Time"><input className={inputClass} type="datetime-local" name="bidOpeningDateTime" value={rfqForm.bidOpeningDateTime} onChange={updateRfq} /></Field>
+            </div>
+            <Field label="Objection Deadline"><input className={inputClass} type="datetime-local" name="objectionDeadline" value={rfqForm.objectionDeadline} onChange={updateRfq} /></Field>
+            <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
+              <input type="checkbox" name="publishNow" checked={rfqForm.publishNow} onChange={updateRfq} />
+              Publish immediately
+            </label>
+            <button className={buttonClass} type="submit">Create RFQ</button>
+          </form>
+        </ActionCard>
+      )}
 
-      <ActionCard eyebrow="Purchase Order" title="Generate PO After Offer Acceptance">
-        <form onSubmit={createPo} className="space-y-4">
-          <Field label="Accepted Offer Letter ID"><input className={inputClass} value={poForm.offerLetterId} onChange={(e) => setPoForm((c) => ({ ...c, offerLetterId: e.target.value }))} required /></Field>
-          <Field label="PO Number"><input className={inputClass} value={poForm.poNumber} onChange={(e) => setPoForm((c) => ({ ...c, poNumber: e.target.value }))} /></Field>
-          <Field label="Delivery Deadline"><input className={inputClass} type="date" value={poForm.deliveryDeadline} onChange={(e) => setPoForm((c) => ({ ...c, deliveryDeadline: e.target.value }))} /></Field>
-          <button className={buttonClass} type="submit">Generate PO</button>
-        </form>
-      </ActionCard>
+      {activeSection === "vendors" && (
+        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <ActionCard eyebrow="Tender List" title="Select RFQ">
+            <Field label="RFQ">
+              <SelectField
+                value={selectedRfq?.rfqId || ""}
+                onChange={(e) => setSelectedRfq(rfqs.find((rfq) => String(rfq.rfqId) === e.target.value) || null)}
+                options={rfqOptions}
+                placeholder={loading ? "Loading RFQs..." : "Select RFQ"}
+                required
+              />
+            </Field>
+            <RfqList rfqs={selectedRfq ? [selectedRfq] : []} selectedId={selectedRfq?.rfqId} />
+          </ActionCard>
 
-      <ActionCard eyebrow="PO Tracking" title="Purchase Orders">
-        <DataTable
-          rows={pos}
-          empty="No purchase orders found."
-          columns={[
-            { key: "purchaseOrderId", label: "PO ID" },
-            { key: "poNumber", label: "PO Number" },
-            { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
-            { key: "totalAmount", label: "Amount", render: (row) => formatMoney(row.totalAmount) },
-          ]}
-        />
-      </ActionCard>
+          <ActionCard eyebrow="Vendor Search" title="Search Vendors by Business Name">
+            <form onSubmit={searchVendors} className="flex flex-col gap-3 md:flex-row">
+              <input
+                className={inputClass}
+                value={vendorSearch}
+                onChange={(event) => setVendorSearch(event.target.value)}
+                placeholder="Business name, example: ABC Suppliers"
+              />
+              <button className={buttonClass} type="submit">Search</button>
+            </form>
+            <form onSubmit={inviteVendors} className="space-y-4">
+              <div className="max-h-[320px] space-y-3 overflow-y-auto rounded-[24px] border border-[#dce8ef] p-3">
+                {!vendors.length && <EmptyState text="Search approved vendors by business name, then select one or more vendors." />}
+                {vendors.map((vendor) => (
+                  <label key={`${vendor.userId}-${vendor.vendorId}`} className="flex items-start gap-3 rounded-[20px] bg-[#f8fcff] p-4">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={selectedVendorIds.includes(String(vendor.vendorId))}
+                      onChange={(event) => {
+                        setSelectedVendorIds((current) =>
+                          event.target.checked
+                            ? [...current, String(vendor.vendorId)]
+                            : current.filter((id) => id !== String(vendor.vendorId))
+                        );
+                      }}
+                    />
+                    <span>
+                      <span className="block text-sm font-black text-[#10283f]">{vendor.vendorName || vendor.username}</span>
+                      <span className="block text-xs leading-6 text-slate-600">
+                        Vendor ID {vendor.vendorId} | {vendor.email}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <button className={buttonClass} type="submit" disabled={!selectedRfq || !selectedVendorIds.length}>
+                Invite Selected Vendors
+              </button>
+            </form>
+          </ActionCard>
+        </div>
+      )}
+
+      {activeSection === "po" && (
+        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <ActionCard eyebrow="Purchase Order" title="Generate PO After Offer Acceptance">
+            <form onSubmit={createPo} className="space-y-4">
+              <Field label="Accepted Offer Letter">
+                <SelectField
+                  value={poForm.offerLetterId}
+                  onChange={(e) => setPoForm((c) => ({ ...c, offerLetterId: e.target.value }))}
+                  options={acceptedOfferOptions}
+                  placeholder="Select accepted offer letter"
+                  required
+                />
+              </Field>
+              <Field label="PO Number"><input className={inputClass} value={poForm.poNumber} onChange={(e) => setPoForm((c) => ({ ...c, poNumber: e.target.value }))} /></Field>
+              <Field label="Delivery Deadline"><input className={inputClass} type="date" value={poForm.deliveryDeadline} onChange={(e) => setPoForm((c) => ({ ...c, deliveryDeadline: e.target.value }))} /></Field>
+              <button className={buttonClass} type="submit">Generate PO</button>
+            </form>
+          </ActionCard>
+
+          <ActionCard eyebrow="PO Tracking" title="Purchase Orders">
+            <DataTable
+              rows={pos}
+              empty="No purchase orders found."
+              columns={[
+                { key: "purchaseOrderId", label: "PO ID" },
+                { key: "poNumber", label: "PO Number" },
+                { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
+                { key: "totalAmount", label: "Amount", render: (row) => formatMoney(row.totalAmount) },
+              ]}
+            />
+          </ActionCard>
+        </div>
+      )}
     </div>
   );
 }
 
 function TecWorkspace({ token, setError, setMessage }) {
+  const [activeSection, setActiveSection] = useState("specs");
   const [spec, setSpec] = useState(initialSpec);
   const [meeting, setMeeting] = useState(initialMeeting);
   const [completeMeeting, setCompleteMeeting] = useState({ meetingId: "", minutesDocumentUrl: "", changeSummary: "" });
   const [rfqLookup, setRfqLookup] = useState("");
+  const [specRfqs, setSpecRfqs] = useState([]);
   const [bids, setBids] = useState([]);
   const [objections, setObjections] = useState([]);
   const [reports, setReports] = useState([]);
+  const [meetingRecord, setMeetingRecord] = useState(null);
   const [evaluation, setEvaluation] = useState(initialBidEvaluation);
   const [recommendation, setRecommendation] = useState({ rfqId: "", bidId: "" });
   const [objectionDecision, setObjectionDecision] = useState({ objectionId: "", status: "RESOLVED", resolutionComment: "" });
   const [offer, setOffer] = useState(initialOffer);
 
+  const loadedRfqOptions = [
+    ...specRfqs.map((rfq) => ({
+      value: rfq.rfqId,
+      label: `${rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - ${rfq.title || "Untitled"} - ${rfq.status || "CREATED"}`,
+    })),
+    ...(rfqLookup && !specRfqs.some((rfq) => String(rfq.rfqId) === String(rfqLookup))
+      ? [{ value: rfqLookup, label: `RFQ ID ${rfqLookup}` }]
+      : []),
+  ];
+  const bidOptions = bids.map((bid) => ({
+    value: bid.bidId,
+    label: `Bid ${bid.bidId} - ${bid.vendorName || "Vendor"} - ${formatMoney(bid.bidAmount)}`,
+  }));
+  const qualifiedBidOptions = bids
+    .filter((bid) => bid.technicalQualified === true || bid.technicalQualified === "true")
+    .map((bid) => ({
+      value: bid.bidId,
+      label: `Bid ${bid.bidId} - ${bid.vendorName || "Vendor"} - ${formatMoney(bid.bidAmount)}`,
+    }));
+  const objectionOptions = objections.map((objection) => ({
+    value: objection.objectionId,
+    label: `Objection ${objection.objectionId} - ${objection.vendorName || "Vendor"} - ${objection.status || "PENDING"}`,
+  }));
+  const meetingOptions = meetingRecord?.meetingId
+    ? [{ value: meetingRecord.meetingId, label: `Meeting ${meetingRecord.meetingId} - ${meetingRecord.status || "Saved"}` }]
+    : [];
+  const sections = [
+    { id: "specs", label: "Specifications" },
+    { id: "meeting", label: "Pre-Bid Meeting" },
+    { id: "bids", label: "Bid Evaluation" },
+    { id: "objections", label: "Objections" },
+    { id: "reports", label: "Rejected Reports" },
+    { id: "offer", label: "Offer Letter" },
+  ];
+
   const update = (setter) => (event) => {
     const { name, value, type, checked } = event.target;
     setter((current) => ({ ...current, [name]: type === "checkbox" ? checked : value }));
   };
+
+  const loadSpecRfqs = async () => {
+    setError("");
+    try {
+      const data = await procurementApi.rfqs.readyForSpecifications(token);
+      const rfqList = getArray(data);
+      setSpecRfqs(rfqList);
+      if (rfqList.length && !rfqLookup) {
+        const firstRfqId = String(rfqList[0].rfqId);
+        selectLoadedRfq(firstRfqId);
+      }
+    } catch (err) {
+      setError(err.message || "Could not load RFQs ready for specifications.");
+    }
+  };
+
+  const selectLoadedRfq = (rfqId) => {
+    setRfqLookup(rfqId);
+    setSpec((current) => ({ ...current, rfqId }));
+    setMeeting((current) => ({ ...current, rfqId }));
+    setRecommendation((current) => ({ ...current, rfqId }));
+    setOffer((current) => ({ ...current, rfqId }));
+  };
+
+  useEffect(() => {
+    loadSpecRfqs();
+  }, [token]);
 
   const loadRfqWork = async (event) => {
     event?.preventDefault();
@@ -330,14 +545,20 @@ function TecWorkspace({ token, setError, setMessage }) {
     setError("");
     setMessage("");
     try {
-      const [bidData, objectionData, reportData] = await Promise.all([
+      const [bidData, objectionData, reportData, meetingData] = await Promise.all([
         procurementApi.rfqs.bids(token, rfqLookup),
         procurementApi.rfqs.objections(token, rfqLookup),
         procurementApi.rfqs.reports(token, rfqLookup),
+        procurementApi.meetings.get(token, rfqLookup).catch(() => null),
       ]);
       setBids(getArray(bidData));
       setObjections(getArray(objectionData));
       setReports(getArray(reportData));
+      setMeetingRecord(meetingData);
+      setSpec((current) => ({ ...current, rfqId: rfqLookup }));
+      setMeeting((current) => ({ ...current, rfqId: rfqLookup }));
+      setRecommendation((current) => ({ ...current, rfqId: rfqLookup }));
+      setOffer((current) => ({ ...current, rfqId: rfqLookup }));
       setMessage("RFQ evaluation data loaded.");
     } catch (err) {
       setError(err.message || "Could not load RFQ evaluation data.");
@@ -357,6 +578,7 @@ function TecWorkspace({ token, setError, setMessage }) {
       });
       setMessage("Specification document saved.");
       setSpec(initialSpec);
+      loadSpecRfqs();
     } catch (err) {
       setError(err.message || "Could not save specifications.");
     }
@@ -375,6 +597,7 @@ function TecWorkspace({ token, setError, setMessage }) {
       });
       setMessage("Pre-bid meeting details saved.");
       setMeeting(initialMeeting);
+      loadRfqWork();
     } catch (err) {
       setError(err.message || "Could not save meeting.");
     }
@@ -391,6 +614,7 @@ function TecWorkspace({ token, setError, setMessage }) {
       });
       setMessage("Meeting marked as completed.");
       setCompleteMeeting({ meetingId: "", minutesDocumentUrl: "", changeSummary: "" });
+      loadRfqWork();
     } catch (err) {
       setError(err.message || "Could not complete meeting.");
     }
@@ -465,131 +689,231 @@ function TecWorkspace({ token, setError, setMessage }) {
   };
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-      <ActionCard eyebrow="Specifications" title="Add Tender Specification">
-        <form onSubmit={createSpec} className="space-y-4">
-          <Field label="RFQ ID"><input className={inputClass} name="rfqId" value={spec.rfqId} onChange={update(setSpec)} required /></Field>
-          <Field label="Specification Title"><input className={inputClass} name="specTitle" value={spec.specTitle} onChange={update(setSpec)} required /></Field>
-          <Field label="Specification Description"><textarea className={inputClass} rows={3} name="specDescription" value={spec.specDescription} onChange={update(setSpec)} /></Field>
-          <Field label="Specification Document URL"><input className={inputClass} name="documentUrl" value={spec.documentUrl} onChange={update(setSpec)} required /></Field>
-          <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
-            <input type="checkbox" name="submitToVc" checked={spec.submitToVc} onChange={update(setSpec)} />
-            Submit to VC
-          </label>
-          <button className={buttonClass} type="submit">Save Specification</button>
+    <div className="space-y-6">
+      <section className={cardClass}>
+        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Tender Evaluation</div>
+        <h2 className="mt-3 text-2xl font-black text-[#10283f]">Choose RFQ and evaluation step</h2>
+        <form onSubmit={loadRfqWork} className="mt-6 grid gap-3 md:grid-cols-[1fr_auto]">
+          <SelectField
+            value={rfqLookup}
+            onChange={(e) => selectLoadedRfq(e.target.value)}
+            options={loadedRfqOptions}
+            placeholder="Select created RFQ"
+          />
+          <button className={buttonClass} type="submit">Load Tender Data</button>
         </form>
-      </ActionCard>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {sections.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => setActiveSection(section.id)}
+              className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${
+                activeSection === section.id ? "bg-[#166e8c] text-white" : "bg-[#edf7fb] text-[#166e8c] hover:bg-[#d9edf5]"
+              }`}
+            >
+              {section.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
-      <ActionCard eyebrow="Optional Meeting" title="Pre-Bid Meeting">
-        <form onSubmit={scheduleMeeting} className="space-y-4">
-          <Field label="RFQ ID"><input className={inputClass} name="rfqId" value={meeting.rfqId} onChange={update(setMeeting)} required /></Field>
-          <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
-            <input type="checkbox" name="meetingRequired" checked={meeting.meetingRequired} onChange={update(setMeeting)} />
-            Meeting required
-          </label>
-          <Field label="Meeting Date and Time"><input className={inputClass} type="datetime-local" name="meetingDateTime" value={meeting.meetingDateTime} onChange={update(setMeeting)} /></Field>
-          <Field label="Meeting Link or Location"><input className={inputClass} name="meetingLinkOrLocation" value={meeting.meetingLinkOrLocation} onChange={update(setMeeting)} /></Field>
-          <Field label="Agenda"><textarea className={inputClass} rows={3} name="agenda" value={meeting.agenda} onChange={update(setMeeting)} /></Field>
-          <button className={buttonClass} type="submit">Save Meeting</button>
-        </form>
-        <form onSubmit={markMeetingComplete} className="space-y-4 border-t border-[#edf3f6] pt-4">
-          <Field label="Meeting ID"><input className={inputClass} value={completeMeeting.meetingId} onChange={(e) => setCompleteMeeting((c) => ({ ...c, meetingId: e.target.value }))} /></Field>
-          <Field label="Minutes Document URL"><input className={inputClass} value={completeMeeting.minutesDocumentUrl} onChange={(e) => setCompleteMeeting((c) => ({ ...c, minutesDocumentUrl: e.target.value }))} /></Field>
-          <Field label="Specification Change Summary"><textarea className={inputClass} rows={2} value={completeMeeting.changeSummary} onChange={(e) => setCompleteMeeting((c) => ({ ...c, changeSummary: e.target.value }))} /></Field>
-          <button className={buttonClass} type="submit">Complete Meeting</button>
-        </form>
-      </ActionCard>
+      {activeSection === "specs" && (
+        <ActionCard eyebrow="Specifications" title="Add Tender Specification">
+          <form onSubmit={createSpec} className="space-y-4">
+            <Field label="RFQ">
+              <SelectField value={spec.rfqId} onChange={(e) => setSpec((c) => ({ ...c, rfqId: e.target.value }))} options={loadedRfqOptions} placeholder="Load RFQ first" required />
+            </Field>
+            <Field label="Specification Title"><input className={inputClass} name="specTitle" value={spec.specTitle} onChange={update(setSpec)} required /></Field>
+            <Field label="Specification Description"><textarea className={inputClass} rows={3} name="specDescription" value={spec.specDescription} onChange={update(setSpec)} /></Field>
+            <Field label="Specification Document URL"><input className={inputClass} name="documentUrl" value={spec.documentUrl} onChange={update(setSpec)} required /></Field>
+            <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
+              <input type="checkbox" name="submitToVc" checked={spec.submitToVc} onChange={update(setSpec)} />
+              Submit to VC
+            </label>
+            <button className={buttonClass} type="submit">Save Specification</button>
+          </form>
+        </ActionCard>
+      )}
 
-      <ActionCard eyebrow="Sealed Bids" title="Evaluate Bids After Opening Time">
-        <form onSubmit={loadRfqWork} className="flex flex-col gap-3 md:flex-row">
-          <input className={inputClass} value={rfqLookup} onChange={(e) => setRfqLookup(e.target.value)} placeholder="RFQ ID" />
-          <button className={buttonClass} type="submit">Load</button>
-        </form>
-        <DataTable
-          rows={bids}
-          empty="Load an RFQ to see bids. Bids are visible only after the backend opening time allows it."
-          columns={[
-            { key: "bidId", label: "Bid ID" },
-            { key: "vendorName", label: "Vendor" },
-            { key: "bidAmount", label: "Amount", render: (row) => formatMoney(row.bidAmount) },
-            { key: "technicalQualified", label: "Qualified", render: (row) => String(row.technicalQualified ?? "Pending") },
-          ]}
-        />
-        <form onSubmit={evaluateBid} className="grid gap-4 md:grid-cols-2">
-          <Field label="Bid ID"><input className={inputClass} name="bidId" value={evaluation.bidId} onChange={update(setEvaluation)} required /></Field>
-          <Field label="Technical Score"><input className={inputClass} name="technicalScore" value={evaluation.technicalScore} onChange={update(setEvaluation)} /></Field>
-          <Field label="Financial Score"><input className={inputClass} name="financialScore" value={evaluation.financialScore} onChange={update(setEvaluation)} /></Field>
-          <Field label="Total Score"><input className={inputClass} name="totalScore" value={evaluation.totalScore} onChange={update(setEvaluation)} /></Field>
-          <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
-            <input type="checkbox" name="technicalQualified" checked={evaluation.technicalQualified} onChange={update(setEvaluation)} />
-            Technically qualified
-          </label>
-          <Field label="TEC Comment"><textarea className={inputClass} rows={2} name="tecComment" value={evaluation.tecComment} onChange={update(setEvaluation)} /></Field>
-          <button className={`${buttonClass} md:col-span-2`} type="submit">Save Evaluation</button>
-        </form>
-      </ActionCard>
+      {activeSection === "meeting" && (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <ActionCard eyebrow="Optional Meeting" title="Schedule Pre-Bid Meeting">
+            <form onSubmit={scheduleMeeting} className="space-y-4">
+              <Field label="RFQ">
+                <SelectField value={meeting.rfqId} onChange={(e) => setMeeting((c) => ({ ...c, rfqId: e.target.value }))} options={loadedRfqOptions} placeholder="Load RFQ first" required />
+              </Field>
+              <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
+                <input type="checkbox" name="meetingRequired" checked={meeting.meetingRequired} onChange={update(setMeeting)} />
+                Meeting required
+              </label>
+              <Field label="Meeting Date and Time"><input className={inputClass} type="datetime-local" name="meetingDateTime" value={meeting.meetingDateTime} onChange={update(setMeeting)} /></Field>
+              <Field label="Meeting Link or Location"><input className={inputClass} name="meetingLinkOrLocation" value={meeting.meetingLinkOrLocation} onChange={update(setMeeting)} /></Field>
+              <Field label="Agenda"><textarea className={inputClass} rows={3} name="agenda" value={meeting.agenda} onChange={update(setMeeting)} /></Field>
+              <button className={buttonClass} type="submit">Save Meeting</button>
+            </form>
+          </ActionCard>
 
-      <ActionCard eyebrow="Recommendation" title="Recommend Winner and Offer Letter">
-        <form onSubmit={recommendBid} className="grid gap-4 md:grid-cols-2">
-          <Field label="RFQ ID"><input className={inputClass} value={recommendation.rfqId} onChange={(e) => setRecommendation((c) => ({ ...c, rfqId: e.target.value }))} required /></Field>
-          <Field label="Winning Bid ID"><input className={inputClass} value={recommendation.bidId} onChange={(e) => setRecommendation((c) => ({ ...c, bidId: e.target.value }))} required /></Field>
-          <button className={`${buttonClass} md:col-span-2`} type="submit">Recommend Bid</button>
-        </form>
-        <form onSubmit={createOffer} className="space-y-4 border-t border-[#edf3f6] pt-4">
-          <Field label="RFQ ID"><input className={inputClass} name="rfqId" value={offer.rfqId} onChange={update(setOffer)} required /></Field>
-          <Field label="Recommended Bid ID"><input className={inputClass} name="bidId" value={offer.bidId} onChange={update(setOffer)} required /></Field>
-          <Field label="Letter Number"><input className={inputClass} name="letterNumber" value={offer.letterNumber} onChange={update(setOffer)} /></Field>
-          <Field label="Offer Letter Document URL"><input className={inputClass} name="letterDocumentUrl" value={offer.letterDocumentUrl} onChange={update(setOffer)} required /></Field>
-          <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
-            <input type="checkbox" name="submitToVc" checked={offer.submitToVc} onChange={update(setOffer)} />
-            Submit to VC
-          </label>
-          <button className={buttonClass} type="submit">Create Offer Letter</button>
-        </form>
-      </ActionCard>
+          <ActionCard eyebrow="Meeting Minutes" title="Complete Pre-Bid Meeting">
+            <form onSubmit={markMeetingComplete} className="space-y-4">
+              <Field label="Meeting">
+                <SelectField
+                  value={completeMeeting.meetingId}
+                  onChange={(e) => setCompleteMeeting((c) => ({ ...c, meetingId: e.target.value }))}
+                  options={meetingOptions}
+                  placeholder="Load RFQ with saved meeting first"
+                  required
+                />
+              </Field>
+              <Field label="Minutes Document URL"><input className={inputClass} value={completeMeeting.minutesDocumentUrl} onChange={(e) => setCompleteMeeting((c) => ({ ...c, minutesDocumentUrl: e.target.value }))} /></Field>
+              <Field label="Specification Change Summary"><textarea className={inputClass} rows={2} value={completeMeeting.changeSummary} onChange={(e) => setCompleteMeeting((c) => ({ ...c, changeSummary: e.target.value }))} /></Field>
+              <button className={buttonClass} type="submit">Complete Meeting</button>
+            </form>
+          </ActionCard>
+        </div>
+      )}
 
-      <ActionCard eyebrow="Objections" title="Vendor Objection Handling">
-        <DataTable
-          rows={objections}
-          empty="No objections for the loaded RFQ."
-          columns={[
-            { key: "objectionId", label: "ID" },
-            { key: "vendorName", label: "Vendor" },
-            { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
-            { key: "reason", label: "Reason" },
-          ]}
-        />
-        <form onSubmit={resolveObjection} className="space-y-4">
-          <Field label="Objection ID"><input className={inputClass} value={objectionDecision.objectionId} onChange={(e) => setObjectionDecision((c) => ({ ...c, objectionId: e.target.value }))} required /></Field>
-          <Field label="Status">
-            <select className={inputClass} value={objectionDecision.status} onChange={(e) => setObjectionDecision((c) => ({ ...c, status: e.target.value }))}>
-              <option value="RESOLVED">RESOLVED</option>
-              <option value="REJECTED">REJECTED</option>
-            </select>
-          </Field>
-          <Field label="Resolution Comment"><textarea className={inputClass} rows={2} value={objectionDecision.resolutionComment} onChange={(e) => setObjectionDecision((c) => ({ ...c, resolutionComment: e.target.value }))} /></Field>
-          <button className={buttonClass} type="submit">Update Objection</button>
-        </form>
-      </ActionCard>
+      {activeSection === "bids" && (
+        <ActionCard eyebrow="Sealed Bids" title="Evaluate Bids After Opening Time">
+          <DataTable
+            rows={bids}
+            empty="Load an RFQ to see bids. Bids are visible only after the backend opening time allows it."
+            columns={[
+              { key: "bidId", label: "Bid ID" },
+              { key: "vendorName", label: "Vendor" },
+              { key: "bidAmount", label: "Amount", render: (row) => formatMoney(row.bidAmount) },
+              { key: "technicalQualified", label: "Qualified", render: (row) => String(row.technicalQualified ?? "Pending") },
+            ]}
+          />
+          <form onSubmit={evaluateBid} className="grid gap-4 md:grid-cols-2">
+            <Field label="Bid">
+              <SelectField value={evaluation.bidId} onChange={(e) => setEvaluation((c) => ({ ...c, bidId: e.target.value }))} options={bidOptions} placeholder="Select loaded bid" required />
+            </Field>
+            <Field label="Technical Score"><input className={inputClass} name="technicalScore" value={evaluation.technicalScore} onChange={update(setEvaluation)} /></Field>
+            <Field label="Financial Score"><input className={inputClass} name="financialScore" value={evaluation.financialScore} onChange={update(setEvaluation)} /></Field>
+            <Field label="Total Score"><input className={inputClass} name="totalScore" value={evaluation.totalScore} onChange={update(setEvaluation)} /></Field>
+            <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
+              <input type="checkbox" name="technicalQualified" checked={evaluation.technicalQualified} onChange={update(setEvaluation)} />
+              Technically qualified
+            </label>
+            <Field label="TEC Comment"><textarea className={inputClass} rows={2} name="tecComment" value={evaluation.tecComment} onChange={update(setEvaluation)} /></Field>
+            <button className={`${buttonClass} md:col-span-2`} type="submit">Save Evaluation</button>
+          </form>
+        </ActionCard>
+      )}
 
-      <ActionCard eyebrow="Rejected Vendors" title="Evaluation Report Records">
-        <DataTable
-          rows={reports}
-          empty="No rejected vendor reports for the loaded RFQ."
-          columns={[
-            { key: "reportId", label: "Report ID" },
-            { key: "vendorName", label: "Vendor" },
-            { key: "reason", label: "Reason" },
-          ]}
-        />
-      </ActionCard>
+      {activeSection === "objections" && (
+        <ActionCard eyebrow="Objections" title="Vendor Objection Handling">
+          <DataTable
+            rows={objections}
+            empty="No objections for the loaded RFQ."
+            columns={[
+              { key: "objectionId", label: "ID" },
+              { key: "vendorName", label: "Vendor" },
+              { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
+              { key: "reason", label: "Reason" },
+            ]}
+          />
+          <form onSubmit={resolveObjection} className="space-y-4">
+            <Field label="Objection">
+              <SelectField value={objectionDecision.objectionId} onChange={(e) => setObjectionDecision((c) => ({ ...c, objectionId: e.target.value }))} options={objectionOptions} placeholder="Select loaded objection" required />
+            </Field>
+            <Field label="Status">
+              <select className={inputClass} value={objectionDecision.status} onChange={(e) => setObjectionDecision((c) => ({ ...c, status: e.target.value }))}>
+                <option value="RESOLVED">RESOLVED</option>
+                <option value="REJECTED">REJECTED</option>
+              </select>
+            </Field>
+            <Field label="Resolution Comment"><textarea className={inputClass} rows={2} value={objectionDecision.resolutionComment} onChange={(e) => setObjectionDecision((c) => ({ ...c, resolutionComment: e.target.value }))} /></Field>
+            <button className={buttonClass} type="submit">Update Objection</button>
+          </form>
+        </ActionCard>
+      )}
+
+      {activeSection === "reports" && (
+        <ActionCard eyebrow="Rejected Vendors" title="Evaluation Report Records">
+          <DataTable
+            rows={reports}
+            empty="No rejected vendor reports for the loaded RFQ."
+            columns={[
+              { key: "reportId", label: "Report ID" },
+              { key: "vendorName", label: "Vendor" },
+              { key: "reasonForRejection", label: "Reason" },
+              { key: "technicalComment", label: "TEC Comment" },
+            ]}
+          />
+        </ActionCard>
+      )}
+
+      {activeSection === "offer" && (
+        <ActionCard eyebrow="Recommendation" title="Recommend Winner and Create Offer Letter">
+          <form onSubmit={recommendBid} className="grid gap-4 md:grid-cols-2">
+            <Field label="RFQ">
+              <SelectField value={recommendation.rfqId} onChange={(e) => setRecommendation((c) => ({ ...c, rfqId: e.target.value }))} options={loadedRfqOptions} placeholder="Load RFQ first" required />
+            </Field>
+            <Field label="Winning Bid">
+              <SelectField value={recommendation.bidId} onChange={(e) => setRecommendation((c) => ({ ...c, bidId: e.target.value }))} options={qualifiedBidOptions.length ? qualifiedBidOptions : bidOptions} placeholder="Select evaluated bid" required />
+            </Field>
+            <button className={`${buttonClass} md:col-span-2`} type="submit">Recommend Bid</button>
+          </form>
+          <form onSubmit={createOffer} className="space-y-4 border-t border-[#edf3f6] pt-4">
+            <Field label="RFQ">
+              <SelectField value={offer.rfqId} onChange={(e) => setOffer((c) => ({ ...c, rfqId: e.target.value }))} options={loadedRfqOptions} placeholder="Load RFQ first" required />
+            </Field>
+            <Field label="Recommended Bid">
+              <SelectField value={offer.bidId} onChange={(e) => setOffer((c) => ({ ...c, bidId: e.target.value }))} options={qualifiedBidOptions.length ? qualifiedBidOptions : bidOptions} placeholder="Select recommended bid" required />
+            </Field>
+            <Field label="Letter Number"><input className={inputClass} name="letterNumber" value={offer.letterNumber} onChange={update(setOffer)} /></Field>
+            <Field label="Offer Letter Document URL"><input className={inputClass} name="letterDocumentUrl" value={offer.letterDocumentUrl} onChange={update(setOffer)} required /></Field>
+            <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
+              <input type="checkbox" name="submitToVc" checked={offer.submitToVc} onChange={update(setOffer)} />
+              Submit to VC
+            </label>
+            <button className={buttonClass} type="submit">Create Offer Letter</button>
+          </form>
+        </ActionCard>
+      )}
     </div>
   );
 }
 
 function VcWorkspace({ token, setError, setMessage }) {
+  const [activeSection, setActiveSection] = useState("specs");
+  const [pendingSpecs, setPendingSpecs] = useState([]);
+  const [pendingOffers, setPendingOffers] = useState([]);
   const [specDecision, setSpecDecision] = useState({ specId: "", decision: "APPROVED", comment: "" });
   const [offerDecision, setOfferDecision] = useState({ offerLetterId: "", decision: "APPROVED", comment: "" });
+
+  const specOptions = pendingSpecs.map((spec) => ({
+    value: spec.specId,
+    label: `${spec.specTitle || `Spec ${spec.specId}`} - ${spec.rfqNumber || `RFQ ${spec.rfqId}`} - ${spec.status}`,
+  }));
+  const offerOptions = pendingOffers.map((offer) => ({
+    value: offer.offerLetterId,
+    label: `${offer.letterNumber || `Offer ${offer.offerLetterId}`} - ${offer.vendorName || "Vendor"} - ${formatMoney(offer.offerAmount)}`,
+  }));
+
+  const loadPendingApprovals = async () => {
+    setError("");
+    try {
+      const [specData, offerData] = await Promise.all([
+        procurementApi.specifications.pendingVc(token),
+        procurementApi.offers.pendingVc(token),
+      ]);
+      const specs = getArray(specData);
+      const offers = getArray(offerData);
+      setPendingSpecs(specs);
+      setPendingOffers(offers);
+      setSpecDecision((current) => ({ ...current, specId: current.specId || specs[0]?.specId || "" }));
+      setOfferDecision((current) => ({ ...current, offerLetterId: current.offerLetterId || offers[0]?.offerLetterId || "" }));
+    } catch (err) {
+      setError(err.message || "Could not load VC pending approvals.");
+    }
+  };
+
+  useEffect(() => {
+    loadPendingApprovals();
+  }, [token]);
 
   const decideSpec = async (event) => {
     event.preventDefault();
@@ -602,6 +926,7 @@ function VcWorkspace({ token, setError, setMessage }) {
       });
       setMessage("Specification decision saved.");
       setSpecDecision({ specId: "", decision: "APPROVED", comment: "" });
+      loadPendingApprovals();
     } catch (err) {
       setError(err.message || "Could not approve specification.");
     }
@@ -618,40 +943,107 @@ function VcWorkspace({ token, setError, setMessage }) {
       });
       setMessage("Offer letter decision saved.");
       setOfferDecision({ offerLetterId: "", decision: "APPROVED", comment: "" });
+      loadPendingApprovals();
     } catch (err) {
       setError(err.message || "Could not approve offer letter.");
     }
   };
 
   return (
-    <div className="grid gap-6 xl:grid-cols-2">
-      <ActionCard eyebrow="VC Decision" title="Approve Tender Specification">
-        <form onSubmit={decideSpec} className="space-y-4">
-          <Field label="Specification ID"><input className={inputClass} value={specDecision.specId} onChange={(e) => setSpecDecision((c) => ({ ...c, specId: e.target.value }))} required /></Field>
-          <Field label="Decision">
-            <select className={inputClass} value={specDecision.decision} onChange={(e) => setSpecDecision((c) => ({ ...c, decision: e.target.value }))}>
-              <option value="APPROVED">APPROVED</option>
-              <option value="REJECTED">REJECTED</option>
-            </select>
-          </Field>
-          <Field label="Comment"><textarea className={inputClass} rows={3} value={specDecision.comment} onChange={(e) => setSpecDecision((c) => ({ ...c, comment: e.target.value }))} /></Field>
-          <button className={buttonClass} type="submit">Submit Decision</button>
-        </form>
-      </ActionCard>
+    <div className="space-y-6">
+      <section className={cardClass}>
+        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">VC Approvals</div>
+        <h2 className="mt-3 text-2xl font-black text-[#10283f]">Review pending procurement approvals</h2>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveSection("specs")}
+            className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${
+              activeSection === "specs" ? "bg-[#166e8c] text-white" : "bg-[#edf7fb] text-[#166e8c] hover:bg-[#d9edf5]"
+            }`}
+          >
+            Specifications ({pendingSpecs.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSection("offers")}
+            className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${
+              activeSection === "offers" ? "bg-[#166e8c] text-white" : "bg-[#edf7fb] text-[#166e8c] hover:bg-[#d9edf5]"
+            }`}
+          >
+            Offer Letters ({pendingOffers.length})
+          </button>
+        </div>
+      </section>
 
-      <ActionCard eyebrow="VC Decision" title="Approve Offer Letter">
-        <form onSubmit={decideOffer} className="space-y-4">
-          <Field label="Offer Letter ID"><input className={inputClass} value={offerDecision.offerLetterId} onChange={(e) => setOfferDecision((c) => ({ ...c, offerLetterId: e.target.value }))} required /></Field>
-          <Field label="Decision">
-            <select className={inputClass} value={offerDecision.decision} onChange={(e) => setOfferDecision((c) => ({ ...c, decision: e.target.value }))}>
-              <option value="APPROVED">APPROVED</option>
-              <option value="REJECTED">REJECTED</option>
-            </select>
-          </Field>
-          <Field label="Comment"><textarea className={inputClass} rows={3} value={offerDecision.comment} onChange={(e) => setOfferDecision((c) => ({ ...c, comment: e.target.value }))} /></Field>
-          <button className={buttonClass} type="submit">Submit Decision</button>
-        </form>
-      </ActionCard>
+      {activeSection === "specs" && (
+        <ActionCard eyebrow="VC Decision" title="Approve Tender Specification">
+          <DataTable
+            rows={pendingSpecs}
+            empty="No specifications are waiting for VC approval."
+            columns={[
+              { key: "specId", label: "Spec ID" },
+              { key: "rfqNumber", label: "RFQ" },
+              { key: "specTitle", label: "Title" },
+              { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
+            ]}
+          />
+          <form onSubmit={decideSpec} className="space-y-4">
+            <Field label="Specification">
+              <SelectField
+                value={specDecision.specId}
+                onChange={(e) => setSpecDecision((c) => ({ ...c, specId: e.target.value }))}
+                options={specOptions}
+                placeholder="Select pending specification"
+                required
+              />
+            </Field>
+            <Field label="Decision">
+              <select className={inputClass} value={specDecision.decision} onChange={(e) => setSpecDecision((c) => ({ ...c, decision: e.target.value }))}>
+                <option value="APPROVED">APPROVED</option>
+                <option value="REJECTED">REJECTED</option>
+              </select>
+            </Field>
+            <Field label="Comment"><textarea className={inputClass} rows={3} value={specDecision.comment} onChange={(e) => setSpecDecision((c) => ({ ...c, comment: e.target.value }))} /></Field>
+            <button className={buttonClass} type="submit">Submit Specification Decision</button>
+          </form>
+        </ActionCard>
+      )}
+
+      {activeSection === "offers" && (
+        <ActionCard eyebrow="VC Decision" title="Approve Offer Letter">
+          <DataTable
+            rows={pendingOffers}
+            empty="No offer letters are waiting for VC approval."
+            columns={[
+              { key: "offerLetterId", label: "Offer ID" },
+              { key: "letterNumber", label: "Letter" },
+              { key: "vendorName", label: "Vendor" },
+              { key: "offerAmount", label: "Amount", render: (row) => formatMoney(row.offerAmount) },
+              { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
+            ]}
+          />
+          <form onSubmit={decideOffer} className="space-y-4">
+            <Field label="Offer Letter">
+              <SelectField
+                value={offerDecision.offerLetterId}
+                onChange={(e) => setOfferDecision((c) => ({ ...c, offerLetterId: e.target.value }))}
+                options={offerOptions}
+                placeholder="Select pending offer letter"
+                required
+              />
+            </Field>
+            <Field label="Decision">
+              <select className={inputClass} value={offerDecision.decision} onChange={(e) => setOfferDecision((c) => ({ ...c, decision: e.target.value }))}>
+                <option value="APPROVED">APPROVED</option>
+                <option value="REJECTED">REJECTED</option>
+              </select>
+            </Field>
+            <Field label="Comment"><textarea className={inputClass} rows={3} value={offerDecision.comment} onChange={(e) => setOfferDecision((c) => ({ ...c, comment: e.target.value }))} /></Field>
+            <button className={buttonClass} type="submit">Submit Offer Decision</button>
+          </form>
+        </ActionCard>
+      )}
     </div>
   );
 }

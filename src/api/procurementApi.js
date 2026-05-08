@@ -4,8 +4,12 @@ const procurementBase = "/api/procurement";
 const vendorBase = "/api/vendor/procurement";
 
 export const procurementApi = {
+  requisitions: {
+    ready: (token) => apiRequest(`${procurementBase}/ready-requisitions`, { token }),
+  },
   rfqs: {
     list: (token) => apiRequest(`${procurementBase}/rfqs?page=0&size=20`, { token }),
+    readyForSpecifications: (token) => apiRequest(`${procurementBase}/rfqs/ready-for-specifications`, { token }),
     detail: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}`, { token }),
     create: (token, payload) => apiRequest(`${procurementBase}/rfqs`, { token, method: "POST", body: payload }),
     inviteVendors: (token, rfqId, payload) =>
@@ -20,6 +24,7 @@ export const procurementApi = {
     create: (token, rfqId, payload) =>
       apiRequest(`${procurementBase}/rfqs/${rfqId}/specifications`, { token, method: "POST", body: payload }),
     list: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}/specifications`, { token }),
+    pendingVc: (token) => apiRequest(`${procurementBase}/specifications/pending-vc`, { token }),
     decide: (token, specId, payload) =>
       apiRequest(`${procurementBase}/specifications/${specId}/vc-decision`, { token, method: "PATCH", body: payload }),
   },
@@ -41,15 +46,31 @@ export const procurementApi = {
   offers: {
     create: (token, rfqId, payload) =>
       apiRequest(`${procurementBase}/rfqs/${rfqId}/offer-letters`, { token, method: "POST", body: payload }),
+    pendingVc: (token) => apiRequest(`${procurementBase}/offer-letters/pending-vc`, { token }),
     decide: (token, offerLetterId, payload) =>
       apiRequest(`${procurementBase}/offer-letters/${offerLetterId}/vc-decision`, { token, method: "PATCH", body: payload }),
   },
   purchaseOrders: {
+    acceptedOffers: (token) => apiRequest(`${procurementBase}/accepted-offer-letters`, { token }),
     list: (token) => apiRequest(`${procurementBase}/purchase-orders`, { token }),
     create: (token, payload) =>
       apiRequest(`${procurementBase}/purchase-orders`, { token, method: "POST", body: payload }),
     updateStatus: (token, poId, payload) =>
       apiRequest(`${procurementBase}/purchase-orders/${poId}/status`, { token, method: "PATCH", body: payload }),
+  },
+  vendors: {
+    search: (token, search = "") =>
+      apiRequest(
+        `/api/admin/users?${new URLSearchParams({
+          page: "0",
+          size: "50",
+          mainRole: "VENDOR",
+          status: "APPROVED",
+          isActive: "true",
+          ...(search ? { search } : {}),
+        })}`,
+        { token }
+      ),
   },
 };
 
