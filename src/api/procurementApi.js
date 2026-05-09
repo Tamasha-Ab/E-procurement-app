@@ -10,11 +10,13 @@ export const procurementApi = {
   rfqs: {
     list: (token) => apiRequest(`${procurementBase}/rfqs?page=0&size=20`, { token }),
     readyForSpecifications: (token) => apiRequest(`${procurementBase}/rfqs/ready-for-specifications`, { token }),
+    publishedForTec: (token) => apiRequest(`${procurementBase}/tec/published-rfqs`, { token }),
     detail: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}`, { token }),
     create: (token, payload) => apiRequest(`${procurementBase}/rfqs`, { token, method: "POST", body: payload }),
     inviteVendors: (token, rfqId, payload) =>
       apiRequest(`${procurementBase}/rfqs/${rfqId}/invite-vendors`, { token, method: "POST", body: payload }),
     bids: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}/bids`, { token }),
+    quotations: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}/quotations`, { token }),
     objections: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}/objections`, { token }),
     reports: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}/vendor-reports`, { token }),
     recommend: (token, rfqId, bidId) =>
@@ -38,6 +40,10 @@ export const procurementApi = {
   bids: {
     evaluate: (token, bidId, payload) =>
       apiRequest(`${procurementBase}/bids/${bidId}/evaluate`, { token, method: "PATCH", body: payload }),
+  },
+  quotations: {
+    evaluate: (token, quotationId, payload) =>
+      apiRequest(`${procurementBase}/quotations/${quotationId}/technical-evaluation`, { token, method: "PATCH", body: payload }),
   },
   objections: {
     resolve: (token, objectionId, payload) =>
@@ -78,6 +84,8 @@ export const vendorProcurementApi = {
   rfqs: {
     list: (token) => apiRequest(`${vendorBase}/rfqs`, { token }),
     detail: (token, rfqId) => apiRequest(`${vendorBase}/rfqs/${rfqId}`, { token }),
+    submitQuotation: (token, rfqId, payload) =>
+      apiRequest(`${vendorBase}/rfqs/${rfqId}/quotations`, { token, method: "POST", body: payload }),
     submitBid: (token, rfqId, payload) =>
       apiRequest(`${vendorBase}/rfqs/${rfqId}/bids`, { token, method: "POST", body: payload }),
     object: (token, rfqId, payload) =>
@@ -85,6 +93,9 @@ export const vendorProcurementApi = {
   },
   bids: {
     list: (token) => apiRequest(`${vendorBase}/bids`, { token }),
+  },
+  quotations: {
+    list: (token) => apiRequest(`${vendorBase}/quotations`, { token }),
   },
   reports: {
     list: (token) => apiRequest(`${vendorBase}/vendor-reports`, { token }),

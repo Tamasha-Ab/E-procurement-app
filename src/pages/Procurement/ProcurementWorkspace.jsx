@@ -60,6 +60,14 @@ const initialVendorBid = {
   encryptedBidData: "",
 };
 
+const initialVendorQuotation = {
+  rfqId: "",
+  quotedAmount: "",
+  deliveryPeriodDays: "",
+  remarks: "",
+  attachmentUrl: "",
+};
+
 function asLocalDateTime(value) {
   return value ? value : null;
 }
@@ -463,27 +471,41 @@ function TecWorkspace({ token, setError, setMessage }) {
   const [completeMeeting, setCompleteMeeting] = useState({ meetingId: "", minutesDocumentUrl: "", changeSummary: "" });
   const [rfqLookup, setRfqLookup] = useState("");
   const [specRfqs, setSpecRfqs] = useState([]);
+  const [publishedRfqs, setPublishedRfqs] = useState([]);
   const [bids, setBids] = useState([]);
+  const [quotations, setQuotations] = useState([]);
   const [objections, setObjections] = useState([]);
   const [reports, setReports] = useState([]);
   const [meetingRecord, setMeetingRecord] = useState(null);
   const [evaluation, setEvaluation] = useState(initialBidEvaluation);
+  const [quotationEvaluation, setQuotationEvaluation] = useState({ quotationId: "", technicallyQualified: true, evaluationComment: "" });
   const [recommendation, setRecommendation] = useState({ rfqId: "", bidId: "" });
   const [objectionDecision, setObjectionDecision] = useState({ objectionId: "", status: "RESOLVED", resolutionComment: "" });
   const [offer, setOffer] = useState(initialOffer);
 
+  const tecRfqs = Array.from(
+    new Map([...specRfqs, ...publishedRfqs].filter((rfq) => rfq?.rfqId).map((rfq) => [String(rfq.rfqId), rfq])).values()
+  );
+  const publishedRfqOptions = publishedRfqs.map((rfq) => ({
+    value: rfq.rfqId,
+    label: `${rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - ${rfq.title || "Untitled"} - ${rfq.status || "PUBLISHED"}`,
+  }));
   const loadedRfqOptions = [
-    ...specRfqs.map((rfq) => ({
+    ...tecRfqs.map((rfq) => ({
       value: rfq.rfqId,
       label: `${rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - ${rfq.title || "Untitled"} - ${rfq.status || "CREATED"}`,
     })),
-    ...(rfqLookup && !specRfqs.some((rfq) => String(rfq.rfqId) === String(rfqLookup))
+    ...(rfqLookup && !tecRfqs.some((rfq) => String(rfq.rfqId) === String(rfqLookup))
       ? [{ value: rfqLookup, label: `RFQ ID ${rfqLookup}` }]
       : []),
   ];
   const bidOptions = bids.map((bid) => ({
     value: bid.bidId,
     label: `Bid ${bid.bidId} - ${bid.vendorName || "Vendor"} - ${formatMoney(bid.bidAmount)}`,
+  }));
+  const quotationOptions = quotations.map((quotation) => ({
+    value: quotation.quotationId,
+    label: `Quotation ${quotation.quotationId} - ${quotation.vendorName || "Vendor"} - ${formatMoney(quotation.quotedAmount)}`,
   }));
   const qualifiedBidOptions = bids
     .filter((bid) => bid.technicalQualified === true || bid.technicalQualified === "true")
@@ -498,10 +520,15 @@ function TecWorkspace({ token, setError, setMessage }) {
   const meetingOptions = meetingRecord?.meetingId
     ? [{ value: meetingRecord.meetingId, label: `Meeting ${meetingRecord.meetingId} - ${meetingRecord.status || "Saved"}` }]
     : [];
+  const selectedRfq = tecRfqs.find((rfq) => String(rfq.rfqId) === String(rfqLookup));
+  const selectedOpeningTime = selectedRfq?.bidOpeningDateTime || selectedRfq?.submissionDeadline;
+  const isSelectedRfqOpen = selectedOpeningTime ? new Date(selectedOpeningTime).getTime() <= Date.now() : false;
+  const quotationsAreSealed = quotations.some((quotation) => quotation.sealed);
   const sections = [
     { id: "specs", label: "Specifications" },
     { id: "meeting", label: "Pre-Bid Meeting" },
     { id: "bids", label: "Bid Evaluation" },
+    { id: "quotations", label: "Quotations" },
     { id: "objections", label: "Objections" },
     { id: "reports", label: "Rejected Reports" },
     { id: "offer", label: "Offer Letter" },
@@ -515,15 +542,23 @@ function TecWorkspace({ token, setError, setMessage }) {
   const loadSpecRfqs = async () => {
     setError("");
     try {
-      const data = await procurementApi.rfqs.readyForSpecifications(token);
-      const rfqList = getArray(data);
-      setSpecRfqs(rfqList);
-      if (rfqList.length && !rfqLookup) {
-        const firstRfqId = String(rfqList[0].rfqId);
+      const [readyData, publishedData] = await Promise.all([
+        procurementApi.rfqs.readyForSpecifications(token).catch(() => []),
+        procurementApi.rfqs.publishedForTec(token),
+      ]);
+      const readyRfqs = getArray(readyData);
+      const publishedList = getArray(publishedData);
+      setSpecRfqs(readyRfqs);
+      setPublishedRfqs(publishedList);
+      const selectableRfqs = Array.from(
+        new Map([...readyRfqs, ...publishedList].filter((rfq) => rfq?.rfqId).map((rfq) => [String(rfq.rfqId), rfq])).values()
+      );
+      if (selectableRfqs.length && !rfqLookup) {
+        const firstRfqId = String(selectableRfqs[0].rfqId);
         selectLoadedRfq(firstRfqId);
       }
     } catch (err) {
-      setError(err.message || "Could not load RFQs ready for specifications.");
+      setError(err.message || "Could not load TEC RFQs.");
     }
   };
 
@@ -545,13 +580,15 @@ function TecWorkspace({ token, setError, setMessage }) {
     setError("");
     setMessage("");
     try {
-      const [bidData, objectionData, reportData, meetingData] = await Promise.all([
+      const [bidData, quotationData, objectionData, reportData, meetingData] = await Promise.all([
         procurementApi.rfqs.bids(token, rfqLookup),
+        procurementApi.rfqs.quotations(token, rfqLookup),
         procurementApi.rfqs.objections(token, rfqLookup),
         procurementApi.rfqs.reports(token, rfqLookup),
         procurementApi.meetings.get(token, rfqLookup).catch(() => null),
       ]);
       setBids(getArray(bidData));
+      setQuotations(getArray(quotationData));
       setObjections(getArray(objectionData));
       setReports(getArray(reportData));
       setMeetingRecord(meetingData);
@@ -640,6 +677,23 @@ function TecWorkspace({ token, setError, setMessage }) {
     }
   };
 
+  const evaluateQuotation = async (event) => {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    try {
+      await procurementApi.quotations.evaluate(token, quotationEvaluation.quotationId, {
+        technicallyQualified: quotationEvaluation.technicallyQualified,
+        evaluationComment: quotationEvaluation.evaluationComment,
+      });
+      setMessage("Quotation technical evaluation saved.");
+      setQuotationEvaluation({ quotationId: "", technicallyQualified: true, evaluationComment: "" });
+      loadRfqWork();
+    } catch (err) {
+      setError(err.message || "Could not evaluate quotation.");
+    }
+  };
+
   const recommendBid = async (event) => {
     event.preventDefault();
     setError("");
@@ -693,15 +747,15 @@ function TecWorkspace({ token, setError, setMessage }) {
       <section className={cardClass}>
         <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Tender Evaluation</div>
         <h2 className="mt-3 text-2xl font-black text-[#10283f]">Choose RFQ and evaluation step</h2>
-        <form onSubmit={loadRfqWork} className="mt-6 grid gap-3 md:grid-cols-[1fr_auto]">
-          <SelectField
-            value={rfqLookup}
-            onChange={(e) => selectLoadedRfq(e.target.value)}
-            options={loadedRfqOptions}
-            placeholder="Select created RFQ"
-          />
-          <button className={buttonClass} type="submit">Load Tender Data</button>
-        </form>
+          <form onSubmit={loadRfqWork} className="mt-6 grid gap-3 md:grid-cols-[1fr_auto]">
+            <SelectField
+              value={rfqLookup}
+              onChange={(e) => selectLoadedRfq(e.target.value)}
+              options={loadedRfqOptions}
+              placeholder="Select RFQ"
+            />
+            <button className={buttonClass} type="submit">Load Tender Data</button>
+          </form>
         <div className="mt-5 flex flex-wrap gap-2">
           {sections.map((section) => (
             <button
@@ -798,6 +852,88 @@ function TecWorkspace({ token, setError, setMessage }) {
             </label>
             <Field label="TEC Comment"><textarea className={inputClass} rows={2} name="tecComment" value={evaluation.tecComment} onChange={update(setEvaluation)} /></Field>
             <button className={`${buttonClass} md:col-span-2`} type="submit">Save Evaluation</button>
+          </form>
+        </ActionCard>
+      )}
+
+      {activeSection === "quotations" && (
+        <ActionCard eyebrow="RFQ Quotations" title="Check and Evaluate Vendor Quotations">
+          <DataTable
+            rows={publishedRfqs}
+            empty="No published RFQs available for quotation checking."
+            columns={[
+              { key: "rfqId", label: "RFQ ID" },
+              { key: "rfqNumber", label: "RFQ" },
+              { key: "title", label: "Title" },
+              { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
+              { key: "bidOpeningDateTime", label: "Opening Time", render: (row) => formatDateTime(row.bidOpeningDateTime || row.submissionDeadline) },
+            ]}
+          />
+          <form onSubmit={loadRfqWork} className="grid gap-3 md:grid-cols-[1fr_auto]">
+            <Field label="Published RFQ">
+              <SelectField
+                value={rfqLookup}
+                onChange={(e) => selectLoadedRfq(e.target.value)}
+                options={publishedRfqOptions}
+                placeholder="Select published RFQ"
+                required
+              />
+            </Field>
+            <button className={`${buttonClass} self-end`} type="submit">Show Quotations</button>
+          </form>
+          {selectedRfq && (
+            <div className={`rounded-[24px] p-4 text-sm font-semibold ${isSelectedRfqOpen ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+              {isSelectedRfqOpen
+                ? `RFQ ${selectedRfq.rfqNumber || selectedRfq.rfqId} is open for quotation evaluation.`
+                : `RFQ ${selectedRfq.rfqNumber || selectedRfq.rfqId} quotations are sealed until ${formatDateTime(selectedOpeningTime)}.`}
+            </div>
+          )}
+          <DataTable
+            rows={quotations}
+            empty="Select an RFQ and click Load Tender Data to see submitted quotations."
+            columns={[
+              { key: "quotationId", label: "Quotation ID" },
+              { key: "vendorName", label: "Vendor", render: (row) => (row.sealed ? "Sealed until opening" : row.vendorName || "Vendor") },
+              { key: "quotedAmount", label: "Amount", render: (row) => (row.sealed ? "Sealed" : formatMoney(row.quotedAmount)) },
+              { key: "deliveryPeriodDays", label: "Delivery Days", render: (row) => (row.sealed ? "Sealed" : row.deliveryPeriodDays ?? "Not set") },
+              { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
+              { key: "openingDateTime", label: "Opening Time", render: (row) => formatDateTime(row.openingDateTime || selectedOpeningTime) },
+              { key: "technicallyQualified", label: "Qualified", render: (row) => (row.sealed ? "Locked" : row.technicallyQualified ? "Yes" : "No") },
+            ]}
+          />
+          {quotationsAreSealed && (
+            <EmptyState text="Quotation details are locked. TEC can open and evaluate these quotations only after the official opening time." />
+          )}
+          <form onSubmit={evaluateQuotation} className="space-y-4">
+            <Field label="Quotation">
+              <SelectField
+                value={quotationEvaluation.quotationId}
+                onChange={(e) => setQuotationEvaluation((c) => ({ ...c, quotationId: e.target.value }))}
+                options={quotationsAreSealed ? [] : quotationOptions}
+                placeholder={quotationsAreSealed ? "Locked until opening time" : "Select quotation"}
+                required
+                disabled={quotationsAreSealed}
+              />
+            </Field>
+            <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
+              <input
+                type="checkbox"
+                checked={quotationEvaluation.technicallyQualified}
+                onChange={(e) => setQuotationEvaluation((c) => ({ ...c, technicallyQualified: e.target.checked }))}
+                disabled={quotationsAreSealed}
+              />
+              Technically qualified
+            </label>
+            <Field label="Evaluation Comment">
+              <textarea
+                className={inputClass}
+                rows={3}
+                value={quotationEvaluation.evaluationComment}
+                onChange={(e) => setQuotationEvaluation((c) => ({ ...c, evaluationComment: e.target.value }))}
+                disabled={quotationsAreSealed}
+              />
+            </Field>
+            <button className={buttonClass} type="submit" disabled={quotationsAreSealed}>Save Quotation Evaluation</button>
           </form>
         </ActionCard>
       )}
@@ -1051,26 +1187,35 @@ function VcWorkspace({ token, setError, setMessage }) {
 function VendorWorkspace({ token, setError, setMessage }) {
   const [rfqs, setRfqs] = useState([]);
   const [bids, setBids] = useState([]);
+  const [quotations, setQuotations] = useState([]);
   const [reports, setReports] = useState([]);
   const [offers, setOffers] = useState([]);
   const [pos, setPos] = useState([]);
   const [bidForm, setBidForm] = useState(initialVendorBid);
+  const [quotationForm, setQuotationForm] = useState(initialVendorQuotation);
   const [objection, setObjection] = useState({ rfqId: "", bidId: "", reason: "", documentUrl: "" });
   const [offerResponse, setOfferResponse] = useState({ offerLetterId: "", decision: "ACCEPTED", comment: "" });
   const [loading, setLoading] = useState(false);
 
+  const rfqOptions = rfqs.map((rfq) => ({
+    value: rfq.rfqId,
+    label: `${rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - ${rfq.title || "Untitled"} - ${rfq.status || "PUBLISHED"}`,
+  }));
+
   const load = async () => {
     setLoading(true);
     try {
-      const [rfqData, bidData, reportData, offerData, poData] = await Promise.all([
+      const [rfqData, bidData, quotationData, reportData, offerData, poData] = await Promise.all([
         vendorProcurementApi.rfqs.list(token),
         vendorProcurementApi.bids.list(token),
+        vendorProcurementApi.quotations.list(token),
         vendorProcurementApi.reports.list(token),
         vendorProcurementApi.offers.list(token),
         vendorProcurementApi.purchaseOrders.list(token),
       ]);
       setRfqs(getArray(rfqData));
       setBids(getArray(bidData));
+      setQuotations(getArray(quotationData));
       setReports(getArray(reportData));
       setOffers(getArray(offerData));
       setPos(getArray(poData));
@@ -1090,6 +1235,11 @@ function VendorWorkspace({ token, setError, setMessage }) {
     setBidForm((current) => ({ ...current, [name]: value }));
   };
 
+  const updateQuotation = (event) => {
+    const { name, value } = event.target;
+    setQuotationForm((current) => ({ ...current, [name]: value }));
+  };
+
   const submitBid = async (event) => {
     event.preventDefault();
     setError("");
@@ -1106,6 +1256,25 @@ function VendorWorkspace({ token, setError, setMessage }) {
       load();
     } catch (err) {
       setError(err.message || "Could not submit bid.");
+    }
+  };
+
+  const submitQuotation = async (event) => {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    try {
+      await vendorProcurementApi.rfqs.submitQuotation(token, quotationForm.rfqId, {
+        quotedAmount: Number(quotationForm.quotedAmount),
+        deliveryPeriodDays: toNumberOrNull(quotationForm.deliveryPeriodDays),
+        remarks: quotationForm.remarks,
+        attachmentUrl: quotationForm.attachmentUrl,
+      });
+      setMessage("Quotation submitted.");
+      setQuotationForm(initialVendorQuotation);
+      load();
+    } catch (err) {
+      setError(err.message || "Could not submit quotation.");
     }
   };
 
@@ -1152,12 +1321,39 @@ function VendorWorkspace({ token, setError, setMessage }) {
 
       <ActionCard eyebrow="Bid Submission" title="Submit Sealed Bid">
         <form onSubmit={submitBid} className="space-y-4">
-          <Field label="RFQ ID"><input className={inputClass} name="rfqId" value={bidForm.rfqId} onChange={updateBid} required /></Field>
+          <Field label="RFQ">
+            <SelectField
+              value={bidForm.rfqId}
+              onChange={(e) => setBidForm((current) => ({ ...current, rfqId: e.target.value }))}
+              options={rfqOptions}
+              placeholder="Select invited RFQ"
+              required
+            />
+          </Field>
           <Field label="Bid Amount"><input className={inputClass} name="bidAmount" value={bidForm.bidAmount} onChange={updateBid} required /></Field>
           <Field label="Technical Document URL"><input className={inputClass} name="technicalDocumentUrl" value={bidForm.technicalDocumentUrl} onChange={updateBid} /></Field>
           <Field label="Financial Document URL"><input className={inputClass} name="financialDocumentUrl" value={bidForm.financialDocumentUrl} onChange={updateBid} /></Field>
           <Field label="Encrypted Bid Data"><textarea className={inputClass} rows={3} name="encryptedBidData" value={bidForm.encryptedBidData} onChange={updateBid} /></Field>
           <button className={buttonClass} type="submit">Submit Bid</button>
+        </form>
+      </ActionCard>
+
+      <ActionCard eyebrow="Quotation Submission" title="Submit Price Quotation">
+        <form onSubmit={submitQuotation} className="space-y-4">
+          <Field label="RFQ">
+            <SelectField
+              value={quotationForm.rfqId}
+              onChange={(e) => setQuotationForm((current) => ({ ...current, rfqId: e.target.value }))}
+              options={rfqOptions}
+              placeholder="Select invited RFQ"
+              required
+            />
+          </Field>
+          <Field label="Quoted Amount"><input className={inputClass} name="quotedAmount" value={quotationForm.quotedAmount} onChange={updateQuotation} required /></Field>
+          <Field label="Delivery Period Days"><input className={inputClass} name="deliveryPeriodDays" value={quotationForm.deliveryPeriodDays} onChange={updateQuotation} /></Field>
+          <Field label="Attachment URL"><input className={inputClass} name="attachmentUrl" value={quotationForm.attachmentUrl} onChange={updateQuotation} /></Field>
+          <Field label="Remarks"><textarea className={inputClass} rows={3} name="remarks" value={quotationForm.remarks} onChange={updateQuotation} /></Field>
+          <button className={buttonClass} type="submit">Submit Quotation</button>
         </form>
       </ActionCard>
 
@@ -1169,6 +1365,20 @@ function VendorWorkspace({ token, setError, setMessage }) {
             { key: "bidId", label: "Bid ID" },
             { key: "rfqNumber", label: "RFQ" },
             { key: "bidAmount", label: "Amount", render: (row) => formatMoney(row.bidAmount) },
+            { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
+          ]}
+        />
+      </ActionCard>
+
+      <ActionCard eyebrow="My Quotations" title="Quotation Status">
+        <DataTable
+          rows={quotations}
+          empty="No quotations submitted yet."
+          columns={[
+            { key: "quotationId", label: "Quotation ID" },
+            { key: "rfqNumber", label: "RFQ" },
+            { key: "quotedAmount", label: "Amount", render: (row) => formatMoney(row.quotedAmount) },
+            { key: "deliveryPeriodDays", label: "Delivery Days" },
             { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
           ]}
         />
