@@ -210,8 +210,6 @@ const App = () => {
           <Routes>
             <Route path="/" element={dashboardElement} />
             <Route path="/dashboard" element={dashboardElement} />
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/bursar/budgets" element={<BursarBudgetWorkspace />} />
             <Route path="/bursar/audit-trail" element={<BursarAuditTrail />} />
             <Route path="/requisition/create" element={<CreateRequisition />} />
@@ -223,9 +221,6 @@ const App = () => {
             <Route path="/approvals/vc" element={<VcApprovals />} />
             <Route path="/procurement/tenders" element={<ProcurementWorkspace />} />
             <Route path="/vendor/tenders" element={<ProcurementWorkspace />} />
-            <Route path="*" element={<Dashboard />} />
-            <Route path="/" element={user?.mainRole === "ADMIN" ? <AdminDashboard /> : <Dashboard />} />
-            <Route path="/dashboard" element={user?.mainRole === "ADMIN" ? <AdminDashboard /> : <Dashboard />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/faculties" element={<AdminFaculties />} />
             <Route path="/admin/departments" element={<AdminDepartments />} />

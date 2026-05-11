@@ -1,105 +1,13 @@
-import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
-import AssignmentTurnedInRoundedIcon from "@mui/icons-material/AssignmentTurnedInRounded";
-import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
-import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
-import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
-import AddCircleRoundedIcon from "@mui/icons-material/AddCircleRounded";
-import EngineeringRoundedIcon from "@mui/icons-material/EngineeringRounded";
-import RateReviewRoundedIcon from "@mui/icons-material/RateReviewRounded";
-import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
-import AccountBalanceRoundedIcon from "@mui/icons-material/AccountBalanceRounded";
-import BusinessRoundedIcon from "@mui/icons-material/BusinessRounded";
 import { useAuth } from "../contexts/AuthContext";
-import { useLocation, useNavigate } from "react-router-dom";
-
-const getMenuItems = (user) => {
-  const mainRole = user?.mainRole;
-  const subRole = user?.subRole;
-
-  if (mainRole === "ADMIN") {
-    return [
-      { label: "Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
-      { label: "Users", icon: PeopleAltRoundedIcon, path: "/admin/users" },
-      { label: "Faculties", icon: AccountBalanceRoundedIcon, path: "/admin/faculties" },
-      { label: "Departments", icon: BusinessRoundedIcon, path: "/admin/departments" },
-    ];
-  }
-
-  if (mainRole === "FINANCE" && subRole === "BURSAR") {
-    return [
-      { label: "Finance Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
-      { label: "Budget Control", icon: AccountBalanceWalletRoundedIcon, path: "/bursar/budgets?tab=budgets" },
-      { label: "Budget Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/bursar/budgets?tab=approvals" },
-      { label: "Audit Trail", icon: ReceiptLongRoundedIcon, path: "/bursar/audit-trail" },
-      
-    ];
-  }
-
-  if (mainRole === "FINANCE") {
-    const financeItems = [
-      { label: "Finance Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
-    ];
-
-    if (subRole === "PROCUREMENT_OFFICER") {
-      financeItems.push({ label: "Tender Workspace", icon: StorefrontRoundedIcon, path: "/procurement/tenders" });
-    }
-
-    return financeItems;
-  }
-
-  if (mainRole === "VENDOR") {
-    return [
-      { label: "Vendor Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
-      { label: "Tender Workspace", icon: StorefrontRoundedIcon, path: "/vendor/tenders" },
-      { label: "My Submissions", icon: ReceiptLongRoundedIcon, path: "/vendor/submissions" },
-      { label: "Purchase Orders", icon: AssignmentTurnedInRoundedIcon, path: "/vendor/purchase-orders" },
-    ];
-  }
-
-  if (subRole === "HOD") {
-    return [
-      { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
-      { label: "HOD Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/approvals/hod" },
-    ];
-  }
-
-  if (subRole === "DEAN") {
-    return [
-      { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
-      { label: "Dean Approvals", icon: RateReviewRoundedIcon, path: "/approvals/dean" },
-    ];
-  }
-
-  if (subRole === "TEC") {
-    return [
-      { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
-      { label: "Technical Reviews", icon: EngineeringRoundedIcon, path: "/approvals/tec" },
-      { label: "Tender Evaluation", icon: StorefrontRoundedIcon, path: "/procurement/tenders" },
-    ];
-  }
-
-  if (subRole === "VC") {
-    return [
-      { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
-      { label: "VC Approvals", icon: RateReviewRoundedIcon, path: "/approvals/vc" },
-      { label: "Offer Approvals", icon: StorefrontRoundedIcon, path: "/procurement/tenders" },
-    ];
-  }
-
-  return [
-    { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
-    { label: "Create Requisition", icon: AddCircleRoundedIcon, path: "/requisition/create" },
-    { label: "My Requisitions", icon: AssignmentTurnedInRoundedIcon, path: "/requisitions" },
-  ];
-};
+import { useNavigate } from "react-router-dom";
+import { getSidebarItems } from "./sidebars/getSidebarItems";
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const displayRole = user?.subRole || user?.mainRole || "USER";
-  const items = getMenuItems(user);
+  const items = getSidebarItems(user);
 
   return (
     <aside className="sticky top-[84px] hidden h-[calc(100vh-84px)] w-[280px] flex-shrink-0 flex-col gap-4 px-5 py-4 lg:flex xl:w-[290px] xl:px-6">
