@@ -26,7 +26,7 @@ export const sidebarConfig = {
 
   [ROLES.FINANCE]: [
     { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
-    { text: "Budget Approvals", icon: <PaymentsIcon />, path: "/finance/approvals" },
+    { text: "Tender Budgets", icon: <PaymentsIcon />, path: "/bursar/budgets" },
   ],
 
   [ROLES.VENDOR]: [

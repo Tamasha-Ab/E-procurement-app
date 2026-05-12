@@ -16,7 +16,7 @@ import PowerSettingsNewRoundedIcon from "@mui/icons-material/PowerSettingsNewRou
 import { adminApi } from "../../api/adminApi";
 
 const mainRoles = ["ADMIN", "FACULTY_STAFF", "FINANCE", "VENDOR"];
-const subRoles = ["LECTURER", "HOD", "DEAN", "VC", "TEC", "PROCUREMENT_OFFICER", "FINANCE_OFFICER", "BURSAR"];
+const subRoles = ["DIVISION_HEAD", "STAFF_MEMBER", "TEC", "PROCUREMENT_OFFICER", "FINANCE_OFFICER", "BURSAR"];
 const statuses = ["PENDING", "APPROVED", "REJECTED"];
 
 const initialForm = {
@@ -26,7 +26,7 @@ const initialForm = {
   mainRole: "FACULTY_STAFF",
   subRole: "",
   facultyId: "",
-  departmentId: "",
+  divisionId: "",
   firstName: "",
   lastName: "",
   phoneNumber: "",
@@ -43,7 +43,7 @@ export default function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [page, setPage] = useState({ number: 0, totalPages: 1, totalElements: 0 });
   const [faculties, setFaculties] = useState([]);
-  const [departments, setDepartments] = useState([]);
+  const [divisions, setDivisions] = useState([]);
   const [filters, setFilters] = useState({ search: "", status: "", mainRole: "" });
   const [form, setForm] = useState(initialForm);
   const [editing, setEditing] = useState(null);
@@ -63,10 +63,10 @@ export default function AdminUsers() {
     setLoading(true);
     setError("");
     try {
-      const [userPage, facultyList, departmentList] = await Promise.all([
+      const [userPage, facultyList, divisionResponse] = await Promise.all([
         adminApi.users.list(params),
         adminApi.faculties.all().catch(() => []),
-        adminApi.departments.all().catch(() => []),
+        fetch("/api/divisions").then((response) => response.json()).catch(() => ({ data: [] })),
       ]);
       setUsers(userPage.content || []);
       setPage({
@@ -75,7 +75,7 @@ export default function AdminUsers() {
         totalElements: userPage.totalElements || 0,
       });
       setFaculties(Array.isArray(facultyList) ? facultyList : []);
-      setDepartments(Array.isArray(departmentList) ? departmentList : []);
+      setDivisions(Array.isArray(divisionResponse?.data) ? divisionResponse.data : []);
     } catch (loadError) {
       setError(loadError.message);
     } finally {
@@ -100,7 +100,7 @@ export default function AdminUsers() {
       ...user,
       password: "",
       facultyId: user.facultyId || "",
-      departmentId: user.departmentId || "",
+      divisionId: user.divisionId || "",
       subRole: user.subRole || "",
     });
     setDialogOpen(true);
@@ -111,7 +111,7 @@ export default function AdminUsers() {
     const payload = {
       ...form,
       facultyId: form.facultyId ? Number(form.facultyId) : null,
-      departmentId: form.departmentId ? Number(form.departmentId) : null,
+      divisionId: form.divisionId ? Number(form.divisionId) : null,
       vendorId: form.vendorId ? Number(form.vendorId) : null,
     };
 
@@ -181,7 +181,7 @@ export default function AdminUsers() {
               <tr>
                 <th className="px-5 py-4">User</th>
                 <th className="px-5 py-4">Role</th>
-                <th className="px-5 py-4">Department</th>
+                <th className="px-5 py-4">Faculty / Division</th>
                 <th className="px-5 py-4">Status</th>
                 <th className="px-5 py-4">Actions</th>
               </tr>
@@ -197,7 +197,7 @@ export default function AdminUsers() {
                     <div className="font-semibold text-slate-700">{user.mainRole}</div>
                     <div className="mt-1 text-slate-500">{user.subRole || "No sub role"}</div>
                   </td>
-                  <td className="px-5 py-4 text-slate-600">{user.departmentName || user.facultyName || user.vendorName || "Not assigned"}</td>
+                  <td className="px-5 py-4 text-slate-600">{[user.facultyName, user.divisionName].filter(Boolean).join(" / ") || user.vendorName || "Not assigned"}</td>
                   <td className="px-5 py-4">
                     <span className="rounded-full bg-[#edf7fb] px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-[#166e8c]">{user.userStatus}</span>
                     <div className="mt-2 text-xs text-slate-500">{user.active ? "Active" : "Inactive"}</div>
@@ -244,9 +244,9 @@ export default function AdminUsers() {
               <MenuItem value="">None</MenuItem>
               {faculties.map((faculty) => <MenuItem key={faculty.id} value={faculty.id}>{faculty.facultyName}</MenuItem>)}
             </TextField>
-            <TextField select label="Department" value={form.departmentId} onChange={(e) => setForm({ ...form, departmentId: e.target.value })}>
+            <TextField select label="Division" value={form.divisionId} onChange={(e) => setForm({ ...form, divisionId: e.target.value })}>
               <MenuItem value="">None</MenuItem>
-              {departments.map((department) => <MenuItem key={department.id} value={department.id}>{department.departmentName}</MenuItem>)}
+              {divisions.map((division) => <MenuItem key={division.divisionId} value={division.divisionId}>{division.divisionName}</MenuItem>)}
             </TextField>
             <TextField label="First name" value={form.firstName || ""} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
             <TextField label="Last name" value={form.lastName || ""} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />

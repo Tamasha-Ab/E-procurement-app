@@ -11,8 +11,10 @@ const buttonClass = "rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-w
 
 const initialRfq = {
   rrId: "",
+  tenderId: "",
   title: "",
   description: "",
+  bidStartDateTime: "",
   submissionDeadline: "",
   bidOpeningDateTime: "",
   objectionDeadline: "",
@@ -24,7 +26,6 @@ const initialSpec = {
   specTitle: "",
   specDescription: "",
   documentUrl: "",
-  submitToVc: true,
 };
 
 const initialMeeting = {
@@ -49,7 +50,6 @@ const initialOffer = {
   bidId: "",
   letterNumber: "",
   letterDocumentUrl: "",
-  submitToVc: true,
 };
 
 const initialVendorBid = {
@@ -188,6 +188,7 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
   const [rfqForm, setRfqForm] = useState(initialRfq);
   const [selectedRfq, setSelectedRfq] = useState(null);
   const [readyRequests, setReadyRequests] = useState([]);
+  const [tenders, setTenders] = useState([]);
   const [rfqs, setRfqs] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [vendorSearch, setVendorSearch] = useState("");
@@ -207,6 +208,12 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
     value: request.rrId,
     label: `${request.rrNumber || `RR ${request.rrId}`} - ${request.title || "Untitled"} - ${formatMoney(request.estimatedTotalAmount)}`,
   }));
+  const tenderOptions = tenders
+    .filter((tender) => tender.status === "READY_FOR_RFQ" || tender.status === "RFQ_CREATED")
+    .map((tender) => ({
+      value: tender.tenderId,
+      label: `${tender.tenderNumber || `Tender ${tender.tenderId}`} - ${tender.title || "Untitled"} - ${formatMoney(tender.estimatedValue)}`,
+    }));
   const rfqOptions = rfqs.map((rfq) => ({
     value: rfq.rfqId,
     label: `${rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - ${rfq.title || "Untitled"} - ${rfq.status || "DRAFT"}`,
@@ -219,13 +226,15 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
   const load = async () => {
     setLoading(true);
     try {
-      const [readyData, rfqData, offerData, poData] = await Promise.all([
+      const [readyData, tenderData, rfqData, offerData, poData] = await Promise.all([
         procurementApi.requisitions.ready(token),
+        procurementApi.tenders.list(token),
         procurementApi.rfqs.list(token),
         procurementApi.purchaseOrders.acceptedOffers(token),
         procurementApi.purchaseOrders.list(token),
       ]);
       setReadyRequests(getArray(readyData));
+      setTenders(getArray(tenderData));
       setRfqs(getArray(rfqData));
       setAcceptedOffers(getArray(offerData));
       setPos(getArray(poData));
@@ -271,9 +280,11 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
     setMessage("");
     try {
       await procurementApi.rfqs.create(token, {
-        rrId: Number(rfqForm.rrId),
+        rrId: rfqForm.rrId ? Number(rfqForm.rrId) : null,
+        tenderId: rfqForm.tenderId ? Number(rfqForm.tenderId) : null,
         title: rfqForm.title,
         description: rfqForm.description,
+        bidStartDateTime: asLocalDateTime(rfqForm.bidStartDateTime),
         submissionDeadline: asLocalDateTime(rfqForm.submissionDeadline),
         bidOpeningDateTime: asLocalDateTime(rfqForm.bidOpeningDateTime),
         objectionDeadline: asLocalDateTime(rfqForm.objectionDeadline),
@@ -341,20 +352,28 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
       </section>
 
       {activeSection === "rfq" && (
-        <ActionCard eyebrow="RFQ Setup" title="Create RFQ from Approved RR">
+        <ActionCard eyebrow="RFQ Setup" title="Create RFQ from Approved Tender">
           <form onSubmit={createRfq} className="space-y-4">
-            <Field label="Approved Requisition Request">
+            <Field label="Approved Tender">
+              <SelectField
+                value={rfqForm.tenderId}
+                onChange={(e) => setRfqForm((current) => ({ ...current, tenderId: e.target.value, rrId: "" }))}
+                options={tenderOptions}
+                placeholder={loading ? "Loading approved tenders..." : "Select approved tender"}
+              />
+            </Field>
+            <Field label="Fallback Approved Requisition Request">
               <SelectField
                 value={rfqForm.rrId}
-                onChange={(e) => setRfqForm((current) => ({ ...current, rrId: e.target.value }))}
+                onChange={(e) => setRfqForm((current) => ({ ...current, rrId: e.target.value, tenderId: "" }))}
                 options={readyRequestOptions}
-                placeholder={loading ? "Loading approved requests..." : "Select approved RR"}
-                required
+                placeholder={loading ? "Loading approved requests..." : "Select only if no tender is used"}
               />
             </Field>
             <Field label="RFQ Title"><input className={inputClass} name="title" value={rfqForm.title} onChange={updateRfq} required /></Field>
             <Field label="Description"><textarea className={inputClass} name="description" rows={3} value={rfqForm.description} onChange={updateRfq} /></Field>
             <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Bid Start Time"><input className={inputClass} type="datetime-local" name="bidStartDateTime" value={rfqForm.bidStartDateTime} onChange={updateRfq} /></Field>
               <Field label="Submission Deadline"><input className={inputClass} type="datetime-local" name="submissionDeadline" value={rfqForm.submissionDeadline} onChange={updateRfq} required /></Field>
               <Field label="Bid Opening Time"><input className={inputClass} type="datetime-local" name="bidOpeningDateTime" value={rfqForm.bidOpeningDateTime} onChange={updateRfq} /></Field>
             </div>
@@ -611,7 +630,6 @@ function TecWorkspace({ token, setError, setMessage }) {
         specTitle: spec.specTitle,
         specDescription: spec.specDescription,
         documentUrl: spec.documentUrl,
-        submitToVc: spec.submitToVc,
       });
       setMessage("Specification document saved.");
       setSpec(initialSpec);
@@ -733,9 +751,8 @@ function TecWorkspace({ token, setError, setMessage }) {
         bidId: Number(offer.bidId),
         letterNumber: offer.letterNumber,
         letterDocumentUrl: offer.letterDocumentUrl,
-        submitToVc: offer.submitToVc,
       });
-      setMessage("Offer letter sent for VC approval.");
+      setMessage("Offer letter created.");
       setOffer(initialOffer);
     } catch (err) {
       setError(err.message || "Could not create offer letter.");
@@ -781,10 +798,6 @@ function TecWorkspace({ token, setError, setMessage }) {
             <Field label="Specification Title"><input className={inputClass} name="specTitle" value={spec.specTitle} onChange={update(setSpec)} required /></Field>
             <Field label="Specification Description"><textarea className={inputClass} rows={3} name="specDescription" value={spec.specDescription} onChange={update(setSpec)} /></Field>
             <Field label="Specification Document URL"><input className={inputClass} name="documentUrl" value={spec.documentUrl} onChange={update(setSpec)} required /></Field>
-            <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
-              <input type="checkbox" name="submitToVc" checked={spec.submitToVc} onChange={update(setSpec)} />
-              Submit to VC
-            </label>
             <button className={buttonClass} type="submit">Save Specification</button>
           </form>
         </ActionCard>
@@ -1001,182 +1014,7 @@ function TecWorkspace({ token, setError, setMessage }) {
             </Field>
             <Field label="Letter Number"><input className={inputClass} name="letterNumber" value={offer.letterNumber} onChange={update(setOffer)} /></Field>
             <Field label="Offer Letter Document URL"><input className={inputClass} name="letterDocumentUrl" value={offer.letterDocumentUrl} onChange={update(setOffer)} required /></Field>
-            <label className="flex items-center gap-3 text-sm font-bold text-[#10283f]">
-              <input type="checkbox" name="submitToVc" checked={offer.submitToVc} onChange={update(setOffer)} />
-              Submit to VC
-            </label>
             <button className={buttonClass} type="submit">Create Offer Letter</button>
-          </form>
-        </ActionCard>
-      )}
-    </div>
-  );
-}
-
-function VcWorkspace({ token, setError, setMessage }) {
-  const [activeSection, setActiveSection] = useState("specs");
-  const [pendingSpecs, setPendingSpecs] = useState([]);
-  const [pendingOffers, setPendingOffers] = useState([]);
-  const [specDecision, setSpecDecision] = useState({ specId: "", decision: "APPROVED", comment: "" });
-  const [offerDecision, setOfferDecision] = useState({ offerLetterId: "", decision: "APPROVED", comment: "" });
-
-  const specOptions = pendingSpecs.map((spec) => ({
-    value: spec.specId,
-    label: `${spec.specTitle || `Spec ${spec.specId}`} - ${spec.rfqNumber || `RFQ ${spec.rfqId}`} - ${spec.status}`,
-  }));
-  const offerOptions = pendingOffers.map((offer) => ({
-    value: offer.offerLetterId,
-    label: `${offer.letterNumber || `Offer ${offer.offerLetterId}`} - ${offer.vendorName || "Vendor"} - ${formatMoney(offer.offerAmount)}`,
-  }));
-
-  const loadPendingApprovals = async () => {
-    setError("");
-    try {
-      const [specData, offerData] = await Promise.all([
-        procurementApi.specifications.pendingVc(token),
-        procurementApi.offers.pendingVc(token),
-      ]);
-      const specs = getArray(specData);
-      const offers = getArray(offerData);
-      setPendingSpecs(specs);
-      setPendingOffers(offers);
-      setSpecDecision((current) => ({ ...current, specId: current.specId || specs[0]?.specId || "" }));
-      setOfferDecision((current) => ({ ...current, offerLetterId: current.offerLetterId || offers[0]?.offerLetterId || "" }));
-    } catch (err) {
-      setError(err.message || "Could not load VC pending approvals.");
-    }
-  };
-
-  useEffect(() => {
-    loadPendingApprovals();
-  }, [token]);
-
-  const decideSpec = async (event) => {
-    event.preventDefault();
-    setError("");
-    setMessage("");
-    try {
-      await procurementApi.specifications.decide(token, specDecision.specId, {
-        decision: specDecision.decision,
-        comment: specDecision.comment,
-      });
-      setMessage("Specification decision saved.");
-      setSpecDecision({ specId: "", decision: "APPROVED", comment: "" });
-      loadPendingApprovals();
-    } catch (err) {
-      setError(err.message || "Could not approve specification.");
-    }
-  };
-
-  const decideOffer = async (event) => {
-    event.preventDefault();
-    setError("");
-    setMessage("");
-    try {
-      await procurementApi.offers.decide(token, offerDecision.offerLetterId, {
-        decision: offerDecision.decision,
-        comment: offerDecision.comment,
-      });
-      setMessage("Offer letter decision saved.");
-      setOfferDecision({ offerLetterId: "", decision: "APPROVED", comment: "" });
-      loadPendingApprovals();
-    } catch (err) {
-      setError(err.message || "Could not approve offer letter.");
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <section className={cardClass}>
-        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">VC Approvals</div>
-        <h2 className="mt-3 text-2xl font-black text-[#10283f]">Review pending procurement approvals</h2>
-        <div className="mt-5 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveSection("specs")}
-            className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${
-              activeSection === "specs" ? "bg-[#166e8c] text-white" : "bg-[#edf7fb] text-[#166e8c] hover:bg-[#d9edf5]"
-            }`}
-          >
-            Specifications ({pendingSpecs.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveSection("offers")}
-            className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${
-              activeSection === "offers" ? "bg-[#166e8c] text-white" : "bg-[#edf7fb] text-[#166e8c] hover:bg-[#d9edf5]"
-            }`}
-          >
-            Offer Letters ({pendingOffers.length})
-          </button>
-        </div>
-      </section>
-
-      {activeSection === "specs" && (
-        <ActionCard eyebrow="VC Decision" title="Approve Tender Specification">
-          <DataTable
-            rows={pendingSpecs}
-            empty="No specifications are waiting for VC approval."
-            columns={[
-              { key: "specId", label: "Spec ID" },
-              { key: "rfqNumber", label: "RFQ" },
-              { key: "specTitle", label: "Title" },
-              { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
-            ]}
-          />
-          <form onSubmit={decideSpec} className="space-y-4">
-            <Field label="Specification">
-              <SelectField
-                value={specDecision.specId}
-                onChange={(e) => setSpecDecision((c) => ({ ...c, specId: e.target.value }))}
-                options={specOptions}
-                placeholder="Select pending specification"
-                required
-              />
-            </Field>
-            <Field label="Decision">
-              <select className={inputClass} value={specDecision.decision} onChange={(e) => setSpecDecision((c) => ({ ...c, decision: e.target.value }))}>
-                <option value="APPROVED">APPROVED</option>
-                <option value="REJECTED">REJECTED</option>
-              </select>
-            </Field>
-            <Field label="Comment"><textarea className={inputClass} rows={3} value={specDecision.comment} onChange={(e) => setSpecDecision((c) => ({ ...c, comment: e.target.value }))} /></Field>
-            <button className={buttonClass} type="submit">Submit Specification Decision</button>
-          </form>
-        </ActionCard>
-      )}
-
-      {activeSection === "offers" && (
-        <ActionCard eyebrow="VC Decision" title="Approve Offer Letter">
-          <DataTable
-            rows={pendingOffers}
-            empty="No offer letters are waiting for VC approval."
-            columns={[
-              { key: "offerLetterId", label: "Offer ID" },
-              { key: "letterNumber", label: "Letter" },
-              { key: "vendorName", label: "Vendor" },
-              { key: "offerAmount", label: "Amount", render: (row) => formatMoney(row.offerAmount) },
-              { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
-            ]}
-          />
-          <form onSubmit={decideOffer} className="space-y-4">
-            <Field label="Offer Letter">
-              <SelectField
-                value={offerDecision.offerLetterId}
-                onChange={(e) => setOfferDecision((c) => ({ ...c, offerLetterId: e.target.value }))}
-                options={offerOptions}
-                placeholder="Select pending offer letter"
-                required
-              />
-            </Field>
-            <Field label="Decision">
-              <select className={inputClass} value={offerDecision.decision} onChange={(e) => setOfferDecision((c) => ({ ...c, decision: e.target.value }))}>
-                <option value="APPROVED">APPROVED</option>
-                <option value="REJECTED">REJECTED</option>
-              </select>
-            </Field>
-            <Field label="Comment"><textarea className={inputClass} rows={3} value={offerDecision.comment} onChange={(e) => setOfferDecision((c) => ({ ...c, comment: e.target.value }))} /></Field>
-            <button className={buttonClass} type="submit">Submit Offer Decision</button>
           </form>
         </ActionCard>
       )}
@@ -1450,7 +1288,6 @@ export default function ProcurementWorkspace() {
     if (user?.mainRole === "VENDOR") return "VENDOR";
     if (user?.mainRole === "FINANCE" && user?.subRole === "PROCUREMENT_OFFICER") return "PROCUREMENT_OFFICER";
     if (user?.mainRole === "FACULTY_STAFF" && user?.subRole === "TEC") return "TEC";
-    if (user?.mainRole === "FACULTY_STAFF" && user?.subRole === "VC") return "VC";
     return "UNSUPPORTED";
   }, [user]);
 
@@ -1465,11 +1302,6 @@ export default function ProcurementWorkspace() {
       title: "Bid Evaluation Workspace",
       description: "Manage specifications, optional pre-bid meetings, sealed bid evaluation, objections, recommendations, and offer letters.",
     },
-    VC: {
-      eyebrow: "Vice Chancellor",
-      title: "Procurement Approvals",
-      description: "Approve or reject tender specifications and offer letters before vendors receive the final award decision.",
-    },
     VENDOR: {
       eyebrow: "Vendor Portal",
       title: "Tender Participation",
@@ -1478,7 +1310,7 @@ export default function ProcurementWorkspace() {
     UNSUPPORTED: {
       eyebrow: "Procurement",
       title: "Workspace Unavailable",
-      description: "This screen is available for Procurement Officer, TEC, VC, and Vendor users.",
+      description: "This screen is available for Procurement Officer, TEC, and Vendor users.",
     },
   }[role];
 
@@ -1495,9 +1327,8 @@ export default function ProcurementWorkspace() {
 
       {role === "PROCUREMENT_OFFICER" && <ProcurementOfficerWorkspace token={token} setError={setError} setMessage={setMessage} />}
       {role === "TEC" && <TecWorkspace token={token} setError={setError} setMessage={setMessage} />}
-      {role === "VC" && <VcWorkspace token={token} setError={setError} setMessage={setMessage} />}
       {role === "VENDOR" && <VendorWorkspace token={token} setError={setError} setMessage={setMessage} />}
-      {role === "UNSUPPORTED" && <EmptyState text="Please login using PROCUREMENT_OFFICER, TEC, VC, or VENDOR role to use this module." />}
+      {role === "UNSUPPORTED" && <EmptyState text="Please login using PROCUREMENT_OFFICER, TEC, or VENDOR role to use this module." />}
     </div>
   );
 }

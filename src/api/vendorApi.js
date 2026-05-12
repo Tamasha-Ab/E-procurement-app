@@ -49,8 +49,15 @@ export const vendorRequest = async (path, options = {}) => {
 };
 
 const basePath = "/api/vendor/procurement";
+const catalogPath = "/api/vendor/catalog";
 
 export const vendorApi = {
+  catalog: {
+    list: () => vendorRequest(catalogPath),
+    create: (payload) => vendorRequest(catalogPath, { method: "POST", body: payload }),
+    update: (catalogItemId, payload) => vendorRequest(`${catalogPath}/${catalogItemId}`, { method: "PUT", body: payload }),
+    deactivate: (catalogItemId) => vendorRequest(`${catalogPath}/${catalogItemId}`, { method: "DELETE" }),
+  },
   rfqs: {
     list: () => vendorRequest(`${basePath}/rfqs`),
     detail: (rfqId) => vendorRequest(`${basePath}/rfqs/${rfqId}`),

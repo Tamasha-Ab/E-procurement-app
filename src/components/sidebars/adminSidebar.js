@@ -7,5 +7,5 @@ export const adminSidebarItems = [
   { label: "Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
   { label: "Users", icon: PeopleAltRoundedIcon, path: "/admin/users" },
   { label: "Faculties", icon: AccountBalanceRoundedIcon, path: "/admin/faculties" },
-  { label: "Departments", icon: BusinessRoundedIcon, path: "/admin/departments" },
+  { label: "Divisions", icon: BusinessRoundedIcon, path: "/admin/departments" },
 ];

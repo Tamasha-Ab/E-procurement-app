@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
-import { apiRequest, formatDateTime, statusLabel } from "../../services/apiClient";
+import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
 
 export default function RequisitionDetails() {
   const { rrId } = useParams();
+  const navigate = useNavigate();
   const { token } = useAuth();
   const [status, setStatus] = useState(null);
+  const [requestDetails, setRequestDetails] = useState(null);
   const [comments, setComments] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -18,11 +21,13 @@ export default function RequisitionDetails() {
     setIsLoading(true);
 
     Promise.all([
+      apiRequest(`/api/staff/requisitions/${rrId}`, { token }),
       apiRequest(`/api/staff/requisitions/${rrId}/status`, { token }),
       apiRequest(`/api/staff/requisitions/${rrId}/comments`, { token }),
     ])
-      .then(([statusData, commentData]) => {
+      .then(([requestData, statusData, commentData]) => {
         if (!active) return;
+        setRequestDetails(requestData);
         setStatus(statusData);
         setComments(commentData);
       })
@@ -59,11 +64,24 @@ export default function RequisitionDetails() {
       {!isLoading && !error && status && (
         <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
-            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Current State</div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Current State</div>
+              {["DRAFT", "HOD_REJECTED"].includes(status.status) && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/requisition/create/${rrId}`)}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-[#166e8c] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#145f79]"
+                >
+                  <EditRoundedIcon fontSize="small" />
+                  Edit Request
+                </button>
+              )}
+            </div>
             <div className="mt-5 space-y-4">
               <InfoRow label="RR Number" value={status.rrNumber} />
               <InfoRow label="Status" value={statusLabel(status.status)} />
               <InfoRow label="Stage" value={status.currentStage} />
+              <InfoRow label="Estimated Total" value={formatMoney(requestDetails?.estimatedTotalAmount)} />
               <InfoRow label="Submitted" value={formatDateTime(status.submittedAt)} />
               <InfoRow label="Updated" value={formatDateTime(status.updatedAt)} />
             </div>
@@ -74,6 +92,46 @@ export default function RequisitionDetails() {
                 <div className="mt-2 text-sm leading-7 text-[#10283f]">{status.rejectionReason || comments.latestComment}</div>
               </div>
             )}
+          </div>
+
+          <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Submitted RR Details</div>
+            <div className="mt-5 space-y-4">
+              <InfoRow label="Faculty" value={requestDetails?.facultyName} />
+              <InfoRow label="Division" value={requestDetails?.divisionName} />
+              <InfoRow label="Description" value={requestDetails?.description} />
+              <InfoRow label="Justification" value={requestDetails?.justification} />
+            </div>
+
+            <div className="mt-6">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Items</div>
+              <div className="mt-4 space-y-3">
+                {(requestDetails?.items || []).length === 0 && (
+                  <div className="rounded-[22px] bg-slate-50 p-4 text-sm text-slate-600">No item details recorded.</div>
+                )}
+                {(requestDetails?.items || []).map((item, index) => (
+                  <div key={item.itemId || index} className="rounded-[22px] bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="font-bold text-[#10283f]">{item.itemName || `Item ${index + 1}`}</div>
+                        <div className="mt-1 text-sm leading-6 text-slate-600">{item.description || "No item description."}</div>
+                      </div>
+                      <div className="text-sm font-bold text-[#166e8c]">{formatMoney(item.estimatedTotalPrice)}</div>
+                    </div>
+                    <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Qty {item.quantity} {item.unitOfMeasure || "Units"} | Unit {formatMoney(item.estimatedUnitPrice)}
+                      {item.priority ? ` | Priority ${statusLabel(item.priority)}` : ""}
+                      {item.hodDecision ? ` | HOD ${statusLabel(item.hodDecision)}` : ""}
+                    </div>
+                    {item.hodComment && (
+                      <div className="mt-3 rounded-2xl bg-white p-3 text-sm leading-6 text-slate-600">
+                        <span className="font-bold text-[#10283f]">HOD Comment: </span>{item.hodComment}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">

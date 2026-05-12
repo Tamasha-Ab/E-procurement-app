@@ -2,8 +2,16 @@ import { apiRequest } from "../services/apiClient";
 
 const procurementBase = "/api/procurement";
 const vendorBase = "/api/vendor/procurement";
+const tenderBase = "/api/tenders";
+const vendorCatalogBase = "/api/vendor/catalog";
 
 export const procurementApi = {
+  tenders: {
+    list: (token) => apiRequest(tenderBase, { token }),
+    detail: (token, tenderId) => apiRequest(`${tenderBase}/${tenderId}`, { token }),
+    create: (token, payload) => apiRequest(tenderBase, { token, method: "POST", body: payload }),
+    budgetCheck: (token, tenderId) => apiRequest(`${tenderBase}/${tenderId}/budget-check`, { token }),
+  },
   requisitions: {
     ready: (token) => apiRequest(`${procurementBase}/ready-requisitions`, { token }),
   },
@@ -26,9 +34,6 @@ export const procurementApi = {
     create: (token, rfqId, payload) =>
       apiRequest(`${procurementBase}/rfqs/${rfqId}/specifications`, { token, method: "POST", body: payload }),
     list: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}/specifications`, { token }),
-    pendingVc: (token) => apiRequest(`${procurementBase}/specifications/pending-vc`, { token }),
-    decide: (token, specId, payload) =>
-      apiRequest(`${procurementBase}/specifications/${specId}/vc-decision`, { token, method: "PATCH", body: payload }),
   },
   meetings: {
     schedule: (token, rfqId, payload) =>
@@ -52,9 +57,6 @@ export const procurementApi = {
   offers: {
     create: (token, rfqId, payload) =>
       apiRequest(`${procurementBase}/rfqs/${rfqId}/offer-letters`, { token, method: "POST", body: payload }),
-    pendingVc: (token) => apiRequest(`${procurementBase}/offer-letters/pending-vc`, { token }),
-    decide: (token, offerLetterId, payload) =>
-      apiRequest(`${procurementBase}/offer-letters/${offerLetterId}/vc-decision`, { token, method: "PATCH", body: payload }),
   },
   purchaseOrders: {
     acceptedOffers: (token) => apiRequest(`${procurementBase}/accepted-offer-letters`, { token }),
@@ -81,6 +83,14 @@ export const procurementApi = {
 };
 
 export const vendorProcurementApi = {
+  catalog: {
+    list: (token) => apiRequest(vendorCatalogBase, { token }),
+    create: (token, payload) => apiRequest(vendorCatalogBase, { token, method: "POST", body: payload }),
+    update: (token, catalogItemId, payload) =>
+      apiRequest(`${vendorCatalogBase}/${catalogItemId}`, { token, method: "PUT", body: payload }),
+    deactivate: (token, catalogItemId) =>
+      apiRequest(`${vendorCatalogBase}/${catalogItemId}`, { token, method: "DELETE" }),
+  },
   rfqs: {
     list: (token) => apiRequest(`${vendorBase}/rfqs`, { token }),
     detail: (token, rfqId) => apiRequest(`${vendorBase}/rfqs/${rfqId}`, { token }),

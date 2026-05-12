@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import AccountTreeRoundedIcon from "@mui/icons-material/AccountTreeRounded";
 import AddCircleRoundedIcon from "@mui/icons-material/AddCircleRounded";
 import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
-import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
 import { useAuth } from "../../contexts/AuthContext";
@@ -101,8 +100,8 @@ export default function StaffDashboard() {
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)] lg:col-span-2">
+      <section>
+        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Recent Requests</div>
@@ -139,25 +138,6 @@ export default function StaffDashboard() {
                 <div className="mt-2 text-sm leading-7 text-slate-600">Create your first requisition request to begin the Staff workflow.</div>
               </div>
             )}
-          </div>
-        </div>
-
-        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Snapshot</div>
-          <div className="mt-4 space-y-4">
-            <div className="rounded-[22px] bg-slate-50 p-4">
-              <div className="text-sm font-semibold text-[#10283f]">Audit Trail</div>
-              <div className="mt-1 text-sm text-slate-600">Every approval action stays timestamped and reviewable.</div>
-            </div>
-            <div className="rounded-[22px] bg-slate-50 p-4">
-              <div className="text-sm font-semibold text-[#10283f]">Budget Discipline</div>
-              <div className="mt-1 text-sm text-slate-600">Requests exceeding department budget can be blocked automatically.</div>
-            </div>
-            <div className="rounded-[22px] bg-slate-50 p-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#fff1c7] text-[#b47a00]"><ErrorOutlineRoundedIcon /></div>
-              <div className="mt-4 text-sm font-semibold text-[#10283f]">Supplier Readiness</div>
-              <div className="mt-1 text-sm text-slate-600">Approved requests can continue into RFQ, bids, offer letters, and PO creation.</div>
-            </div>
           </div>
         </div>
       </section>

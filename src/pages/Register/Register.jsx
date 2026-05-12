@@ -11,63 +11,12 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
-import WorkIcon from "@mui/icons-material/Work";
 import SchoolIcon from "@mui/icons-material/School";
-import SecurityIcon from "@mui/icons-material/Security";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import BadgeIcon from "@mui/icons-material/Badge";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import GoogleIcon from "@mui/icons-material/Google";
-
-const ROLE_CONFIG = {
-  FACULTY_STAFF: {
-    label: "Faculty Staff",
-    subRoles: [
-      { value: "LECTURER", label: "Lecturer" },
-      { value: "HOD", label: "Head of Department (HOD)" },
-      { value: "DEAN", label: "Dean" },
-      { value: "TEC", label: "Technical Evaluation Committee (TEC)" },
-      { value: "VC", label: "Vice Chancellor (VC)" },
-    ],
-    requiresSubRole: true,
-    icon: SchoolIcon,
-    iconColor: "text-emerald-600",
-    bgColor: "bg-emerald-50",
-    desc: "Academic & research staff",
-  },
-  FINANCE: {
-    label: "Finance / Procurement",
-    subRoles: [
-      { value: "FINANCE_OFFICER", label: "Finance Officer" },
-      { value: "PROCUREMENT_OFFICER", label: "Procurement Officer" },
-      { value: "BURSAR", label: "Bursar" },
-    ],
-    requiresSubRole: true,
-    icon: WorkIcon,
-    iconColor: "text-blue-600",
-    bgColor: "bg-blue-50",
-    desc: "Finance & procurement",
-  },
-  VENDOR: {
-    label: "Vendor",
-    subRoles: [],
-    requiresSubRole: false,
-    icon: LocalShippingIcon,
-    iconColor: "text-amber-600",
-    bgColor: "bg-amber-50",
-    desc: "External supplier",
-  },
-  ADMIN: {
-    label: "Admin",
-    subRoles: [],
-    requiresSubRole: false,
-    icon: SecurityIcon,
-    iconColor: "text-purple-600",
-    bgColor: "bg-purple-50",
-    desc: "System administrator",
-  },
-};
 
 function getStrength(password) {
   if (!password) return 0;
@@ -86,6 +35,31 @@ const STRENGTH_CONFIG = [
   { color: "bg-emerald-500", label: "Strong", textColor: "text-emerald-600" },
 ];
 
+const STAFF_ROLE_OPTIONS = [
+  { value: "DIVISION_HEAD", label: "Division Head" },
+  { value: "STAFF_MEMBER", label: "Staff Member" },
+];
+
+const FINANCE_ROLE_OPTIONS = [
+  { value: "PROCUREMENT_OFFICER", label: "Procurement Officer" },
+  { value: "BURSAR", label: "Bursar" },
+];
+
+const TEC_ROLE_OPTIONS = [
+  { value: "TEC", label: "TEC Officer" },
+];
+
+const normalizeDivisionName = (division) =>
+  division?.divisionName?.trim().toLowerCase() || "";
+
+const isNamedDivision = (division, name) =>
+  normalizeDivisionName(division) === name.toLowerCase();
+
+const isTecNamedDivision = (division) => {
+  const name = normalizeDivisionName(division);
+  return name === "tec" || name.includes("technical evaluation committee");
+};
+
 export default function Register({ openLogin }) {
   const googleButtonRef = useRef(null);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -95,8 +69,9 @@ export default function Register({ openLogin }) {
     handleSubmit,
     watch,
     setError,
+    setValue,
     formState: { errors, isSubmitting },
-  } = useForm({ defaultValues: { mainRole: "FACULTY_STAFF", subRole: "" } });
+  } = useForm({ defaultValues: { universityAffiliated: "yes", mainRole: "FACULTY_STAFF", subRole: "" } });
 
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -106,14 +81,82 @@ export default function Register({ openLogin }) {
   const [successMessage, setSuccessMessage] = useState("");
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isGoogleReady, setIsGoogleReady] = useState(false);
+  const [divisions, setDivisions] = useState([]);
+  const [faculties, setFaculties] = useState([]);
+  const [divisionError, setDivisionError] = useState("");
+  const [facultyError, setFacultyError] = useState("");
 
-  const selectedRole = watch("mainRole");
   const selectedSubRole = watch("subRole");
+  const selectedFacultyId = watch("facultyId");
+  const selectedDivisionId = watch("divisionId");
+  const universityAffiliated = watch("universityAffiliated");
   const password = watch("password");
-  const roleConfig = ROLE_CONFIG[selectedRole] || ROLE_CONFIG.FACULTY_STAFF;
+  const selectedDivision = divisions.find((division) => String(division.divisionId) === String(selectedDivisionId));
+  const isFinanceDivision = isNamedDivision(selectedDivision, "finance");
+  const isTecDivision = isTecNamedDivision(selectedDivision);
+  const divisionRoleOptions = isFinanceDivision ? FINANCE_ROLE_OPTIONS : isTecDivision ? TEC_ROLE_OPTIONS : STAFF_ROLE_OPTIONS;
   const strength = getStrength(password);
   const strengthConfig = STRENGTH_CONFIG[Math.max(strength - 1, 0)];
-  const isRoleReady = !!selectedRole && (!roleConfig.requiresSubRole || !!selectedSubRole);
+  const isExternalVendor = universityAffiliated === "no";
+  const isRoleReady = isExternalVendor || (!!selectedFacultyId && !!selectedDivisionId && !!selectedSubRole);
+
+  useEffect(() => {
+    if (isExternalVendor) {
+      setValue("mainRole", "VENDOR");
+      setValue("subRole", "");
+      setValue("facultyId", "");
+      setValue("divisionId", "");
+    } else {
+      setValue("mainRole", isFinanceDivision ? "FINANCE" : "FACULTY_STAFF");
+    }
+  }, [isExternalVendor, isFinanceDivision, setValue]);
+
+  useEffect(() => {
+    if (!isExternalVendor && selectedSubRole && !divisionRoleOptions.some((role) => role.value === selectedSubRole)) {
+      setValue("subRole", "");
+    }
+  }, [divisionRoleOptions, isExternalVendor, selectedSubRole, setValue]);
+
+  useEffect(() => {
+    if (!isExternalVendor && isTecDivision) {
+      setValue("subRole", "TEC");
+    }
+  }, [isExternalVendor, isTecDivision, setValue]);
+
+  useEffect(() => {
+    let ignore = false;
+    const loadLookups = async () => {
+      try {
+        const [divisionResponse, facultyResponse] = await Promise.all([
+          fetch("/api/divisions"),
+          fetch("/api/admin/faculties/active"),
+        ]);
+        const divisionBody = await divisionResponse.json().catch(() => ({}));
+        const facultyBody = await facultyResponse.json().catch(() => ({}));
+        if (!divisionResponse.ok) {
+          throw new Error(divisionBody?.message || "Could not load divisions");
+        }
+        if (!facultyResponse.ok) {
+          throw new Error(facultyBody?.message || "Could not load faculties");
+        }
+        if (!ignore) {
+          setDivisions(Array.isArray(divisionBody?.data) ? divisionBody.data : []);
+          setFaculties(Array.isArray(facultyBody?.data) ? facultyBody.data : []);
+          setDivisionError("");
+          setFacultyError("");
+        }
+      } catch (error) {
+        if (!ignore) {
+          setDivisionError(error.message || "Could not load divisions");
+          setFacultyError(error.message || "Could not load faculties");
+        }
+      }
+    };
+    loadLookups();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     document.title = "Astraea · Create Account";
@@ -160,11 +203,12 @@ export default function Register({ openLogin }) {
           try {
             const result = await googleRegister({
               idToken: response.credential,
-              mainRole: selectedRole,
-              subRole: roleConfig.requiresSubRole ? selectedSubRole : null,
-              facultyId: null,
-              departmentId: null,
-              vendorId: null,
+              mainRole: isExternalVendor ? "VENDOR" : isFinanceDivision ? "FINANCE" : "FACULTY_STAFF",
+              subRole: isExternalVendor ? null : selectedSubRole,
+              universityAffiliated: !isExternalVendor,
+              registrationType: isExternalVendor ? "VENDOR" : "INTERNAL",
+              facultyId: isExternalVendor ? null : Number(selectedFacultyId),
+              divisionId: isExternalVendor ? null : Number(selectedDivisionId),
             });
 
             setSuccessMessage(result?.message || "Google sign-up submitted. Awaiting admin approval.");
@@ -218,7 +262,7 @@ export default function Register({ openLogin }) {
     return () => {
       cancelled = true;
     };
-  }, [googleClientId, googleRegister, isRoleReady, roleConfig.requiresSubRole, selectedRole, selectedSubRole]);
+  }, [googleClientId, googleRegister, isExternalVendor, isFinanceDivision, isRoleReady, selectedDivisionId, selectedFacultyId, selectedSubRole]);
 
   const onSubmit = async (data) => {
     if (data.password !== data.confirmPassword) {
@@ -230,11 +274,18 @@ export default function Register({ openLogin }) {
       username: data.username,
       email: data.email,
       password: data.password,
-      mainRole: data.mainRole,
-      subRole: roleConfig.requiresSubRole ? data.subRole : null,
-      facultyId: null,
-      departmentId: null,
-      vendorId: null,
+      universityAffiliated: data.universityAffiliated !== "no",
+      registrationType: data.universityAffiliated === "no" ? "VENDOR" : "INTERNAL",
+      mainRole: data.universityAffiliated === "no" ? "VENDOR" : isFinanceDivision ? "FINANCE" : "FACULTY_STAFF",
+      subRole: data.universityAffiliated === "no" ? null : data.subRole,
+      facultyId: data.universityAffiliated === "no" ? null : Number(data.facultyId),
+      divisionId: data.universityAffiliated === "no" ? null : Number(data.divisionId),
+      universityId: data.universityAffiliated === "no" ? null : data.universityId,
+      vendorName: data.vendorName || null,
+      companyRegistrationNumber: data.companyRegistrationNumber || null,
+      contactPerson: data.contactPerson || null,
+      phone: data.phone || null,
+      address: data.address || null,
     };
 
     try {
@@ -348,49 +399,88 @@ export default function Register({ openLogin }) {
           <div className="space-y-5 animate-fadeIn">
             <div className="space-y-1.5">
               <label className="block text-sm font-semibold text-gray-700">
-                Account Type <span className="text-red-500">*</span>
+                University Affiliation <span className="text-red-500">*</span>
               </label>
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                {Object.entries(ROLE_CONFIG).map(([key, cfg]) => {
-                  const Icon = cfg.icon;
-                  const isSelected = selectedRole === key;
-                  return (
-                    <label
-                      key={key}
-                      className={`relative cursor-pointer rounded-xl border-2 p-4 transition-all duration-200 hover:shadow-md ${
-                        isSelected ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300 bg-white"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        value={key}
-                        {...register("mainRole", { required: true })}
-                        className="sr-only"
-                      />
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${
-                        isSelected ? "bg-blue-500 text-white" : `${cfg.bgColor} ${cfg.iconColor}`
-                      }`}>
-                        <Icon style={{ fontSize: 20 }} />
-                      </div>
-                      <p className={`text-sm font-medium ${isSelected ? "text-blue-700" : "text-gray-700"}`}>
-                        {cfg.label}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-400">{cfg.desc}</p>
-                      {isSelected && (
-                        <div className="absolute top-2 right-2">
-                          <CheckCircleIcon style={{ fontSize: 16 }} className="text-blue-500" />
-                        </div>
-                      )}
-                    </label>
-                  );
-                })}
+              <div className="grid grid-cols-2 gap-3">
+                <label className={`cursor-pointer rounded-xl border-2 p-4 transition ${universityAffiliated !== "no" ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"}`}>
+                  <input type="radio" value="yes" {...register("universityAffiliated")} className="sr-only" />
+                  <SchoolIcon className={universityAffiliated !== "no" ? "text-blue-600" : "text-gray-400"} />
+                  <p className="mt-2 text-sm font-semibold text-gray-700">University Staff</p>
+                </label>
+                <label className={`cursor-pointer rounded-xl border-2 p-4 transition ${universityAffiliated === "no" ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"}`}>
+                  <input type="radio" value="no" {...register("universityAffiliated")} className="sr-only" />
+                  <LocalShippingIcon className={universityAffiliated === "no" ? "text-blue-600" : "text-gray-400"} />
+                  <p className="mt-2 text-sm font-semibold text-gray-700">External Vendor</p>
+                </label>
               </div>
             </div>
 
-            {roleConfig.requiresSubRole && (
+            {!isExternalVendor && (
+              <div className="space-y-1.5">
+                <label htmlFor="facultyId" className="block text-sm font-semibold text-gray-700">
+                  Faculty <span className="text-red-500">*</span>
+                </label>
+                <div className="relative flex items-center">
+                  <SchoolIcon className="absolute text-gray-400 left-3" style={{ fontSize: 18 }} />
+                  <select
+                    id="facultyId"
+                    {...register("facultyId", { required: "Please select your faculty" })}
+                    className="w-full py-3 pl-10 pr-10 text-sm transition-colors bg-white border-2 border-gray-200 appearance-none rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300"
+                    disabled={isSubmitting}
+                  >
+                    <option value="">Select your faculty</option>
+                    {faculties.map((faculty) => (
+                      <option key={faculty.id || faculty.facultyId} value={faculty.id || faculty.facultyId}>
+                        {faculty.facultyName}
+                      </option>
+                    ))}
+                  </select>
+                  <ExpandMoreIcon className="absolute text-gray-400 pointer-events-none right-3" style={{ fontSize: 18 }} />
+                </div>
+                {facultyError && <p className="text-xs text-red-500">{facultyError}</p>}
+                {errors.facultyId && (
+                  <p className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                    <ErrorIcon style={{ fontSize: 12 }} /> {errors.facultyId.message}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!isExternalVendor && (
+              <div className="space-y-1.5">
+                <label htmlFor="divisionId" className="block text-sm font-semibold text-gray-700">
+                  Division <span className="text-red-500">*</span>
+                </label>
+                <div className="relative flex items-center">
+                  <SchoolIcon className="absolute text-gray-400 left-3" style={{ fontSize: 18 }} />
+                  <select
+                    id="divisionId"
+                    {...register("divisionId", { required: "Please select your division" })}
+                    className="w-full py-3 pl-10 pr-10 text-sm transition-colors bg-white border-2 border-gray-200 appearance-none rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300"
+                    disabled={isSubmitting}
+                  >
+                    <option value="">Select your division</option>
+                    {divisions.map((division) => (
+                      <option key={division.divisionId} value={division.divisionId}>
+                        {division.divisionName}
+                      </option>
+                    ))}
+                  </select>
+                  <ExpandMoreIcon className="absolute text-gray-400 pointer-events-none right-3" style={{ fontSize: 18 }} />
+                </div>
+                {divisionError && <p className="text-xs text-red-500">{divisionError}</p>}
+                {errors.divisionId && (
+                  <p className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                    <ErrorIcon style={{ fontSize: 12 }} /> {errors.divisionId.message}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!isExternalVendor && (
               <div className="space-y-1.5">
                 <label htmlFor="subRole" className="block text-sm font-semibold text-gray-700">
-                  Position <span className="text-red-500">*</span>
+                  Role in Division <span className="text-red-500">*</span>
                 </label>
                 <div className="relative flex items-center">
                   <BadgeIcon className="absolute text-gray-400 left-3" style={{ fontSize: 18 }} />
@@ -401,7 +491,7 @@ export default function Register({ openLogin }) {
                     disabled={isSubmitting}
                   >
                     <option value="">Select your position</option>
-                    {roleConfig.subRoles.map((subRole) => (
+                    {divisionRoleOptions.map((subRole) => (
                       <option key={subRole.value} value={subRole.value}>
                         {subRole.label}
                       </option>
@@ -414,6 +504,12 @@ export default function Register({ openLogin }) {
                     <ErrorIcon style={{ fontSize: 12 }} /> {errors.subRole.message}
                   </p>
                 )}
+              </div>
+            )}
+
+            {isExternalVendor && (
+              <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-800">
+                Vendor accounts are reviewed by an admin before catalog and bidding access is enabled.
               </div>
             )}
 
@@ -485,6 +581,30 @@ export default function Register({ openLogin }) {
 
         {step === 2 && (
           <div className="space-y-5 animate-fadeIn">
+            {!isExternalVendor && (
+              <div className="space-y-1.5">
+                <label htmlFor="universityId" className="block text-sm font-semibold text-gray-700">
+                  University ID <span className="text-red-500">*</span>
+                </label>
+                <div className="relative flex items-center">
+                  <BadgeIcon className="absolute text-gray-400 left-3" style={{ fontSize: 18 }} />
+                  <input
+                    id="universityId"
+                    type="text"
+                    {...register("universityId", { required: !isExternalVendor ? "University ID is required" : false })}
+                    placeholder="Enter your university ID"
+                    className="w-full py-3 pl-10 pr-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300"
+                    disabled={isSubmitting}
+                  />
+                </div>
+                {errors.universityId && (
+                  <p className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                    <ErrorIcon style={{ fontSize: 12 }} /> {errors.universityId.message}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <label htmlFor="username" className="block text-sm font-semibold text-gray-700">
                 Username <span className="text-red-500">*</span>
@@ -511,6 +631,34 @@ export default function Register({ openLogin }) {
                 </p>
               )}
             </div>
+
+            {isExternalVendor && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5 md:col-span-2">
+                  <label htmlFor="vendorName" className="block text-sm font-semibold text-gray-700">
+                    Vendor / Company Name <span className="text-red-500">*</span>
+                  </label>
+                  <input id="vendorName" type="text" {...register("vendorName", { required: isExternalVendor ? "Vendor name is required" : false })} className="w-full py-3 px-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300" disabled={isSubmitting} />
+                  {errors.vendorName && <p className="text-xs text-red-500">{errors.vendorName.message}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="companyRegistrationNumber" className="block text-sm font-semibold text-gray-700">Registration Number</label>
+                  <input id="companyRegistrationNumber" type="text" {...register("companyRegistrationNumber")} className="w-full py-3 px-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300" disabled={isSubmitting} />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="contactPerson" className="block text-sm font-semibold text-gray-700">Contact Person</label>
+                  <input id="contactPerson" type="text" {...register("contactPerson")} className="w-full py-3 px-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300" disabled={isSubmitting} />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="phone" className="block text-sm font-semibold text-gray-700">Phone</label>
+                  <input id="phone" type="text" {...register("phone")} className="w-full py-3 px-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300" disabled={isSubmitting} />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="address" className="block text-sm font-semibold text-gray-700">Address</label>
+                  <input id="address" type="text" {...register("address")} className="w-full py-3 px-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300" disabled={isSubmitting} />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700">

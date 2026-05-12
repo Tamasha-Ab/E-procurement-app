@@ -28,7 +28,7 @@ const normalizeStats = (stats, pendingPage) => ({
 export default function AdminDashboard() {
   const [stats, setStats] = useState(emptyStats);
   const [faculties, setFaculties] = useState([]);
-  const [departments, setDepartments] = useState([]);
+  const [divisions, setDivisions] = useState([]);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -41,10 +41,10 @@ export default function AdminDashboard() {
       setError("");
 
       try {
-        const [userStats, facultyList, departmentList, pendingPage] = await Promise.all([
+        const [userStats, facultyList, divisionList, pendingPage] = await Promise.all([
           adminApi.users.statistics().catch(() => emptyStats),
           adminApi.faculties.all().catch(() => []),
-          adminApi.departments.all().catch(() => []),
+          adminApi.divisions.all().catch(() => []),
           adminApi.users.pending().catch(() => ({ content: [] })),
         ]);
 
@@ -52,7 +52,7 @@ export default function AdminDashboard() {
 
         setStats(normalizeStats(userStats, pendingPage));
         setFaculties(Array.isArray(facultyList) ? facultyList : []);
-        setDepartments(Array.isArray(departmentList) ? departmentList : []);
+        setDivisions(Array.isArray(divisionList) ? divisionList : []);
         setPendingUsers(pendingPage.content || []);
       } catch (loadError) {
         if (mounted) setError(loadError.message);
@@ -71,7 +71,7 @@ export default function AdminDashboard() {
     { label: "Total Users", value: numberValue(stats.totalUsers), icon: PeopleAltRoundedIcon },
     { label: "Pending Approvals", value: numberValue(stats.pendingApprovals), icon: PendingActionsRoundedIcon },
     { label: "Faculties", value: numberValue(faculties.length), icon: AccountBalanceRoundedIcon },
-    { label: "Departments", value: numberValue(departments.length), icon: BusinessRoundedIcon },
+    { label: "Divisions", value: numberValue(divisions.length), icon: BusinessRoundedIcon },
   ];
 
   return (
@@ -82,7 +82,7 @@ export default function AdminDashboard() {
           <div>
             <h1 className="text-4xl font-black leading-tight">Control center for users and university structure.</h1>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-100/90">
-              Manage account approvals, university faculties, and departments using the backend admin API.
+              Manage account approvals, university faculties, and divisions using the backend admin API.
             </p>
           </div>
         </div>
@@ -117,8 +117,8 @@ export default function AdminDashboard() {
               <div className="mt-3 text-2xl font-black text-[#10283f]">{faculties.filter((item) => item.active).length}</div>
             </div>
             <div className="rounded-[24px] bg-[#fff9ec] p-5">
-              <div className="text-sm font-semibold text-[#b47a00]">Active Departments</div>
-              <div className="mt-3 text-2xl font-black text-[#10283f]">{departments.filter((item) => item.active).length}</div>
+              <div className="text-sm font-semibold text-[#b47a00]">Active Divisions</div>
+              <div className="mt-3 text-2xl font-black text-[#10283f]">{divisions.filter((item) => item.active).length}</div>
             </div>
             <div className="rounded-[24px] bg-slate-50 p-5">
               <div className="text-sm font-semibold text-slate-600">Approved Users</div>

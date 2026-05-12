@@ -99,10 +99,18 @@ export const adminApi = {
     update: (id, payload) => adminRequest(`/api/admin/departments/${id}`, { method: "PUT", body: payload }),
     toggle: (id) => adminRequest(`/api/admin/departments/${id}/toggle-status`, { method: "PATCH" }),
   },
-  budgets: {
-    list: (year) => adminRequest(`/api/admin/department-budgets${year ? `?year=${year}` : ""}`),
-    create: (payload) => adminRequest("/api/admin/department-budgets", { method: "POST", body: payload }),
-    update: (id, payload) => adminRequest(`/api/admin/department-budgets/${id}`, { method: "PUT", body: payload }),
-    toggle: (id) => adminRequest(`/api/admin/department-budgets/${id}/toggle-status`, { method: "PATCH" }),
+  divisions: {
+    list: () => adminRequest("/api/divisions/all").then(toPage),
+    all: () => adminRequest("/api/divisions/all"),
+    create: (payload) => adminRequest("/api/divisions", { method: "POST", body: payload }),
+    update: (id, payload) => adminRequest(`/api/divisions/${id}`, { method: "PUT", body: payload }),
+    toggle: (division) => adminRequest(`/api/divisions/${division.divisionId || division.id}`, {
+      method: "PUT",
+      body: {
+        divisionName: division.divisionName,
+        description: division.description,
+        active: !division.active,
+      },
+    }),
   },
 };

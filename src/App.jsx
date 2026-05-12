@@ -25,19 +25,20 @@ import CreateRequisition from "./pages/Staff/CreateRequisition.jsx";
 import MyRequisitions from "./pages/Staff/MyRequisitions.jsx";
 import RequisitionDetails from "./pages/Staff/RequisitionDetails.jsx";
 import HodApprovals from "./pages/Approvals/HodApprovals.jsx";
-import DeanApprovals from "./pages/Approvals/DeanApprovals.jsx";
+import HodAuditTrail from "./pages/Approvals/HodAuditTrail.jsx";
 import TecApprovals from "./pages/Approvals/TecApprovals.jsx";
-import VcApprovals from "./pages/Approvals/VcApprovals.jsx";
+import TecAuditTrail from "./pages/Approvals/TecAuditTrail.jsx";
 import ProcurementWorkspace from "./pages/Procurement/ProcurementWorkspace.jsx";
+import NotificationsPage from "./pages/Notifications/NotificationsPage.jsx";
 
 const roleCards = [
   {
     title: "Staff Requests",
-    text: "Create requisitions, attach item details, and track the approval journey from department to payment.",
+    text: "Create requisitions, attach item details, and track the approval journey from division to payment.",
   },
   {
     title: "Approval Workflow",
-    text: "Move requests through HOD, Dean, TEC, VC, and Bursar with full traceability and audit visibility.",
+    text: "Move requests through Division Head, TEC, and Bursar with full traceability and audit visibility.",
   },
   {
     title: "Procurement Control",
@@ -213,17 +214,20 @@ const App = () => {
             <Route path="/bursar/budgets" element={<BursarBudgetWorkspace />} />
             <Route path="/bursar/audit-trail" element={<BursarAuditTrail />} />
             <Route path="/requisition/create" element={<CreateRequisition />} />
+            <Route path="/requisition/create/:rrId" element={<CreateRequisition />} />
             <Route path="/requisitions" element={<MyRequisitions />} />
             <Route path="/requisitions/:rrId" element={<RequisitionDetails />} />
             <Route path="/approvals/hod" element={<HodApprovals />} />
-            <Route path="/approvals/dean" element={<DeanApprovals />} />
+            <Route path="/approvals/hod/audit-trail" element={<HodAuditTrail />} />
             <Route path="/approvals/tec" element={<TecApprovals />} />
-            <Route path="/approvals/vc" element={<VcApprovals />} />
+            <Route path="/approvals/tec/audit-trail" element={<TecAuditTrail />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/procurement/tenders" element={<ProcurementWorkspace />} />
             <Route path="/vendor/tenders" element={<ProcurementWorkspace />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/faculties" element={<AdminFaculties />} />
             <Route path="/admin/departments" element={<AdminDepartments />} />
+            <Route path="/admin/divisions" element={<AdminDepartments />} />
             <Route path="/vendor/opportunities" element={<ProcurementWorkspace />} />
             <Route path="/vendor/submissions" element={<ProcurementWorkspace />} />
             <Route path="/vendor/purchase-orders" element={<ProcurementWorkspace />} />

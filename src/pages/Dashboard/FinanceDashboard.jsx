@@ -138,8 +138,8 @@ export default function FinanceDashboard() {
               <div className="mt-1 text-sm text-slate-600">Every approval action stays timestamped and reviewable.</div>
             </div>
             <div className="rounded-[22px] bg-slate-50 p-4">
-              <div className="text-sm font-semibold text-[#10283f]">Budget Discipline</div>
-              <div className="mt-1 text-sm text-slate-600">Requests exceeding department budget can be blocked automatically.</div>
+              <div className="text-sm font-semibold text-[#10283f]">Tender Notifications</div>
+              <div className="mt-1 text-sm text-slate-600">New tenders notify staff members, division heads, and TEC officers immediately.</div>
             </div>
             <div className="rounded-[22px] bg-slate-50 p-4">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#fff1c7] text-[#b47a00]"><ErrorOutlineRoundedIcon /></div>

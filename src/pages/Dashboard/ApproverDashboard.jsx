@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AccountTreeRoundedIcon from "@mui/icons-material/AccountTreeRounded";
-import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import RateReviewRoundedIcon from "@mui/icons-material/RateReviewRounded";
 import VerifiedRoundedIcon from "@mui/icons-material/VerifiedRounded";
 import { useAuth } from "../../contexts/AuthContext";
@@ -17,6 +16,7 @@ export default function ApproverDashboard() {
 
   const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.username || "Astraea User";
   const displayRole = user?.subRole || user?.mainRole || "USER";
+  const displayRoleLabel = statusLabel(displayRole);
   const config = approverDashboardConfig[displayRole] || approverDashboardConfig.HOD;
 
   useEffect(() => {
@@ -41,18 +41,18 @@ export default function ApproverDashboard() {
 
   const metrics = useMemo(() => [
     { label: "Pending Requests", value: pendingCount ?? 0, icon: RateReviewRoundedIcon },
-    { label: "Approval Stage", value: displayRole, icon: AccountTreeRoundedIcon },
+    { label: "Approval Stage", value: displayRoleLabel, icon: AccountTreeRoundedIcon },
     { label: "Ready to Review", value: pendingCount ? "Yes" : "No", icon: VerifiedRoundedIcon },
-  ], [displayRole, pendingCount]);
+  ], [displayRoleLabel, pendingCount]);
 
   return (
     <div className="space-y-8">
       <section className="grid gap-6 xl:grid-cols-[1.25fr_0.95fr]">
         <div className="overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,#0f2940,#166e8c)] p-8 text-white shadow-[0_28px_70px_rgba(15,41,64,0.22)]">
-          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-100">{statusLabel(displayRole)} Dashboard</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-100">{displayRoleLabel} Dashboard</div>
           <h1 className="mt-4 text-4xl font-black leading-tight">Welcome back, {displayName}.</h1>
           <p className="mt-4 max-w-2xl text-base leading-8 text-slate-100/90">
-            You are signed in as {statusLabel(displayRole)}. Your workspace shows the approvals connected to your role.
+            You are signed in as {displayRoleLabel}. Your workspace shows the approvals connected to your role.
           </p>
 
           {error && <div className="mt-5 rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-sm text-white">{error}</div>}
@@ -70,9 +70,9 @@ export default function ApproverDashboard() {
             {metrics.map((metric) => {
               const Icon = metric.icon;
               return (
-                <div key={metric.label} className="rounded-[24px] bg-white/10 p-4 backdrop-blur">
+                <div key={metric.label} className="min-w-0 rounded-[24px] bg-white/10 p-4 backdrop-blur">
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15"><Icon /></div>
-                  <div className="mt-5 text-3xl font-black">{loading ? "..." : metric.value}</div>
+                  <div className="mt-5 break-words text-2xl font-black leading-tight sm:text-3xl">{loading ? "..." : metric.value}</div>
                   <div className="mt-1 text-sm text-slate-200">{metric.label}</div>
                 </div>
               );
@@ -95,33 +95,14 @@ export default function ApproverDashboard() {
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)] lg:col-span-2">
+      <section>
+        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
           <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Operational Focus</div>
           <h3 className="mt-2 text-2xl font-bold text-[#10283f]">What happens next</h3>
           <div className="mt-6 rounded-[24px] bg-[#f5fbff] p-5">
             <div className="text-sm font-semibold text-[#166e8c]">{pendingCount ?? 0} pending request{pendingCount === 1 ? "" : "s"}</div>
             <div className="mt-3 text-4xl font-black text-[#10283f]">{pendingCount ?? 0}</div>
             <div className="mt-2 text-sm leading-7 text-slate-600">Open your queue or tender workspace to continue the procurement process.</div>
-          </div>
-        </div>
-
-        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Snapshot</div>
-          <div className="mt-4 space-y-4">
-            <div className="rounded-[22px] bg-slate-50 p-4">
-              <div className="text-sm font-semibold text-[#10283f]">Audit Trail</div>
-              <div className="mt-1 text-sm text-slate-600">Every approval action stays timestamped and reviewable.</div>
-            </div>
-            <div className="rounded-[22px] bg-slate-50 p-4">
-              <div className="text-sm font-semibold text-[#10283f]">Budget Discipline</div>
-              <div className="mt-1 text-sm text-slate-600">Requests exceeding department budget can be blocked automatically.</div>
-            </div>
-            <div className="rounded-[22px] bg-slate-50 p-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#fff1c7] text-[#b47a00]"><ErrorOutlineRoundedIcon /></div>
-              <div className="mt-4 text-sm font-semibold text-[#10283f]">Supplier Readiness</div>
-              <div className="mt-1 text-sm text-slate-600">Approved requests can continue into RFQ, bids, offer letters, and PO creation.</div>
-            </div>
           </div>
         </div>
       </section>

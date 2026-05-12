@@ -34,6 +34,15 @@ const emptyForm = {
   comment: "",
 };
 
+const emptyCatalogForm = {
+  itemName: "",
+  description: "",
+  category: "",
+  unitOfMeasure: "Units",
+  unitPrice: "",
+  specificationDocumentUrl: "",
+};
+
 const money = (value) => {
   const number = Number(value || 0);
   return number ? `LKR ${number.toLocaleString()}` : "LKR 0";
@@ -71,24 +80,27 @@ export default function VendorDashboard() {
   const [offers, setOffers] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [reports, setReports] = useState([]);
+  const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [dialog, setDialog] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [catalogForm, setCatalogForm] = useState(emptyCatalogForm);
 
   const load = async () => {
     setLoading(true);
     setError("");
 
     try {
-      const [rfqList, bidList, quotationList, offerList, poList, reportList] = await Promise.all([
+      const [rfqList, bidList, quotationList, offerList, poList, reportList, catalogList] = await Promise.all([
         vendorApi.rfqs.list().catch(() => []),
         vendorApi.bids.list().catch(() => []),
         vendorApi.quotations.list().catch(() => []),
         vendorApi.offers.list().catch(() => []),
         vendorApi.purchaseOrders.list().catch(() => []),
         vendorApi.reports.list().catch(() => []),
+        vendorApi.catalog.list().catch(() => []),
       ]);
 
       setRfqs(safeList(rfqList));
@@ -97,6 +109,7 @@ export default function VendorDashboard() {
       setOffers(safeList(offerList));
       setPurchaseOrders(safeList(poList));
       setReports(safeList(reportList));
+      setCatalog(safeList(catalogList));
     } catch (loadError) {
       setError(loadError.message);
     } finally {
@@ -182,6 +195,40 @@ export default function VendorDashboard() {
       }
 
       closeDialog();
+      await load();
+    } catch (submitError) {
+      setError(submitError.message);
+    }
+  };
+
+  const submitCatalogItem = async (event) => {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+
+    try {
+      await vendorApi.catalog.create({
+        itemName: catalogForm.itemName,
+        description: catalogForm.description,
+        category: catalogForm.category,
+        unitOfMeasure: catalogForm.unitOfMeasure,
+        unitPrice: catalogForm.unitPrice ? Number(catalogForm.unitPrice) : null,
+        specificationDocumentUrl: catalogForm.specificationDocumentUrl,
+      });
+      setCatalogForm(emptyCatalogForm);
+      setNotice("Catalog item saved successfully.");
+      await load();
+    } catch (submitError) {
+      setError(submitError.message);
+    }
+  };
+
+  const deactivateCatalogItem = async (catalogItemId) => {
+    setError("");
+    setNotice("");
+    try {
+      await vendorApi.catalog.deactivate(catalogItemId);
+      setNotice("Catalog item deactivated.");
       await load();
     } catch (submitError) {
       setError(submitError.message);
@@ -335,6 +382,47 @@ export default function VendorDashboard() {
               ))}
               {!offers.length ? <div className="rounded-[22px] bg-slate-50 p-4 text-sm text-slate-600">No offer letters found.</div> : null}
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
+          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Vendor Catalog</div>
+          <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Add product or service</h2>
+          <form onSubmit={submitCatalogItem} className="mt-5 grid gap-4 md:grid-cols-2">
+            <TextField className="md:col-span-2" label="Item name" value={catalogForm.itemName} onChange={(e) => setCatalogForm({ ...catalogForm, itemName: e.target.value })} required />
+            <TextField label="Category" value={catalogForm.category} onChange={(e) => setCatalogForm({ ...catalogForm, category: e.target.value })} />
+            <TextField label="Unit of measure" value={catalogForm.unitOfMeasure} onChange={(e) => setCatalogForm({ ...catalogForm, unitOfMeasure: e.target.value })} />
+            <TextField label="Unit price" type="number" value={catalogForm.unitPrice} onChange={(e) => setCatalogForm({ ...catalogForm, unitPrice: e.target.value })} />
+            <TextField label="Specification document URL" value={catalogForm.specificationDocumentUrl} onChange={(e) => setCatalogForm({ ...catalogForm, specificationDocumentUrl: e.target.value })} />
+            <TextField className="md:col-span-2" label="Description" multiline minRows={3} value={catalogForm.description} onChange={(e) => setCatalogForm({ ...catalogForm, description: e.target.value })} />
+            <Button className="md:col-span-2" type="submit" variant="contained" sx={{ textTransform: "none", bgcolor: "#166e8c" }}>
+              Save Catalog Item
+            </Button>
+          </form>
+        </div>
+
+        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
+          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Catalog Items</div>
+          <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Managed offerings</h2>
+          <div className="mt-5 space-y-3">
+            {catalog.length ? catalog.map((item) => (
+              <div key={item.catalogItemId} className="rounded-[22px] bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="font-semibold text-[#10283f]">{item.itemName}</div>
+                    <div className="mt-1 text-sm text-slate-600">{item.category || "Uncategorized"} | {money(item.unitPrice)} | {item.active ? "Active" : "Inactive"}</div>
+                    {item.description ? <div className="mt-2 text-sm leading-6 text-slate-600">{item.description}</div> : null}
+                  </div>
+                  <Button size="small" color="error" onClick={() => deactivateCatalogItem(item.catalogItemId)} disabled={!item.active} sx={{ textTransform: "none" }}>
+                    Deactivate
+                  </Button>
+                </div>
+              </div>
+            )) : (
+              <div className="rounded-[22px] bg-slate-50 p-4 text-sm text-slate-600">No catalog items yet.</div>
+            )}
           </div>
         </div>
       </section>

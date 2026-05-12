@@ -4,29 +4,23 @@ import PaymentsRoundedIcon from "@mui/icons-material/PaymentsRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 
 export const approverDashboardConfig = {
+  DIVISION_HEAD: {
+    pendingUrl: "/api/approvals/hod/pending?page=0&size=1",
+    queuePath: "/approvals/hod",
+    title: "Division Head approval queue",
+    nextAction: "Review division requests waiting for your decision.",
+  },
   HOD: {
     pendingUrl: "/api/approvals/hod/pending?page=0&size=1",
     queuePath: "/approvals/hod",
-    title: "HOD approval queue",
-    nextAction: "Review departmental requests waiting for your decision.",
-  },
-  DEAN: {
-    pendingUrl: "/api/approvals/dean/pending?page=0&size=1",
-    queuePath: "/approvals/dean",
-    title: "Dean approval queue",
-    nextAction: "Validate faculty-level requisitions before technical review.",
+    title: "Division Head approval queue",
+    nextAction: "Review division requests waiting for your decision.",
   },
   TEC: {
     pendingUrl: "/api/approvals/tec/pending?page=0&size=1",
     queuePath: "/approvals/tec",
     title: "Technical review queue",
-    nextAction: "Add request specifications or continue tender evaluation.",
-  },
-  VC: {
-    pendingUrl: "/api/approvals/vc/pending?page=0&size=1",
-    queuePath: "/approvals/vc",
-    title: "VC approval queue",
-    nextAction: "Approve requests, specifications, and offer decisions assigned to you.",
+    nextAction: "Review Division Head specifications and route approved requests to Bursar.",
   },
 };
 
@@ -43,21 +37,21 @@ export const emptyStaffStats = {
 
 export const workflowHighlights = [
   "Staff creates RR with item details and justification.",
-  "HOD and Dean review the request with comments.",
-  "TEC, VC, Bursar, and Procurement continue the approved workflow.",
+  "Division Head reviews the request and submits accepted RRs to TEC.",
+  "TEC, Bursar, and Procurement continue the approved workflow.",
 ];
 
 export const bursarFeatureCards = [
   {
-    title: "Annual Budgets",
-    detail: "Create department allocations and monitor available funds.",
+    title: "Create Tender",
+    detail: "Create tender value records and notify internal users immediately.",
     icon: AccountBalanceWalletRoundedIcon,
-    path: "/bursar/budgets?tab=budgets",
+    path: "/bursar/budgets",
     tone: "bg-[#edf7fb] text-[#166e8c]",
   },
   {
     title: "Available Balance",
-    detail: "Check remaining budget before approving a requisition.",
+    detail: "Check tender balance before approving a requisition.",
     icon: SearchRoundedIcon,
     path: "/bursar/budgets?tab=available",
     tone: "bg-[#eaf7f4] text-[#14745f]",

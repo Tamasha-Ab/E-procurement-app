@@ -16,7 +16,7 @@ export default function MyRequisitions() {
     let active = true;
     setIsLoading(true);
 
-    apiRequest("/api/staff/requisitions/submitted?page=0&size=20", { token })
+    apiRequest("/api/staff/requisitions?page=0&size=20", { token })
       .then((data) => {
         if (active) setRequests(data?.content || []);
       })
@@ -37,11 +37,11 @@ export default function MyRequisitions() {
       <PageHero
         eyebrow="Staff Workspace"
         title="My Requisitions"
-        description="Review submitted requisitions, track current approval stage, and open each request to see comments and history."
+        description="Review drafts and submitted requisitions. Drafts can be edited and submitted to the Division Head when ready."
       />
 
       <section className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
-        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Submitted Requests</div>
+        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Requisition Requests</div>
 
         {isLoading && <div className="mt-6 rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Loading requisitions...</div>}
         {error && <div className="mt-6 rounded-[24px] bg-red-50 p-5 text-sm font-semibold text-red-700">{error}</div>}
@@ -49,14 +49,14 @@ export default function MyRequisitions() {
         {!isLoading && !error && (
           <div className="mt-6 space-y-4">
             {requests.length === 0 && (
-              <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No submitted requisitions found.</div>
+              <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No requisitions found.</div>
             )}
 
             {requests.map((request) => (
               <button
                 key={request.rrId}
                 type="button"
-                onClick={() => navigate(`/requisitions/${request.rrId}`)}
+                onClick={() => navigate(["DRAFT", "HOD_REJECTED"].includes(request.status) ? `/requisition/create/${request.rrId}` : `/requisitions/${request.rrId}`)}
                 className="grid w-full gap-4 rounded-[26px] border border-[#dce8ef] bg-[#f8fcff] p-5 text-left transition hover:border-[#166e8c] hover:bg-white md:grid-cols-[1fr_auto]"
               >
                 <div>
@@ -65,7 +65,7 @@ export default function MyRequisitions() {
                     <StatusPill status={request.status} />
                   </div>
                   <div className="mt-2 text-sm leading-7 text-slate-600">
-                    {request.rrNumber} | Stage: {request.currentStage} | Submitted: {formatDateTime(request.submittedAt)}
+                    {request.rrNumber} | Stage: {request.currentStage} | {request.status === "DRAFT" ? `Updated: ${formatDateTime(request.updatedAt)}` : `Submitted: ${formatDateTime(request.submittedAt)}`}
                   </div>
                 </div>
                 <div className="text-right">
