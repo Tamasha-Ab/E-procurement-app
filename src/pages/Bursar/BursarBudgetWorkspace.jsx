@@ -278,6 +278,7 @@ export default function BursarBudgetWorkspace() {
 
   const totalTenderValue = tenders.reduce((sum, tender) => sum + Number(tender.tenderValue || 0), 0);
   const totalAllocatedValue = tenders.reduce((sum, tender) => sum + Number(tender.allocatedValue || 0), 0);
+  const assignableTenders = tenders.filter((tender) => !tender.submittedToProcurement && tender.status !== "RFQ_CREATED");
   const selectedReviewTender = selectedRr
     ? tenders.find((tender) => String(tender.tenderId) === String(rrTenderSelections[selectedRr.rrId]))
     : null;
@@ -390,7 +391,7 @@ export default function BursarBudgetWorkspace() {
                     fullWidth
                   >
                     <option value="">Select tender</option>
-                    {tenders.map((tender) => (
+                    {assignableTenders.map((tender) => (
                       <option key={tender.tenderId} value={tender.tenderId}>
                         {tender.tenderNumber} - {tender.title} - Available {formatCurrency(Number(tender.tenderValue || 0) - Number(tender.allocatedValue || 0))}
                       </option>
@@ -428,7 +429,7 @@ export default function BursarBudgetWorkspace() {
                     </Typography>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Chip label={tender.status} size="small" sx={{ bgcolor: "#edf7fb", color: "#166e8c", fontWeight: 700 }} />
+                    <Chip label={tender.submittedToProcurement ? "SUBMITTED_TO_PROCUREMENT" : tender.status} size="small" sx={{ bgcolor: "#edf7fb", color: "#166e8c", fontWeight: 700 }} />
                     <Tooltip title="Delete tender">
                       <span>
                         <IconButton
@@ -573,7 +574,7 @@ export default function BursarBudgetWorkspace() {
                     fullWidth
                   >
                     <option value="">Select tender</option>
-                    {tenders.map((tender) => (
+                    {assignableTenders.map((tender) => (
                       <option key={tender.tenderId} value={tender.tenderId}>
                         {tender.tenderNumber} - {tender.title} - Available {formatCurrency(Number(tender.tenderValue || 0) - Number(tender.allocatedValue || 0))}
                       </option>

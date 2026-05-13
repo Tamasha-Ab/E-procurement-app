@@ -50,6 +50,10 @@ export const procurementApi = {
   quotations: {
     evaluate: (token, quotationId, payload) =>
       apiRequest(`${procurementBase}/quotations/${quotationId}/technical-evaluation`, { token, method: "PATCH", body: payload }),
+    evaluateItem: (token, quotationItemId, payload) =>
+      apiRequest(`${procurementBase}/quotation-items/${quotationItemId}/technical-evaluation`, { token, method: "PATCH", body: payload }),
+    selectItemVendor: (token, quotationItemId, payload) =>
+      apiRequest(`${procurementBase}/quotation-items/${quotationItemId}/vendor-selection`, { token, method: "PATCH", body: payload }),
   },
   objections: {
     resolve: (token, objectionId, payload) =>

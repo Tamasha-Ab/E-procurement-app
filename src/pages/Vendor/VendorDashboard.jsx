@@ -307,10 +307,15 @@ export default function VendorDashboard() {
           </div>
           <div className="mt-5 space-y-3">
             {quotations.slice(0, 3).map((quotation) => (
-              <div key={quotation.quotationId} className="rounded-[20px] bg-slate-50 p-4 text-sm text-slate-600">
+              <button
+                key={quotation.quotationId}
+                type="button"
+                onClick={() => navigate("/vendor/quotations")}
+                className="w-full rounded-[20px] bg-slate-50 p-4 text-left text-sm text-slate-600 hover:bg-[#edf7fb]"
+              >
                 <div className="font-semibold text-[#10283f]">{quotation.rfqNumber}</div>
                 <div className="mt-1">{money(quotation.quotedAmount)} | {quotation.status || "Submitted"}</div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -326,6 +331,48 @@ export default function VendorDashboard() {
           <div className="mt-5 rounded-[20px] bg-slate-50 p-4 text-sm leading-7 text-slate-600">
             Vendor bid reports from TEC evaluations appear here once procurement publishes them through the backend.
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Offer Letters</div>
+            <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Received Offer Letters</h2>
+          </div>
+          <span className="rounded-full bg-[#edf7fb] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">
+            {offers.length} Received
+          </span>
+        </div>
+        <div className="mt-6 space-y-4">
+          {!offers.length ? (
+            <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No offer letters received yet.</div>
+          ) : (
+            offers.map((offerLetter) => (
+              <div key={offerLetter.offerLetterId} className="rounded-[24px] border border-[#e6eef3] bg-slate-50 p-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#166e8c]">
+                      {offerLetter.letterNumber || `Offer ${offerLetter.offerLetterId}`}
+                    </div>
+                    <h3 className="mt-2 text-xl font-bold text-[#10283f]">{offerLetter.requisitionItemName || offerLetter.rfqNumber || "Offer letter"}</h3>
+                    <div className="mt-2 text-sm text-slate-600">{money(offerLetter.offerAmount)} | {offerLetter.status || "SENT_TO_VENDOR"}</div>
+                  </div>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    onClick={() => openDialog("offer", offerLetter)}
+                    sx={{ textTransform: "none", bgcolor: "#166e8c" }}
+                  >
+                    Respond
+                  </Button>
+                </div>
+                <pre className="mt-4 whitespace-pre-wrap rounded-2xl bg-white p-4 text-sm leading-7 text-slate-700">
+                  {offerLetter.letterContent || "No letter content available."}
+                </pre>
+              </div>
+            ))
+          )}
         </div>
       </section>
 
