@@ -5,13 +5,23 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
 import AssignmentTurnedInRoundedIcon from "@mui/icons-material/AssignmentTurnedInRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
+import ErrorRoundedIcon from "@mui/icons-material/ErrorRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import SendRoundedIcon from "@mui/icons-material/SendRounded";
+import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import { useAuth } from "../../contexts/AuthContext";
 
 const formatCurrency = (value) => {
@@ -42,6 +52,11 @@ export default function BursarBudgetWorkspace() {
   const [tenderForm, setTenderForm] = useState(initialTenderForm);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [deleteTender, setDeleteTender] = useState(null);
+  const [deleteStep, setDeleteStep] = useState(1);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [selectedRr, setSelectedRr] = useState(null);
+  const [bursarComment, setBursarComment] = useState("");
 
   const isBursar = user?.mainRole === "FINANCE" && user?.subRole === "BURSAR";
 
@@ -137,7 +152,18 @@ export default function BursarBudgetWorkspace() {
     }
   };
 
-  const approveRrBudget = async (rr) => {
+  const openRrReview = (rr) => {
+    setSelectedRr(rr);
+    setBursarComment("");
+  };
+
+  const closeRrReview = () => {
+    setSelectedRr(null);
+    setBursarComment("");
+  };
+
+  const approveRrBudget = async (rr, comment = "") => {
+    if (!rr) return;
     const tenderId = rrTenderSelections[rr.rrId];
     if (!tenderId) {
       setNotice({ type: "error", message: "Please select a tender before approving this RR." });
@@ -152,13 +178,88 @@ export default function BursarBudgetWorkspace() {
         body: JSON.stringify({
           tenderId: Number(tenderId),
           action: "APPROVE",
-          comment: "RR budget approved by Bursar.",
+          comment: comment?.trim() || "RR budget approved by Bursar.",
         }),
       });
       setNotice({ type: "success", message: "RR approved and added to the final RR list." });
+      closeRrReview();
       await Promise.all([loadTenders(), loadRequisitionQueues()]);
     } catch (error) {
       setNotice({ type: "error", message: error.message || "Insufficient budget." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const rejectRrBudget = async (rr, comment) => {
+    if (!rr) return;
+    if (!comment?.trim()) {
+      setNotice({ type: "error", message: "Please add a rejection comment before rejecting this RR." });
+      return;
+    }
+
+    setLoading(true);
+    setNotice(null);
+    try {
+      await requestJson(`/api/tenders/bursar/requisitions/${rr.rrId}/reject`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          action: "REJECT",
+          comment: comment.trim(),
+        }),
+      });
+      setNotice({ type: "success", message: "RR returned to TEC with Bursar comment." });
+      closeRrReview();
+      await loadRequisitionQueues();
+    } catch (error) {
+      setNotice({ type: "error", message: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitTenderToProcurement = async (tender) => {
+    setLoading(true);
+    setNotice(null);
+    try {
+      await requestJson(`/api/tenders/${tender.tenderId}/submit-to-procurement`, {
+        method: "POST",
+      });
+      setNotice({ type: "success", message: `${tender.tenderNumber} RR list submitted to Procurement Officer.` });
+      await Promise.all([loadTenders(), loadRequisitionQueues()]);
+    } catch (error) {
+      setNotice({ type: "error", message: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openDeleteDialog = (tender) => {
+    setDeleteTender(tender);
+    setDeleteStep(1);
+    setDeleteConfirmation("");
+  };
+
+  const closeDeleteDialog = () => {
+    setDeleteTender(null);
+    setDeleteStep(1);
+    setDeleteConfirmation("");
+  };
+
+  const confirmDeleteTender = async () => {
+    if (!deleteTender) return;
+
+    setLoading(true);
+    setNotice(null);
+    try {
+      await requestJson(`/api/tenders/${deleteTender.tenderId}`, {
+        method: "DELETE",
+      });
+      setNotice({ type: "success", message: "Tender deleted successfully." });
+      closeDeleteDialog();
+      await Promise.all([loadTenders(), loadRequisitionQueues()]);
+    } catch (error) {
+      setNotice({ type: "error", message: error.message });
     } finally {
       setLoading(false);
     }
@@ -177,6 +278,22 @@ export default function BursarBudgetWorkspace() {
 
   const totalTenderValue = tenders.reduce((sum, tender) => sum + Number(tender.tenderValue || 0), 0);
   const totalAllocatedValue = tenders.reduce((sum, tender) => sum + Number(tender.allocatedValue || 0), 0);
+  const selectedReviewTender = selectedRr
+    ? tenders.find((tender) => String(tender.tenderId) === String(rrTenderSelections[selectedRr.rrId]))
+    : null;
+  const selectedReviewRrValue = Number(selectedRr?.estimatedTotalAmount || 0);
+  const selectedReviewTenderValue = Number(selectedReviewTender?.tenderValue || 0);
+  const selectedReviewAllocatedValue = Number(selectedReviewTender?.allocatedValue || 0);
+  const selectedReviewAvailableAfter =
+    selectedReviewTenderValue - selectedReviewAllocatedValue - selectedReviewRrValue;
+  const selectedReviewHasEnoughBudget = Boolean(selectedReviewTender) && selectedReviewAvailableAfter >= 0;
+  const finalRrsByTender = tenders
+    .map((tender) => ({
+      tender,
+      rrs: finalRrs.filter((rr) => String(rr.tenderId) === String(tender.tenderId)),
+    }))
+    .filter((group) => group.rrs.length > 0);
+  const finalRrsWithoutTender = finalRrs.filter((rr) => !rr.tenderId);
 
   return (
     <div className="space-y-7">
@@ -267,6 +384,7 @@ export default function BursarBudgetWorkspace() {
                     select
                     SelectProps={{ native: true }}
                     label="Tender"
+                    InputLabelProps={{ shrink: true }}
                     value={rrTenderSelections[rr.rrId] || ""}
                     onChange={(event) => setRrTenderSelections((prev) => ({ ...prev, [rr.rrId]: event.target.value }))}
                     fullWidth
@@ -278,8 +396,8 @@ export default function BursarBudgetWorkspace() {
                       </option>
                     ))}
                   </TextField>
-                  <Button variant="contained" startIcon={<CheckCircleRoundedIcon />} onClick={() => approveRrBudget(rr)} disabled={loading || !selectedTender} sx={primaryButtonSx}>
-                    Approve RR
+                  <Button variant="contained" startIcon={<VisibilityRoundedIcon />} onClick={() => openRrReview(rr)} disabled={loading} sx={primaryButtonSx}>
+                    View Details
                   </Button>
                 </div>
 
@@ -309,7 +427,26 @@ export default function BursarBudgetWorkspace() {
                       Tender value {formatCurrency(tender.tenderValue)} - Allocated {formatCurrency(tender.allocatedValue)} - Available {formatCurrency(Number(tender.tenderValue || 0) - Number(tender.allocatedValue || 0))}
                     </Typography>
                   </div>
-                  <Chip label={tender.status} size="small" sx={{ bgcolor: "#edf7fb", color: "#166e8c", fontWeight: 700 }} />
+                  <div className="flex items-center gap-2">
+                    <Chip label={tender.status} size="small" sx={{ bgcolor: "#edf7fb", color: "#166e8c", fontWeight: 700 }} />
+                    <Tooltip title="Delete tender">
+                      <span>
+                        <IconButton
+                          aria-label={`Delete tender ${tender.tenderNumber}`}
+                          onClick={() => openDeleteDialog(tender)}
+                          disabled={loading || Number(tender.allocatedValue || 0) > 0 || tender.status === "RFQ_CREATED"}
+                          sx={{
+                            color: "#b42318",
+                            bgcolor: "#fff1f0",
+                            "&:hover": { bgcolor: "#ffe3df" },
+                            "&.Mui-disabled": { bgcolor: "#f1f5f9" },
+                          }}
+                        >
+                          <DeleteRoundedIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
             ))}
@@ -319,19 +456,45 @@ export default function BursarBudgetWorkspace() {
         <Panel title="Final RR List" eyebrow="Approved by Bursar">
           <div className="space-y-4">
             {finalRrs.length === 0 && <EmptyState text="No RRs have been approved by Bursar yet." />}
-            {finalRrs.map((rr) => (
-              <div key={rr.rrId} className="rounded-[24px] border border-[#e0ebf1] bg-[#fbfdff] p-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            {finalRrsByTender.map(({ tender, rrs }) => (
+              <div key={tender.tenderId} className="rounded-[24px] border border-[#dce8ef] bg-[#fbfdff] p-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <Typography className="!text-lg !font-bold !text-[#10283f]">{rr.title}</Typography>
+                    <Typography className="!text-lg !font-black !text-[#10283f]">{tender.title}</Typography>
                     <Typography className="!mt-2 !text-sm !leading-7 !text-slate-600">
-                      {rr.rrNumber} - {rr.facultyName || "Faculty not set"} - {formatCurrency(rr.estimatedTotalAmount)}
+                      {tender.tenderNumber} - Tender value {formatCurrency(tender.tenderValue)}
                     </Typography>
                   </div>
-                  <Chip label={rr.status} size="small" sx={{ bgcolor: "#eaf7f4", color: "#14745f", fontWeight: 700 }} />
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Chip label={`${rrs.length} approved RR${rrs.length === 1 ? "" : "s"}`} size="small" sx={{ bgcolor: "#eaf7f4", color: "#14745f", fontWeight: 700 }} />
+                    <Button
+                      variant="contained"
+                      startIcon={<SendRoundedIcon />}
+                      onClick={() => submitTenderToProcurement(tender)}
+                      disabled={loading || !rrs.some((rr) => rr.status === "BURSAR_APPROVED")}
+                      sx={primaryButtonSx}
+                    >
+                      {rrs.some((rr) => rr.status === "BURSAR_APPROVED") ? "Send to Procurement" : "Submitted"}
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {rrs.map((rr) => (
+                    <FinalRrCard key={rr.rrId} rr={rr} />
+                  ))}
                 </div>
               </div>
             ))}
+            {finalRrsWithoutTender.length > 0 && (
+              <div className="rounded-[24px] border border-[#dce8ef] bg-[#fbfdff] p-5">
+                <Typography className="!text-lg !font-black !text-[#10283f]">No tender assigned</Typography>
+                <div className="mt-4 space-y-3">
+                  {finalRrsWithoutTender.map((rr) => (
+                    <FinalRrCard key={rr.rrId} rr={rr} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </Panel>
       </section>
@@ -342,6 +505,175 @@ export default function BursarBudgetWorkspace() {
           Working
         </div>
       )}
+
+      <Dialog open={Boolean(selectedRr)} onClose={closeRrReview} fullWidth maxWidth="md">
+        <DialogTitle sx={{ fontWeight: 800, color: "#10283f" }}>Review RR details</DialogTitle>
+        <DialogContent>
+          {selectedRr && (
+            <div className="space-y-5">
+              <div className="rounded-[22px] border border-[#e0ebf1] bg-[#fbfdff] p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <Typography className="!text-xl !font-black !text-[#10283f]">{selectedRr.title}</Typography>
+                    <Typography className="!mt-2 !text-sm !leading-7 !text-slate-600">
+                      {selectedRr.rrNumber} - {selectedRr.facultyName || "Faculty not set"} - {selectedRr.divisionName || "Division not set"}
+                    </Typography>
+                  </div>
+                  <Chip label={selectedRr.status} size="small" sx={{ bgcolor: "#edf7fb", color: "#166e8c", fontWeight: 700 }} />
+                </div>
+                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                  <DetailTile label="Requested by" value={selectedRr.requestedByName || "Staff member"} />
+                  <DetailTile label="Estimated value" value={formatCurrency(selectedRr.estimatedTotalAmount)} />
+                  <DetailTile label="Item" value={selectedRr.itemName || "Not set"} />
+                  <DetailTile label="Quantity" value={selectedRr.quantity || "Not set"} />
+                  <DetailTile label="Unit price" value={formatCurrency(selectedRr.estimatedUnitPrice)} />
+                  <DetailTile label="Current stage" value={selectedRr.currentStage || "BURSAR"} />
+                </div>
+                {selectedRr.description && (
+                  <DetailBlock label="Description" value={selectedRr.description} />
+                )}
+                {selectedRr.justification && (
+                  <DetailBlock label="Justification" value={selectedRr.justification} />
+                )}
+              </div>
+
+              {Array.isArray(selectedRr.items) && selectedRr.items.length > 0 && (
+                <div className="rounded-[22px] border border-[#e0ebf1] bg-white p-5">
+                  <Typography className="!text-sm !font-black !uppercase !tracking-[0.18em] !text-[#166e8c]">Item Details</Typography>
+                  <div className="mt-4 space-y-3">
+                    {selectedRr.items.map((item) => (
+                      <div key={item.itemId || item.itemName} className="rounded-2xl bg-slate-50 p-4">
+                        <div className="font-bold text-[#10283f]">{item.itemName || "Unnamed item"}</div>
+                        <div className="mt-2 text-sm leading-7 text-slate-600">
+                          {item.description || "No item description"} - Qty {item.quantity || 0} - {formatCurrency(item.estimatedTotalPrice)}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {item.priority && <Chip label={`Priority: ${item.priority}`} size="small" />}
+                          {item.hodDecision && <Chip label={`Division Head: ${item.hodDecision}`} size="small" />}
+                        </div>
+                        {item.hodComment && (
+                          <div className="mt-3 text-sm leading-7 text-slate-600">Division Head comment: {item.hodComment}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-[22px] border border-[#e0ebf1] bg-white p-5">
+                <Typography className="!text-sm !font-black !uppercase !tracking-[0.18em] !text-[#166e8c]">Bursar Decision</Typography>
+                <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+                  <TextField
+                    select
+                    SelectProps={{ native: true }}
+                    label="Tender"
+                    InputLabelProps={{ shrink: true }}
+                    value={rrTenderSelections[selectedRr.rrId] || ""}
+                    onChange={(event) => setRrTenderSelections((prev) => ({ ...prev, [selectedRr.rrId]: event.target.value }))}
+                    fullWidth
+                  >
+                    <option value="">Select tender</option>
+                    {tenders.map((tender) => (
+                      <option key={tender.tenderId} value={tender.tenderId}>
+                        {tender.tenderNumber} - {tender.title} - Available {formatCurrency(Number(tender.tenderValue || 0) - Number(tender.allocatedValue || 0))}
+                      </option>
+                    ))}
+                  </TextField>
+                  <div className={`rounded-2xl px-4 py-3 text-sm font-semibold ${selectedReviewHasEnoughBudget ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+                    {selectedReviewTender
+                      ? `Available after approval: ${formatCurrency(selectedReviewAvailableAfter)}`
+                      : "Select tender to check balance"}
+                  </div>
+                </div>
+                <TextField
+                  label="Bursar comment"
+                  value={bursarComment}
+                  onChange={(event) => setBursarComment(event.target.value)}
+                  fullWidth
+                  multiline
+                  minRows={3}
+                  sx={{ mt: 3 }}
+                  helperText="Required for rejection. Optional for approval."
+                />
+              </div>
+            </div>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={closeRrReview} sx={{ textTransform: "none", fontWeight: 800 }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<ErrorRoundedIcon />}
+            onClick={() => rejectRrBudget(selectedRr, bursarComment)}
+            disabled={loading || !bursarComment.trim()}
+            sx={dangerButtonSx}
+          >
+            Reject RR
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<CheckCircleRoundedIcon />}
+            onClick={() => approveRrBudget(selectedRr, bursarComment)}
+            disabled={loading || !selectedReviewTender || !selectedReviewHasEnoughBudget}
+            sx={primaryButtonSx}
+          >
+            Approve RR
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteTender)} onClose={closeDeleteDialog} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ fontWeight: 800, color: "#10283f" }}>Delete tender</DialogTitle>
+        <DialogContent>
+          {deleteStep === 1 ? (
+            <div className="space-y-4">
+              <Typography className="!text-sm !leading-7 !text-slate-600">
+                This will permanently delete tender {deleteTender?.tenderNumber} - {deleteTender?.title}. You can delete only tenders that have no allocated RR budget and no RFQ.
+              </Typography>
+              <Alert severity="warning" sx={{ borderRadius: "14px" }}>
+                Step 1 of 2: confirm that you want to continue.
+              </Alert>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Typography className="!text-sm !leading-7 !text-slate-600">
+                Step 2 of 2: type the Tender ID exactly as shown to unlock deletion.
+              </Typography>
+              <div className="rounded-2xl bg-slate-50 p-4 text-sm font-bold text-[#10283f]">
+                {deleteTender?.tenderNumber}
+              </div>
+              <TextField
+                label="Type Tender ID"
+                value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                fullWidth
+                autoFocus
+              />
+            </div>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={closeDeleteDialog} sx={{ textTransform: "none", fontWeight: 800 }}>
+            Cancel
+          </Button>
+          {deleteStep === 1 ? (
+            <Button variant="contained" onClick={() => setDeleteStep(2)} sx={dangerButtonSx}>
+              Continue
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              onClick={confirmDeleteTender}
+              disabled={loading || deleteConfirmation.trim() !== deleteTender?.tenderNumber}
+              sx={dangerButtonSx}
+            >
+              Delete Tender
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </div>
   );
 }
@@ -370,6 +702,43 @@ function Panel({ title, eyebrow, children }) {
   );
 }
 
+function DetailTile({ label, value }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</div>
+      <div className="mt-2 text-sm font-bold text-[#10283f]">{value}</div>
+    </div>
+  );
+}
+
+function DetailBlock({ label, value }) {
+  return (
+    <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</div>
+      <div className="mt-2 text-sm leading-7 text-slate-600">{value}</div>
+    </div>
+  );
+}
+
+function FinalRrCard({ rr }) {
+  return (
+    <div className="rounded-2xl border border-[#e0ebf1] bg-white p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <Typography className="!text-base !font-bold !text-[#10283f]">{rr.title}</Typography>
+          <Typography className="!mt-1 !text-sm !leading-7 !text-slate-600">
+            {rr.rrNumber} - {rr.facultyName || "Faculty not set"} - {rr.divisionName || "Division not set"}
+          </Typography>
+          <Typography className="!mt-1 !text-sm !leading-7 !text-slate-600">
+            {rr.itemName || "Item not set"} - {formatCurrency(rr.estimatedTotalAmount)}
+          </Typography>
+        </div>
+        <Chip label={rr.status} size="small" sx={{ bgcolor: "#eaf7f4", color: "#14745f", fontWeight: 700 }} />
+      </div>
+    </div>
+  );
+}
+
 function EmptyState({ text }) {
   return (
     <div className="rounded-[24px] border border-dashed border-[#c8dce7] bg-[#f8fbfd] p-6 text-sm leading-7 text-slate-600">
@@ -384,4 +753,12 @@ const primaryButtonSx = {
   textTransform: "none",
   fontWeight: 800,
   "&:hover": { bgcolor: "#145f79" },
+};
+
+const dangerButtonSx = {
+  bgcolor: "#b42318",
+  borderRadius: "14px",
+  textTransform: "none",
+  fontWeight: 800,
+  "&:hover": { bgcolor: "#991b12" },
 };

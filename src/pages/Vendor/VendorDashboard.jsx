@@ -11,12 +11,10 @@ import {
 import AddTaskRoundedIcon from "@mui/icons-material/AddTaskRounded";
 import AssignmentRoundedIcon from "@mui/icons-material/AssignmentRounded";
 import BusinessCenterRoundedIcon from "@mui/icons-material/BusinessCenterRounded";
-import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
-import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
 import LocalOfferRoundedIcon from "@mui/icons-material/LocalOfferRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import SendRoundedIcon from "@mui/icons-material/SendRounded";
+import { useNavigate } from "react-router-dom";
 import { vendorApi } from "../../api/vendorApi";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -32,15 +30,6 @@ const emptyForm = {
   objectionDetails: "",
   decision: "ACCEPTED",
   comment: "",
-};
-
-const emptyCatalogForm = {
-  itemName: "",
-  description: "",
-  category: "",
-  unitOfMeasure: "Units",
-  unitPrice: "",
-  specificationDocumentUrl: "",
 };
 
 const money = (value) => {
@@ -74,33 +63,31 @@ const safeList = (value) => (Array.isArray(value) ? value : []);
 
 export default function VendorDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [rfqs, setRfqs] = useState([]);
   const [bids, setBids] = useState([]);
   const [quotations, setQuotations] = useState([]);
   const [offers, setOffers] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [reports, setReports] = useState([]);
-  const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [dialog, setDialog] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const [catalogForm, setCatalogForm] = useState(emptyCatalogForm);
 
   const load = async () => {
     setLoading(true);
     setError("");
 
     try {
-      const [rfqList, bidList, quotationList, offerList, poList, reportList, catalogList] = await Promise.all([
+      const [rfqList, bidList, quotationList, offerList, poList, reportList] = await Promise.all([
         vendorApi.rfqs.list().catch(() => []),
         vendorApi.bids.list().catch(() => []),
         vendorApi.quotations.list().catch(() => []),
         vendorApi.offers.list().catch(() => []),
         vendorApi.purchaseOrders.list().catch(() => []),
         vendorApi.reports.list().catch(() => []),
-        vendorApi.catalog.list().catch(() => []),
       ]);
 
       setRfqs(safeList(rfqList));
@@ -109,7 +96,6 @@ export default function VendorDashboard() {
       setOffers(safeList(offerList));
       setPurchaseOrders(safeList(poList));
       setReports(safeList(reportList));
-      setCatalog(safeList(catalogList));
     } catch (loadError) {
       setError(loadError.message);
     } finally {
@@ -129,8 +115,6 @@ export default function VendorDashboard() {
   }, [bids, quotations]);
 
   const activeRfqs = rfqs.filter((rfq) => !submittedRfqIds.has(rfq.rfqId));
-  const pendingOffers = offers.filter((offer) => String(offer.status || "").toUpperCase().includes("APPROVED"));
-  const totalAwarded = purchaseOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
   const vendorName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.username || "Vendor";
 
   const cards = [
@@ -201,40 +185,6 @@ export default function VendorDashboard() {
     }
   };
 
-  const submitCatalogItem = async (event) => {
-    event.preventDefault();
-    setError("");
-    setNotice("");
-
-    try {
-      await vendorApi.catalog.create({
-        itemName: catalogForm.itemName,
-        description: catalogForm.description,
-        category: catalogForm.category,
-        unitOfMeasure: catalogForm.unitOfMeasure,
-        unitPrice: catalogForm.unitPrice ? Number(catalogForm.unitPrice) : null,
-        specificationDocumentUrl: catalogForm.specificationDocumentUrl,
-      });
-      setCatalogForm(emptyCatalogForm);
-      setNotice("Catalog item saved successfully.");
-      await load();
-    } catch (submitError) {
-      setError(submitError.message);
-    }
-  };
-
-  const deactivateCatalogItem = async (catalogItemId) => {
-    setError("");
-    setNotice("");
-    try {
-      await vendorApi.catalog.deactivate(catalogItemId);
-      setNotice("Catalog item deactivated.");
-      await load();
-    } catch (submitError) {
-      setError(submitError.message);
-    }
-  };
-
   const dialogTitle = {
     quotation: "Submit Quotation",
     bid: "Submit Bid",
@@ -291,7 +241,7 @@ export default function VendorDashboard() {
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
       {notice ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div> : null}
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_380px]">
+      <section>
         <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -326,14 +276,14 @@ export default function VendorDashboard() {
                   </div>
 
                   <div className="mt-5 flex flex-wrap gap-3">
-                    <Button size="small" variant="contained" startIcon={<AddTaskRoundedIcon />} onClick={() => openDialog("quotation", rfq)} sx={{ textTransform: "none", bgcolor: "#166e8c" }}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      startIcon={<AddTaskRoundedIcon />}
+                      onClick={() => navigate(`/vendor/tenders?section=quotation&rfqId=${rfq.rfqId}`)}
+                      sx={{ textTransform: "none", bgcolor: "#166e8c" }}
+                    >
                       Quotation
-                    </Button>
-                    <Button size="small" variant="outlined" startIcon={<SendRoundedIcon />} onClick={() => openDialog("bid", rfq)} sx={{ textTransform: "none", borderColor: "#166e8c", color: "#166e8c" }}>
-                      Bid
-                    </Button>
-                    <Button size="small" startIcon={<GavelRoundedIcon />} onClick={() => openDialog("objection", rfq)} sx={{ textTransform: "none", color: "#b47a00" }}>
-                      Objection
                     </Button>
                   </div>
                 </div>
@@ -344,87 +294,6 @@ export default function VendorDashboard() {
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Awards</div>
-            <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Purchase orders</h2>
-            <div className="mt-4 rounded-[24px] bg-[#f5fbff] p-5">
-              <div className="text-sm font-semibold text-[#166e8c]">Total Awarded Value</div>
-              <div className="mt-3 text-3xl font-black text-[#10283f]">{money(totalAwarded)}</div>
-            </div>
-            <div className="mt-4 space-y-3">
-              {purchaseOrders.slice(0, 4).map((order) => (
-                <div key={order.poId} className="rounded-[22px] bg-slate-50 p-4">
-                  <div className="font-semibold text-[#10283f]">{order.poNumber || `PO-${order.poId}`}</div>
-                  <div className="mt-1 text-sm text-slate-600">{money(order.totalAmount)} | Due {formatDate(order.deliveryDeadline)}</div>
-                </div>
-              ))}
-              {!purchaseOrders.length ? <div className="rounded-[22px] bg-slate-50 p-4 text-sm text-slate-600">No purchase orders yet.</div> : null}
-            </div>
-          </div>
-
-          <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Offer Letters</div>
-            <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Responses needed</h2>
-            <div className="mt-4 space-y-3">
-              {(pendingOffers.length ? pendingOffers : offers).slice(0, 4).map((offer) => (
-                <div key={offer.offerLetterId} className="rounded-[22px] bg-slate-50 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-semibold text-[#10283f]">{offer.letterNumber || `Offer-${offer.offerLetterId}`}</div>
-                      <div className="mt-1 text-sm text-slate-600">{money(offer.offerAmount)}</div>
-                    </div>
-                    <button type="button" onClick={() => openDialog("offer", offer)} className="rounded-xl bg-[#edf7fb] px-3 py-2 text-xs font-bold text-[#166e8c]">
-                      Respond
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {!offers.length ? <div className="rounded-[22px] bg-slate-50 p-4 text-sm text-slate-600">No offer letters found.</div> : null}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Vendor Catalog</div>
-          <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Add product or service</h2>
-          <form onSubmit={submitCatalogItem} className="mt-5 grid gap-4 md:grid-cols-2">
-            <TextField className="md:col-span-2" label="Item name" value={catalogForm.itemName} onChange={(e) => setCatalogForm({ ...catalogForm, itemName: e.target.value })} required />
-            <TextField label="Category" value={catalogForm.category} onChange={(e) => setCatalogForm({ ...catalogForm, category: e.target.value })} />
-            <TextField label="Unit of measure" value={catalogForm.unitOfMeasure} onChange={(e) => setCatalogForm({ ...catalogForm, unitOfMeasure: e.target.value })} />
-            <TextField label="Unit price" type="number" value={catalogForm.unitPrice} onChange={(e) => setCatalogForm({ ...catalogForm, unitPrice: e.target.value })} />
-            <TextField label="Specification document URL" value={catalogForm.specificationDocumentUrl} onChange={(e) => setCatalogForm({ ...catalogForm, specificationDocumentUrl: e.target.value })} />
-            <TextField className="md:col-span-2" label="Description" multiline minRows={3} value={catalogForm.description} onChange={(e) => setCatalogForm({ ...catalogForm, description: e.target.value })} />
-            <Button className="md:col-span-2" type="submit" variant="contained" sx={{ textTransform: "none", bgcolor: "#166e8c" }}>
-              Save Catalog Item
-            </Button>
-          </form>
-        </div>
-
-        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Catalog Items</div>
-          <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Managed offerings</h2>
-          <div className="mt-5 space-y-3">
-            {catalog.length ? catalog.map((item) => (
-              <div key={item.catalogItemId} className="rounded-[22px] bg-slate-50 p-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <div className="font-semibold text-[#10283f]">{item.itemName}</div>
-                    <div className="mt-1 text-sm text-slate-600">{item.category || "Uncategorized"} | {money(item.unitPrice)} | {item.active ? "Active" : "Inactive"}</div>
-                    {item.description ? <div className="mt-2 text-sm leading-6 text-slate-600">{item.description}</div> : null}
-                  </div>
-                  <Button size="small" color="error" onClick={() => deactivateCatalogItem(item.catalogItemId)} disabled={!item.active} sx={{ textTransform: "none" }}>
-                    Deactivate
-                  </Button>
-                </div>
-              </div>
-            )) : (
-              <div className="rounded-[22px] bg-slate-50 p-4 text-sm text-slate-600">No catalog items yet.</div>
-            )}
-          </div>
-        </div>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-3">
@@ -441,24 +310,6 @@ export default function VendorDashboard() {
               <div key={quotation.quotationId} className="rounded-[20px] bg-slate-50 p-4 text-sm text-slate-600">
                 <div className="font-semibold text-[#10283f]">{quotation.rfqNumber}</div>
                 <div className="mt-1">{money(quotation.quotedAmount)} | {quotation.status || "Submitted"}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#fff9ec] text-[#b47a00]"><Inventory2RoundedIcon /></span>
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#b47a00]">Bids</div>
-              <div className="text-xl font-bold text-[#10283f]">{bids.length} Submitted</div>
-            </div>
-          </div>
-          <div className="mt-5 space-y-3">
-            {bids.slice(0, 3).map((bid) => (
-              <div key={bid.bidId} className="rounded-[20px] bg-slate-50 p-4 text-sm text-slate-600">
-                <div className="font-semibold text-[#10283f]">{bid.rfqNumber}</div>
-                <div className="mt-1">{money(bid.bidAmount)} | {bid.sealed ? "Sealed" : bid.status || "Submitted"}</div>
               </div>
             ))}
           </div>

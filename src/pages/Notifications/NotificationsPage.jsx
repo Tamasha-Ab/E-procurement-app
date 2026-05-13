@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
+import { useNavigate } from "react-router-dom";
 import PageHero from "../../components/PageHero";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime } from "../../services/apiClient";
 
 export default function NotificationsPage() {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState("");
@@ -48,6 +50,15 @@ export default function NotificationsPage() {
       setError(err.message || "Could not mark notification as read.");
     }
   };
+
+  const scheduleMeetingFromNotification = () => {
+    if (selected?.actionUrl) {
+      navigate(selected.actionUrl);
+    }
+  };
+
+  const canScheduleMeeting = selected?.actionUrl?.startsWith("/procurement/tenders")
+    && selected?.title?.toLowerCase().includes("pre-bid meeting");
 
   return (
     <div className="space-y-8">
@@ -123,6 +134,15 @@ export default function NotificationsPage() {
                 {!selected.read && <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-black text-white">New</span>}
               </div>
               <div className="rounded-[24px] bg-[#f8fcff] p-5 text-sm leading-7 text-slate-600">{selected.message}</div>
+              {canScheduleMeeting && (
+                <button
+                  type="button"
+                  onClick={scheduleMeetingFromNotification}
+                  className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
+                >
+                  Schedule Meeting
+                </button>
+              )}
               <div className="grid gap-3 md:grid-cols-2">
                 <DetailTile label="Created" value={formatDateTime(selected.createdAt)} />
                 <DetailTile label="Read At" value={selected.readAt ? formatDateTime(selected.readAt) : "Unread"} />

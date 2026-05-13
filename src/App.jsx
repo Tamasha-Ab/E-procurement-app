@@ -29,6 +29,7 @@ import HodAuditTrail from "./pages/Approvals/HodAuditTrail.jsx";
 import TecApprovals from "./pages/Approvals/TecApprovals.jsx";
 import TecAuditTrail from "./pages/Approvals/TecAuditTrail.jsx";
 import ProcurementWorkspace from "./pages/Procurement/ProcurementWorkspace.jsx";
+import ProcurementRfqList from "./pages/Procurement/ProcurementRfqList.jsx";
 import NotificationsPage from "./pages/Notifications/NotificationsPage.jsx";
 
 const roleCards = [
@@ -223,14 +224,13 @@ const App = () => {
             <Route path="/approvals/tec/audit-trail" element={<TecAuditTrail />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/procurement/tenders" element={<ProcurementWorkspace />} />
+            <Route path="/procurement/rfqs" element={<ProcurementRfqList />} />
             <Route path="/vendor/tenders" element={<ProcurementWorkspace />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/faculties" element={<AdminFaculties />} />
             <Route path="/admin/departments" element={<AdminDepartments />} />
             <Route path="/admin/divisions" element={<AdminDepartments />} />
             <Route path="/vendor/opportunities" element={<ProcurementWorkspace />} />
-            <Route path="/vendor/submissions" element={<ProcurementWorkspace />} />
-            <Route path="/vendor/purchase-orders" element={<ProcurementWorkspace />} />
             <Route path="*" element={dashboardElement} />
           </Routes>
         </Layout>

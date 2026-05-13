@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
@@ -30,6 +31,7 @@ const initialSpec = {
 
 const initialMeeting = {
   rfqId: "",
+  vendorId: "",
   meetingRequired: true,
   meetingDateTime: "",
   meetingLinkOrLocation: "",
@@ -114,6 +116,15 @@ function EmptyState({ text }) {
   return <div className="rounded-[24px] bg-slate-50 p-5 text-sm leading-7 text-slate-600">{text}</div>;
 }
 
+function DetailTile({ label, value }) {
+  return (
+    <div className="rounded-[20px] bg-white p-4">
+      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">{label}</div>
+      <div className="mt-2 text-sm font-bold text-[#10283f]">{value || "Not available"}</div>
+    </div>
+  );
+}
+
 function RfqList({ rfqs, onSelect, selectedId }) {
   if (!rfqs.length) return <EmptyState text="No RFQs found for this account yet." />;
 
@@ -193,6 +204,7 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
   const [vendors, setVendors] = useState([]);
   const [vendorSearch, setVendorSearch] = useState("");
   const [selectedVendorIds, setSelectedVendorIds] = useState([]);
+  const [invitedVendorIds, setInvitedVendorIds] = useState([]);
   const [acceptedOffers, setAcceptedOffers] = useState([]);
   const [pos, setPos] = useState([]);
   const [poForm, setPoForm] = useState({ offerLetterId: "", poNumber: "", deliveryDeadline: "" });
@@ -209,11 +221,14 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
     label: `${request.rrNumber || `RR ${request.rrId}`} - ${request.title || "Untitled"} - ${formatMoney(request.estimatedTotalAmount)}`,
   }));
   const tenderOptions = tenders
-    .filter((tender) => tender.status === "READY_FOR_RFQ" || tender.status === "RFQ_CREATED")
+    .filter((tender) => tender.status === "READY_FOR_RFQ")
     .map((tender) => ({
       value: tender.tenderId,
-      label: `${tender.tenderNumber || `Tender ${tender.tenderId}`} - ${tender.title || "Untitled"} - ${formatMoney(tender.estimatedValue)}`,
+      label: `${tender.tenderNumber || `Tender ${tender.tenderId}`} - ${tender.title || "Untitled"} - ${formatMoney(tender.tenderValue)}`,
     }));
+  const filteredReadyRequests = rfqForm.tenderId
+    ? readyRequests.filter((request) => String(request.tenderId) === String(rfqForm.tenderId))
+    : readyRequests;
   const rfqOptions = rfqs.map((rfq) => ({
     value: rfq.rfqId,
     label: `${rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - ${rfq.title || "Untitled"} - ${rfq.status || "DRAFT"}`,
@@ -222,6 +237,9 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
     value: offer.offerLetterId,
     label: `${offer.letterNumber || `Offer ${offer.offerLetterId}`} - ${offer.vendorName || "Vendor"} - ${formatMoney(offer.offerAmount)}`,
   }));
+  const selectedRfqClosed = selectedRfq?.submissionDeadline
+    ? new Date(selectedRfq.submissionDeadline).getTime() <= Date.now()
+    : false;
 
   const load = async () => {
     setLoading(true);
@@ -251,10 +269,10 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
     setMessage("");
     try {
       const data = await procurementApi.vendors.search(token, vendorSearch);
-      const users = getArray(data).filter((user) => user.vendorId);
-      setVendors(users);
-      if (!users.length) {
-        setMessage("No approved vendors found for that business name.");
+      const vendorList = getArray(data).filter((vendor) => vendor.vendorId);
+      setVendors(vendorList);
+      if (!vendorList.length) {
+        setMessage(vendorSearch ? "No approved vendors found for that business name." : "No approved vendors found.");
       }
     } catch (err) {
       setError(err.message || "Could not search vendors.");
@@ -268,6 +286,26 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
   useEffect(() => {
     searchVendors();
   }, [token]);
+
+  const loadInvitations = async (rfqId) => {
+    if (!rfqId) {
+      setInvitedVendorIds([]);
+      return;
+    }
+    try {
+      const data = await procurementApi.rfqs.invitations(token, rfqId);
+      setInvitedVendorIds(getArray(data).map((invitation) => String(invitation.vendorId)).filter(Boolean));
+      setSelectedVendorIds([]);
+    } catch (err) {
+      setError(err.message || "Could not load RFQ invitations.");
+    }
+  };
+
+  const selectRfqForInvites = (rfqId) => {
+    const rfq = rfqs.find((item) => String(item.rfqId) === String(rfqId)) || null;
+    setSelectedRfq(rfq);
+    loadInvitations(rfq?.rfqId);
+  };
 
   const updateRfq = (event) => {
     const { name, value, type, checked } = event.target;
@@ -307,6 +345,7 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
       await procurementApi.rfqs.inviteVendors(token, selectedRfq.rfqId, { vendorIds: selectedVendorIds.map(Number) });
       setMessage("Vendors invited to the selected RFQ.");
       setSelectedVendorIds([]);
+      loadInvitations(selectedRfq.rfqId);
     } catch (err) {
       setError(err.message || "Could not invite vendors.");
     }
@@ -353,6 +392,32 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
 
       {activeSection === "rfq" && (
         <ActionCard eyebrow="RFQ Setup" title="Create RFQ from Approved Tender">
+          <div className="rounded-[24px] border border-[#dce8ef] bg-[#fbfdff] p-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Submitted by Bursar</div>
+            <h3 className="mt-2 text-xl font-black text-[#10283f]">RRs ready for Procurement Officer</h3>
+            <div className="mt-4">
+              <DataTable
+                rows={filteredReadyRequests}
+                empty={rfqForm.tenderId ? "No RRs are included under the selected tender." : "No RRs have been submitted to Procurement Officer yet."}
+                columns={[
+                  { key: "rrNumber", label: "RR Number" },
+                  { key: "title", label: "Title" },
+                  {
+                    key: "tender",
+                    label: "Tender",
+                    render: (row) => row.tenderNumber
+                      ? `${row.tenderNumber} - ${row.tenderTitle || "Untitled"}`
+                      : "Not assigned",
+                  },
+                  { key: "facultyName", label: "Faculty" },
+                  { key: "divisionName", label: "Division" },
+                  { key: "estimatedTotalAmount", label: "Amount", render: (row) => formatMoney(row.estimatedTotalAmount) },
+                  { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
+                ]}
+              />
+            </div>
+          </div>
+
           <form onSubmit={createRfq} className="space-y-4">
             <Field label="Approved Tender">
               <SelectField
@@ -393,12 +458,17 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
             <Field label="RFQ">
               <SelectField
                 value={selectedRfq?.rfqId || ""}
-                onChange={(e) => setSelectedRfq(rfqs.find((rfq) => String(rfq.rfqId) === e.target.value) || null)}
+                onChange={(e) => selectRfqForInvites(e.target.value)}
                 options={rfqOptions}
                 placeholder={loading ? "Loading RFQs..." : "Select RFQ"}
                 required
               />
             </Field>
+            {selectedRfqClosed && (
+              <div className="rounded-[20px] bg-red-50 p-4 text-sm font-semibold text-red-700">
+                This RFQ has passed its bid closing time. Vendors cannot be invited now.
+              </div>
+            )}
             <RfqList rfqs={selectedRfq ? [selectedRfq] : []} selectedId={selectedRfq?.rfqId} />
           </ActionCard>
 
@@ -414,13 +484,14 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
             </form>
             <form onSubmit={inviteVendors} className="space-y-4">
               <div className="max-h-[320px] space-y-3 overflow-y-auto rounded-[24px] border border-[#dce8ef] p-3">
-                {!vendors.length && <EmptyState text="Search approved vendors by business name, then select one or more vendors." />}
+                {!vendors.length && <EmptyState text="No approved vendors are available." />}
                 {vendors.map((vendor) => (
-                  <label key={`${vendor.userId}-${vendor.vendorId}`} className="flex items-start gap-3 rounded-[20px] bg-[#f8fcff] p-4">
+                  <label key={vendor.vendorId} className={`flex items-start gap-3 rounded-[20px] p-4 ${invitedVendorIds.includes(String(vendor.vendorId)) ? "bg-slate-100" : "bg-[#f8fcff]"}`}>
                     <input
                       type="checkbox"
                       className="mt-1"
                       checked={selectedVendorIds.includes(String(vendor.vendorId))}
+                      disabled={selectedRfqClosed || invitedVendorIds.includes(String(vendor.vendorId))}
                       onChange={(event) => {
                         setSelectedVendorIds((current) =>
                           event.target.checked
@@ -430,15 +501,19 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
                       }}
                     />
                     <span>
-                      <span className="block text-sm font-black text-[#10283f]">{vendor.vendorName || vendor.username}</span>
+                      <span className="block text-sm font-black text-[#10283f]">{vendor.vendorName || `Vendor ${vendor.vendorId}`}</span>
                       <span className="block text-xs leading-6 text-slate-600">
-                        Vendor ID {vendor.vendorId} | {vendor.email}
+                        Vendor ID {vendor.vendorId} | {vendor.email || "No email"}
+                        {vendor.contactPerson ? ` | Contact: ${vendor.contactPerson}` : ""}
                       </span>
+                      {invitedVendorIds.includes(String(vendor.vendorId)) && (
+                        <span className="mt-1 block text-xs font-bold text-emerald-700">Already invited to this RFQ</span>
+                      )}
                     </span>
                   </label>
                 ))}
               </div>
-              <button className={buttonClass} type="submit" disabled={!selectedRfq || !selectedVendorIds.length}>
+              <button className={buttonClass} type="submit" disabled={!selectedRfq || selectedRfqClosed || !selectedVendorIds.length}>
                 Invite Selected Vendors
               </button>
             </form>
@@ -484,7 +559,12 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
 }
 
 function TecWorkspace({ token, setError, setMessage }) {
-  const [activeSection, setActiveSection] = useState("specs");
+  const location = useLocation();
+  const tecQuery = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const requestedMeetingRfqId = tecQuery.get("section") === "meeting" ? tecQuery.get("rfqId") || "" : "";
+  const requestedMeetingVendorId = tecQuery.get("section") === "meeting" ? tecQuery.get("vendorId") || "" : "";
+  const requestedMeetingVendorName = tecQuery.get("section") === "meeting" ? tecQuery.get("vendorName") || "" : "";
+  const [activeSection, setActiveSection] = useState("meeting");
   const [spec, setSpec] = useState(initialSpec);
   const [meeting, setMeeting] = useState(initialMeeting);
   const [completeMeeting, setCompleteMeeting] = useState({ meetingId: "", minutesDocumentUrl: "", changeSummary: "" });
@@ -544,9 +624,7 @@ function TecWorkspace({ token, setError, setMessage }) {
   const isSelectedRfqOpen = selectedOpeningTime ? new Date(selectedOpeningTime).getTime() <= Date.now() : false;
   const quotationsAreSealed = quotations.some((quotation) => quotation.sealed);
   const sections = [
-    { id: "specs", label: "Specifications" },
     { id: "meeting", label: "Pre-Bid Meeting" },
-    { id: "bids", label: "Bid Evaluation" },
     { id: "quotations", label: "Quotations" },
     { id: "objections", label: "Objections" },
     { id: "reports", label: "Rejected Reports" },
@@ -572,9 +650,10 @@ function TecWorkspace({ token, setError, setMessage }) {
       const selectableRfqs = Array.from(
         new Map([...readyRfqs, ...publishedList].filter((rfq) => rfq?.rfqId).map((rfq) => [String(rfq.rfqId), rfq])).values()
       );
-      if (selectableRfqs.length && !rfqLookup) {
-        const firstRfqId = String(selectableRfqs[0].rfqId);
-        selectLoadedRfq(firstRfqId);
+      if (requestedMeetingRfqId) {
+        selectLoadedRfq(requestedMeetingRfqId);
+      } else if (selectableRfqs.length && !rfqLookup) {
+        selectLoadedRfq(String(selectableRfqs[0].rfqId));
       }
     } catch (err) {
       setError(err.message || "Could not load TEC RFQs.");
@@ -592,6 +671,14 @@ function TecWorkspace({ token, setError, setMessage }) {
   useEffect(() => {
     loadSpecRfqs();
   }, [token]);
+
+  useEffect(() => {
+    if (requestedMeetingRfqId) {
+      setActiveSection("meeting");
+      selectLoadedRfq(requestedMeetingRfqId);
+      setMeeting((current) => ({ ...current, rfqId: requestedMeetingRfqId, vendorId: requestedMeetingVendorId }));
+    }
+  }, [requestedMeetingRfqId, requestedMeetingVendorId]);
 
   const loadRfqWork = async (event) => {
     event?.preventDefault();
@@ -646,15 +733,16 @@ function TecWorkspace({ token, setError, setMessage }) {
     try {
       await procurementApi.meetings.schedule(token, meeting.rfqId, {
         meetingRequired: meeting.meetingRequired,
+        vendorId: meeting.vendorId ? Number(meeting.vendorId) : null,
         meetingDateTime: asLocalDateTime(meeting.meetingDateTime),
         meetingLinkOrLocation: meeting.meetingLinkOrLocation,
         agenda: meeting.agenda,
       });
-      setMessage("Pre-bid meeting details saved.");
+      setMessage("Pre-bid meeting scheduled and vendor notified.");
       setMeeting(initialMeeting);
       loadRfqWork();
     } catch (err) {
-      setError(err.message || "Could not save meeting.");
+      setError(err.message || "Could not schedule meeting.");
     }
   };
 
@@ -804,9 +892,18 @@ function TecWorkspace({ token, setError, setMessage }) {
       )}
 
       {activeSection === "meeting" && (
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div className="grid gap-6">
           <ActionCard eyebrow="Optional Meeting" title="Schedule Pre-Bid Meeting">
             <form onSubmit={scheduleMeeting} className="space-y-4">
+              {requestedMeetingRfqId && (
+                <div className="rounded-[24px] border border-[#dce8ef] bg-[#fbfdff] p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Requested Meeting</div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <DetailTile label="Requested Vendor" value={requestedMeetingVendorName || (requestedMeetingVendorId ? `Vendor ID ${requestedMeetingVendorId}` : "Not linked")} />
+                    <DetailTile label="RFQ" value={selectedRfq ? `${selectedRfq.rfqNumber || `RFQ ${selectedRfq.rfqId}`} - ${selectedRfq.title || "Untitled"}` : `RFQ ID ${requestedMeetingRfqId}`} />
+                  </div>
+                </div>
+              )}
               <Field label="RFQ">
                 <SelectField value={meeting.rfqId} onChange={(e) => setMeeting((c) => ({ ...c, rfqId: e.target.value }))} options={loadedRfqOptions} placeholder="Load RFQ first" required />
               </Field>
@@ -817,24 +914,7 @@ function TecWorkspace({ token, setError, setMessage }) {
               <Field label="Meeting Date and Time"><input className={inputClass} type="datetime-local" name="meetingDateTime" value={meeting.meetingDateTime} onChange={update(setMeeting)} /></Field>
               <Field label="Meeting Link or Location"><input className={inputClass} name="meetingLinkOrLocation" value={meeting.meetingLinkOrLocation} onChange={update(setMeeting)} /></Field>
               <Field label="Agenda"><textarea className={inputClass} rows={3} name="agenda" value={meeting.agenda} onChange={update(setMeeting)} /></Field>
-              <button className={buttonClass} type="submit">Save Meeting</button>
-            </form>
-          </ActionCard>
-
-          <ActionCard eyebrow="Meeting Minutes" title="Complete Pre-Bid Meeting">
-            <form onSubmit={markMeetingComplete} className="space-y-4">
-              <Field label="Meeting">
-                <SelectField
-                  value={completeMeeting.meetingId}
-                  onChange={(e) => setCompleteMeeting((c) => ({ ...c, meetingId: e.target.value }))}
-                  options={meetingOptions}
-                  placeholder="Load RFQ with saved meeting first"
-                  required
-                />
-              </Field>
-              <Field label="Minutes Document URL"><input className={inputClass} value={completeMeeting.minutesDocumentUrl} onChange={(e) => setCompleteMeeting((c) => ({ ...c, minutesDocumentUrl: e.target.value }))} /></Field>
-              <Field label="Specification Change Summary"><textarea className={inputClass} rows={2} value={completeMeeting.changeSummary} onChange={(e) => setCompleteMeeting((c) => ({ ...c, changeSummary: e.target.value }))} /></Field>
-              <button className={buttonClass} type="submit">Complete Meeting</button>
+              <button className={buttonClass} type="submit">Schedule Meeting</button>
             </form>
           </ActionCard>
         </div>
@@ -1022,7 +1102,7 @@ function TecWorkspace({ token, setError, setMessage }) {
   );
 }
 
-function VendorWorkspace({ token, setError, setMessage }) {
+function VendorWorkspace({ token, setError, setMessage, focusQuotation = false, initialRfqId = "" }) {
   const [rfqs, setRfqs] = useState([]);
   const [bids, setBids] = useState([]);
   const [quotations, setQuotations] = useState([]);
@@ -1031,6 +1111,8 @@ function VendorWorkspace({ token, setError, setMessage }) {
   const [pos, setPos] = useState([]);
   const [bidForm, setBidForm] = useState(initialVendorBid);
   const [quotationForm, setQuotationForm] = useState(initialVendorQuotation);
+  const [quotationItems, setQuotationItems] = useState({});
+  const [meetingRequestComment, setMeetingRequestComment] = useState("");
   const [objection, setObjection] = useState({ rfqId: "", bidId: "", reason: "", documentUrl: "" });
   const [offerResponse, setOfferResponse] = useState({ offerLetterId: "", decision: "ACCEPTED", comment: "" });
   const [loading, setLoading] = useState(false);
@@ -1039,6 +1121,22 @@ function VendorWorkspace({ token, setError, setMessage }) {
     value: rfq.rfqId,
     label: `${rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - ${rfq.title || "Untitled"} - ${rfq.status || "PUBLISHED"}`,
   }));
+  const selectedQuotationRfq = rfqs.find((rfq) => String(rfq.rfqId) === String(quotationForm.rfqId));
+  const selectedQuotationItems = selectedQuotationRfq?.requisitionRequests?.flatMap((rr) =>
+    (rr.items || []).map((item) => ({ ...item, rrNumber: rr.rrNumber, rrTitle: rr.title }))
+  ) || [];
+  const quotedItemIdsForSelectedRfq = new Set(
+    quotations
+      .filter((quotation) => String(quotation.rfqId) === String(quotationForm.rfqId))
+      .flatMap((quotation) => quotation.items || [])
+      .map((item) => item.requisitionItemId)
+      .filter(Boolean)
+  );
+  const selectedQuotationTotal = selectedQuotationItems.reduce((sum, item) => {
+    const quote = quotationItems[item.itemId];
+    if (!quote?.selected) return sum;
+    return sum + (Number(quote.quotedUnitPrice || 0) * Number(quote.quantity || 0));
+  }, 0);
 
   const load = async () => {
     setLoading(true);
@@ -1068,6 +1166,13 @@ function VendorWorkspace({ token, setError, setMessage }) {
     load();
   }, [token]);
 
+  useEffect(() => {
+    if (focusQuotation && initialRfqId) {
+      setQuotationForm((current) => ({ ...current, rfqId: initialRfqId }));
+      setQuotationItems({});
+    }
+  }, [focusQuotation, initialRfqId]);
+
   const updateBid = (event) => {
     const { name, value } = event.target;
     setBidForm((current) => ({ ...current, [name]: value }));
@@ -1076,6 +1181,21 @@ function VendorWorkspace({ token, setError, setMessage }) {
   const updateQuotation = (event) => {
     const { name, value } = event.target;
     setQuotationForm((current) => ({ ...current, [name]: value }));
+  };
+
+  const updateQuotationItem = (item, patch) => {
+    setQuotationItems((current) => ({
+      ...current,
+      [item.itemId]: {
+        selected: false,
+        quotedUnitPrice: "",
+        quantity: item.quantity || 1,
+        vendorSpecification: "",
+        specificationDocumentUrl: "",
+        ...(current[item.itemId] || {}),
+        ...patch,
+      },
+    }));
   };
 
   const submitBid = async (event) => {
@@ -1101,18 +1221,52 @@ function VendorWorkspace({ token, setError, setMessage }) {
     event.preventDefault();
     setError("");
     setMessage("");
+    const items = selectedQuotationItems
+      .map((item) => ({ item, quote: quotationItems[item.itemId] }))
+      .filter(({ quote }) => quote?.selected)
+      .map(({ item, quote }) => ({
+        requisitionItemId: item.itemId,
+        quotedUnitPrice: Number(quote.quotedUnitPrice),
+        quantity: Number(quote.quantity || item.quantity || 1),
+        vendorSpecification: quote.vendorSpecification || "",
+        specificationDocumentUrl: quote.specificationDocumentUrl || "",
+      }));
+    if (!items.length) {
+      setError("Select at least one tender item you can supply before submitting a quotation.");
+      return;
+    }
     try {
       await vendorProcurementApi.rfqs.submitQuotation(token, quotationForm.rfqId, {
-        quotedAmount: Number(quotationForm.quotedAmount),
+        quotedAmount: selectedQuotationTotal,
+        items,
         deliveryPeriodDays: toNumberOrNull(quotationForm.deliveryPeriodDays),
         remarks: quotationForm.remarks,
         attachmentUrl: quotationForm.attachmentUrl,
       });
       setMessage("Quotation submitted.");
       setQuotationForm(initialVendorQuotation);
+      setQuotationItems({});
       load();
     } catch (err) {
       setError(err.message || "Could not submit quotation.");
+    }
+  };
+
+  const requestTecMeeting = async () => {
+    setError("");
+    setMessage("");
+    if (!quotationForm.rfqId) {
+      setError("Select an RFQ before requesting a TEC meeting.");
+      return;
+    }
+    try {
+      await vendorProcurementApi.rfqs.requestMeeting(token, quotationForm.rfqId, {
+        comment: meetingRequestComment,
+      });
+      setMessage("Pre-bid meeting request sent to TEC.");
+      setMeetingRequestComment("");
+    } catch (err) {
+      setError(err.message || "Could not send the meeting request.");
     }
   };
 
@@ -1153,10 +1307,13 @@ function VendorWorkspace({ token, setError, setMessage }) {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+      {!focusQuotation && (
       <ActionCard eyebrow="Invitations" title="My Invited RFQs">
         {loading ? <EmptyState text="Loading vendor workspace..." /> : <RfqList rfqs={rfqs} />}
       </ActionCard>
+      )}
 
+      {!focusQuotation && (
       <ActionCard eyebrow="Bid Submission" title="Submit Sealed Bid">
         <form onSubmit={submitBid} className="space-y-4">
           <Field label="RFQ">
@@ -1175,19 +1332,116 @@ function VendorWorkspace({ token, setError, setMessage }) {
           <button className={buttonClass} type="submit">Submit Bid</button>
         </form>
       </ActionCard>
+      )}
 
       <ActionCard eyebrow="Quotation Submission" title="Submit Price Quotation">
         <form onSubmit={submitQuotation} className="space-y-4">
           <Field label="RFQ">
             <SelectField
               value={quotationForm.rfqId}
-              onChange={(e) => setQuotationForm((current) => ({ ...current, rfqId: e.target.value }))}
+              onChange={(e) => {
+                setQuotationForm((current) => ({ ...current, rfqId: e.target.value }));
+                setQuotationItems({});
+              }}
               options={rfqOptions}
               placeholder="Select invited RFQ"
               required
             />
           </Field>
-          <Field label="Quoted Amount"><input className={inputClass} name="quotedAmount" value={quotationForm.quotedAmount} onChange={updateQuotation} required /></Field>
+          {selectedQuotationRfq && (
+            <div className="rounded-[24px] border border-[#dce8ef] bg-[#fbfdff] p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Tender Items</div>
+              <h3 className="mt-2 text-lg font-black text-[#10283f]">
+                {selectedQuotationRfq.tenderNumber || selectedQuotationRfq.rfqNumber} - {selectedQuotationRfq.tenderTitle || selectedQuotationRfq.title}
+              </h3>
+              <div className="mt-4 space-y-3">
+                {!selectedQuotationItems.length && <EmptyState text="No RR items are linked to this RFQ." />}
+                {selectedQuotationItems.map((item) => {
+                  const quote = quotationItems[item.itemId] || {};
+                  const alreadyQuoted = quotedItemIdsForSelectedRfq.has(item.itemId);
+                  return (
+                    <div key={item.itemId} className={`rounded-2xl border border-[#e0ebf1] p-4 ${alreadyQuoted ? "bg-slate-100" : "bg-white"}`}>
+                      <label className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={Boolean(quote.selected) && !alreadyQuoted}
+                          disabled={alreadyQuoted}
+                          onChange={(event) => updateQuotationItem(item, { selected: event.target.checked })}
+                        />
+                        <span>
+                          <span className="block text-sm font-black text-[#10283f]">{item.itemName}</span>
+                          <span className="block text-xs leading-6 text-slate-600">
+                            {item.rrNumber} - {item.rrTitle} | Requested qty {item.quantity} {item.unitOfMeasure || ""}
+                          </span>
+                          {alreadyQuoted && <span className="mt-1 block text-xs font-bold text-emerald-700">Quotation already submitted for this item</span>}
+                          {item.description && <span className="block text-xs leading-6 text-slate-600">{item.description}</span>}
+                        </span>
+                      </label>
+                      {quote.selected && !alreadyQuoted && (
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                          <Field label="Quoted Unit Price">
+                            <input
+                              className={inputClass}
+                              type="number"
+                              value={quote.quotedUnitPrice || ""}
+                              onChange={(event) => updateQuotationItem(item, { quotedUnitPrice: event.target.value })}
+                              required
+                            />
+                          </Field>
+                          <Field label="Quantity You Can Supply">
+                            <input
+                              className={inputClass}
+                              type="number"
+                              value={quote.quantity || item.quantity || 1}
+                              onChange={(event) => updateQuotationItem(item, { quantity: event.target.value })}
+                              required
+                            />
+                          </Field>
+                          <Field label="Vendor Specification">
+                            <textarea
+                              className={inputClass}
+                              rows={2}
+                              value={quote.vendorSpecification || ""}
+                              onChange={(event) => updateQuotationItem(item, { vendorSpecification: event.target.value })}
+                            />
+                          </Field>
+                          <Field label="Specification Document URL">
+                            <input
+                              className={inputClass}
+                              value={quote.specificationDocumentUrl || ""}
+                              onChange={(event) => updateQuotationItem(item, { specificationDocumentUrl: event.target.value })}
+                            />
+                          </Field>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 rounded-2xl bg-[#edf7fb] p-4 text-sm font-black text-[#166e8c]">
+                Quotation total for selected items: {formatMoney(selectedQuotationTotal)}
+              </div>
+            </div>
+          )}
+          {selectedQuotationRfq && (
+            <div className="rounded-[24px] border border-[#dce8ef] bg-white p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Pre-Bid Meeting</div>
+              <h3 className="mt-2 text-lg font-black text-[#10283f]">Request a TEC meeting before quotation</h3>
+              <Field label="Message to TEC">
+                <textarea
+                  className={inputClass}
+                  rows={3}
+                  value={meetingRequestComment}
+                  onChange={(event) => setMeetingRequestComment(event.target.value)}
+                  placeholder="Add the clarification or meeting reason"
+                />
+              </Field>
+              <button className={buttonClass} type="button" onClick={requestTecMeeting}>
+                Request Meeting from TEC
+              </button>
+            </div>
+          )}
           <Field label="Delivery Period Days"><input className={inputClass} name="deliveryPeriodDays" value={quotationForm.deliveryPeriodDays} onChange={updateQuotation} /></Field>
           <Field label="Attachment URL"><input className={inputClass} name="attachmentUrl" value={quotationForm.attachmentUrl} onChange={updateQuotation} /></Field>
           <Field label="Remarks"><textarea className={inputClass} rows={3} name="remarks" value={quotationForm.remarks} onChange={updateQuotation} /></Field>
@@ -1195,6 +1449,7 @@ function VendorWorkspace({ token, setError, setMessage }) {
         </form>
       </ActionCard>
 
+      {!focusQuotation && (
       <ActionCard eyebrow="My Bids" title="Submission Status">
         <DataTable
           rows={bids}
@@ -1207,7 +1462,9 @@ function VendorWorkspace({ token, setError, setMessage }) {
           ]}
         />
       </ActionCard>
+      )}
 
+      {!focusQuotation && (
       <ActionCard eyebrow="My Quotations" title="Quotation Status">
         <DataTable
           rows={quotations}
@@ -1221,7 +1478,9 @@ function VendorWorkspace({ token, setError, setMessage }) {
           ]}
         />
       </ActionCard>
+      )}
 
+      {!focusQuotation && (
       <ActionCard eyebrow="Appeals" title="Submit Objection">
         <form onSubmit={submitObjection} className="space-y-4">
           <Field label="RFQ ID"><input className={inputClass} value={objection.rfqId} onChange={(e) => setObjection((c) => ({ ...c, rfqId: e.target.value }))} required /></Field>
@@ -1231,7 +1490,9 @@ function VendorWorkspace({ token, setError, setMessage }) {
           <button className={buttonClass} type="submit">Submit Objection</button>
         </form>
       </ActionCard>
+      )}
 
+      {!focusQuotation && (
       <ActionCard eyebrow="Offer Letter" title="Accept or Reject Offer">
         <DataTable
           rows={offers}
@@ -1254,7 +1515,9 @@ function VendorWorkspace({ token, setError, setMessage }) {
           <button className={buttonClass} type="submit">Send Response</button>
         </form>
       </ActionCard>
+      )}
 
+      {!focusQuotation && (
       <ActionCard eyebrow="Reports and PO" title="Rejected Reports and Purchase Orders">
         <DataTable
           rows={reports}
@@ -1275,14 +1538,20 @@ function VendorWorkspace({ token, setError, setMessage }) {
           ]}
         />
       </ActionCard>
+      )}
     </div>
   );
 }
 
 export default function ProcurementWorkspace() {
   const { user, token } = useAuth();
+  const location = useLocation();
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const focusQuotation = user?.mainRole === "VENDOR"
+    && (location.pathname === "/vendor/tenders" || query.get("section") === "quotation");
+  const initialRfqId = query.get("rfqId") || "";
 
   const role = useMemo(() => {
     if (user?.mainRole === "VENDOR") return "VENDOR";
@@ -1327,7 +1596,15 @@ export default function ProcurementWorkspace() {
 
       {role === "PROCUREMENT_OFFICER" && <ProcurementOfficerWorkspace token={token} setError={setError} setMessage={setMessage} />}
       {role === "TEC" && <TecWorkspace token={token} setError={setError} setMessage={setMessage} />}
-      {role === "VENDOR" && <VendorWorkspace token={token} setError={setError} setMessage={setMessage} />}
+      {role === "VENDOR" && (
+        <VendorWorkspace
+          token={token}
+          setError={setError}
+          setMessage={setMessage}
+          focusQuotation={focusQuotation}
+          initialRfqId={initialRfqId}
+        />
+      )}
       {role === "UNSUPPORTED" && <EmptyState text="Please login using PROCUREMENT_OFFICER, TEC, or VENDOR role to use this module." />}
     </div>
   );

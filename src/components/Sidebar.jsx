@@ -8,7 +8,7 @@ import { apiRequest } from "../services/apiClient";
 const Sidebar = () => {
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
-  const displayRole = user?.subRole || user?.mainRole || "USER";
+  const displayRole = (user?.subRole || user?.mainRole || "USER").replaceAll("_", " ");
   const items = getSidebarItems(user);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -30,7 +30,7 @@ const Sidebar = () => {
       <div className="min-h-0 flex-1 overflow-y-auto rounded-[28px] border border-[#dce8ef] bg-white/92 p-4 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
         <div className="rounded-[22px] bg-[linear-gradient(145deg,#0f2940,#166e8c)] p-4 text-white">
           <div className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100">Current Role</div>
-          <div className="mt-3 text-2xl font-bold">{displayRole}</div>
+          <div className="mt-3 break-words text-lg font-bold leading-tight">{displayRole}</div>
           <div className="mt-2 text-xs leading-6 text-slate-200">
             Streamline approvals, reviews, and accountability across the university procurement chain.
           </div>

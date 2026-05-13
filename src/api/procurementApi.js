@@ -23,6 +23,7 @@ export const procurementApi = {
     create: (token, payload) => apiRequest(`${procurementBase}/rfqs`, { token, method: "POST", body: payload }),
     inviteVendors: (token, rfqId, payload) =>
       apiRequest(`${procurementBase}/rfqs/${rfqId}/invite-vendors`, { token, method: "POST", body: payload }),
+    invitations: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}/invitations`, { token }),
     bids: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}/bids`, { token }),
     quotations: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}/quotations`, { token }),
     objections: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}/objections`, { token }),
@@ -69,12 +70,7 @@ export const procurementApi = {
   vendors: {
     search: (token, search = "") =>
       apiRequest(
-        `/api/admin/users?${new URLSearchParams({
-          page: "0",
-          size: "50",
-          mainRole: "VENDOR",
-          status: "APPROVED",
-          isActive: "true",
+        `${procurementBase}/vendors?${new URLSearchParams({
           ...(search ? { search } : {}),
         })}`,
         { token }
@@ -96,6 +92,8 @@ export const vendorProcurementApi = {
     detail: (token, rfqId) => apiRequest(`${vendorBase}/rfqs/${rfqId}`, { token }),
     submitQuotation: (token, rfqId, payload) =>
       apiRequest(`${vendorBase}/rfqs/${rfqId}/quotations`, { token, method: "POST", body: payload }),
+    requestMeeting: (token, rfqId, payload) =>
+      apiRequest(`${vendorBase}/rfqs/${rfqId}/meeting-request`, { token, method: "POST", body: payload }),
     submitBid: (token, rfqId, payload) =>
       apiRequest(`${vendorBase}/rfqs/${rfqId}/bids`, { token, method: "POST", body: payload }),
     object: (token, rfqId, payload) =>

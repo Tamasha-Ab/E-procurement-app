@@ -35,9 +35,12 @@ const formatCurrency = (value) => {
 const getResponseMessage = (body, fallback) =>
   body?.message || body?.error || fallback || "Request failed";
 
-const formatActionLabel = (action) => {
-  if (action === "BUDGET_CHECKED") return "APPROVED";
-  return action || "ACTION";
+const formatActionLabel = (entry) => {
+  if (entry?.action === "BUDGET_CHECKED") return "APPROVED";
+  if (entry?.action === "SUBMITTED" && entry?.toStatus === "READY_FOR_PROCUREMENT") {
+    return "SUBMITTED TO PROCUREMENT OFFICER";
+  }
+  return entry?.action || "ACTION";
 };
 
 export default function BursarAuditTrail() {
@@ -220,7 +223,7 @@ export default function BursarAuditTrail() {
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <Typography className="!text-lg !font-bold !text-[#10283f]">
-                            {formatActionLabel(entry.action)}
+                            {formatActionLabel(entry)}
                           </Typography>
                           <Chip label={entry.actionRole || "ROLE"} size="small" sx={{ bgcolor: "#edf7fb", color: "#166e8c", fontWeight: 700 }} />
                         </div>
