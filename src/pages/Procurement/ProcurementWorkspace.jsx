@@ -564,6 +564,7 @@ function TecWorkspace({ token, setError, setMessage }) {
   const requestedMeetingRfqId = tecQuery.get("section") === "meeting" ? tecQuery.get("rfqId") || "" : "";
   const requestedMeetingVendorId = tecQuery.get("section") === "meeting" ? tecQuery.get("vendorId") || "" : "";
   const requestedMeetingVendorName = tecQuery.get("section") === "meeting" ? tecQuery.get("vendorName") || "" : "";
+  const requestedObjectionRfqId = tecQuery.get("section") === "objections" ? tecQuery.get("rfqId") || "" : "";
   const [activeSection, setActiveSection] = useState("meeting");
   const [spec, setSpec] = useState(initialSpec);
   const [meeting, setMeeting] = useState(initialMeeting);
@@ -697,18 +698,29 @@ function TecWorkspace({ token, setError, setMessage }) {
     }
   }, [requestedMeetingRfqId, requestedMeetingVendorId]);
 
-  const loadRfqWork = async (event) => {
+  useEffect(() => {
+    if (requestedObjectionRfqId) {
+      setActiveSection("objections");
+      selectLoadedRfq(requestedObjectionRfqId);
+      loadRfqWork(null, requestedObjectionRfqId);
+    } else if (tecQuery.get("section") === "objections") {
+      setActiveSection("objections");
+    }
+  }, [requestedObjectionRfqId, tecQuery]);
+
+  const loadRfqWork = async (event, rfqIdOverride = "") => {
     event?.preventDefault();
-    if (!rfqLookup) return;
+    const targetRfqId = rfqIdOverride || rfqLookup;
+    if (!targetRfqId) return;
     setError("");
     setMessage("");
     try {
       const [bidData, quotationData, objectionData, reportData, meetingData] = await Promise.all([
-        procurementApi.rfqs.bids(token, rfqLookup),
-        procurementApi.rfqs.quotations(token, rfqLookup),
-        procurementApi.rfqs.objections(token, rfqLookup),
-        procurementApi.rfqs.reports(token, rfqLookup),
-        procurementApi.meetings.get(token, rfqLookup).catch(() => null),
+        procurementApi.rfqs.bids(token, targetRfqId),
+        procurementApi.rfqs.quotations(token, targetRfqId),
+        procurementApi.rfqs.objections(token, targetRfqId),
+        procurementApi.rfqs.reports(token, targetRfqId),
+        procurementApi.meetings.get(token, targetRfqId).catch(() => null),
       ]);
       setBids(getArray(bidData));
       setQuotations(getArray(quotationData));
@@ -716,10 +728,11 @@ function TecWorkspace({ token, setError, setMessage }) {
       setObjections(getArray(objectionData));
       setReports(getArray(reportData));
       setMeetingRecord(meetingData);
-      setSpec((current) => ({ ...current, rfqId: rfqLookup }));
-      setMeeting((current) => ({ ...current, rfqId: rfqLookup }));
-      setRecommendation((current) => ({ ...current, rfqId: rfqLookup }));
-      setOffer((current) => ({ ...current, rfqId: rfqLookup }));
+      setRfqLookup(targetRfqId);
+      setSpec((current) => ({ ...current, rfqId: targetRfqId }));
+      setMeeting((current) => ({ ...current, rfqId: targetRfqId }));
+      setRecommendation((current) => ({ ...current, rfqId: targetRfqId }));
+      setOffer((current) => ({ ...current, rfqId: targetRfqId }));
       setMessage("RFQ evaluation data loaded.");
     } catch (err) {
       setError(err.message || "Could not load RFQ evaluation data.");

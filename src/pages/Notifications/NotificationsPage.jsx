@@ -59,6 +59,11 @@ export default function NotificationsPage() {
 
   const canScheduleMeeting = selected?.actionUrl?.startsWith("/procurement/tenders")
     && selected?.title?.toLowerCase().includes("pre-bid meeting");
+  const canSubmitObjection = selected?.actionUrl?.startsWith("/vendor/objections")
+    && selected?.title?.toLowerCase().includes("rejected");
+  const canViewObjection = selected?.actionUrl?.startsWith("/procurement/tenders")
+    && selected?.actionUrl?.includes("section=objections")
+    && selected?.title?.toLowerCase().includes("objection");
 
   return (
     <div className="space-y-8">
@@ -141,6 +146,24 @@ export default function NotificationsPage() {
                   className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
                 >
                   Schedule Meeting
+                </button>
+              )}
+              {canSubmitObjection && (
+                <button
+                  type="button"
+                  onClick={scheduleMeetingFromNotification}
+                  className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
+                >
+                  Submit Objections
+                </button>
+              )}
+              {canViewObjection && (
+                <button
+                  type="button"
+                  onClick={scheduleMeetingFromNotification}
+                  className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
+                >
+                  View Details
                 </button>
               )}
               <div className="grid gap-3 md:grid-cols-2">

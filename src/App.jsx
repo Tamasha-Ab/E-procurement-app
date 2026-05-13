@@ -21,6 +21,7 @@ import AdminFaculties from "./pages/Admin/AdminFaculties.jsx";
 import AdminDepartments from "./pages/Admin/AdminDepartments.jsx";
 import VendorDashboard from "./pages/Vendor/VendorDashboard.jsx";
 import VendorQuotations from "./pages/Vendor/VendorQuotations.jsx";
+import VendorObjections from "./pages/Vendor/VendorObjections.jsx";
 import { useAuth } from "./contexts/AuthContext";
 import CreateRequisition from "./pages/Staff/CreateRequisition.jsx";
 import MyRequisitions from "./pages/Staff/MyRequisitions.jsx";
@@ -228,6 +229,7 @@ const App = () => {
             <Route path="/procurement/rfqs" element={<ProcurementRfqList />} />
             <Route path="/vendor/tenders" element={<ProcurementWorkspace />} />
             <Route path="/vendor/quotations" element={<VendorQuotations />} />
+            <Route path="/vendor/objections" element={<VendorObjections />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/faculties" element={<AdminFaculties />} />
             <Route path="/admin/departments" element={<AdminDepartments />} />
