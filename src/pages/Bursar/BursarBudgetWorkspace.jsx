@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { createElement, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -18,6 +18,7 @@ import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceW
 import AssignmentTurnedInRoundedIcon from "@mui/icons-material/AssignmentTurnedInRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
+import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import ErrorRoundedIcon from "@mui/icons-material/ErrorRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
@@ -34,10 +35,150 @@ const formatCurrency = (value) => {
 };
 
 const initialTenderForm = {
-  title: "",
   tenderNumber: "",
-  description: "",
+  procuringEntityDepartment: "",
+  title: "",
+  tenderType: "",
+  procurementMethod: "",
   tenderValue: "",
+  fundingSource: "",
+  publicationDate: "",
+  closingDateTime: "",
+  bidValidityPeriod: "",
+};
+
+const tenderFormRows = [
+  { key: "tenderNumber", label: "Tender Reference No.", required: true },
+  { key: "procuringEntityDepartment", label: "Procuring Entity / Department" },
+  { key: "title", label: "Tender Title", required: true },
+  { key: "tenderType", label: "Tender Type (Goods / Works / Services / Consultancy / IT Systems)" },
+  { key: "procurementMethod", label: "Procurement Method (NCB / National Shopping)", input: "procurementMethod", required: true },
+  { key: "tenderValue", label: "Estimated Contract Value (LKR)", type: "number", required: true },
+  { key: "fundingSource", label: "Funding Source (GOSL / Project / Vote)", input: "fundingSource" },
+  { key: "publicationDate", label: "Date of Publication", type: "date" },
+  { key: "closingDateTime", label: "Closing Date & Time", type: "datetime-local" },
+  { key: "bidValidityPeriod", label: "Bid Validity Period" },
+];
+
+const procurementMethodOptions = ["NCB", "National Shopping"];
+const fundingSourceOptions = ["GOSL", "Project", "Vote"];
+
+const toApiDateTime = (value) => (value ? `${value}${value.includes("T") ? "" : "T00:00:00"}` : null);
+
+const formatTenderDate = (value, includeTime = false) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-LK", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    ...(includeTime ? { hour: "2-digit", minute: "2-digit" } : {}),
+  }).format(date);
+};
+
+const getTenderFormValue = (tender, key) => {
+  if (key === "tenderValue") return tender.tenderValue ? formatCurrency(tender.tenderValue) : "";
+  if (key === "publicationDate") return formatTenderDate(tender.publicationDate);
+  if (key === "closingDateTime") return formatTenderDate(tender.closingDateTime, true);
+  return tender[key] || "";
+};
+
+const normalizePdfText = (value) =>
+  String(value ?? "")
+    .replace(/\u00a0/g, " ")
+    .replace(/[^\x20-\x7E]/g, " ")
+    .trim();
+
+const escapePdfText = (value) =>
+  normalizePdfText(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
+
+const wrapPdfText = (value, maxChars) => {
+  const text = normalizePdfText(value);
+  if (!text) return [""];
+  const words = text.split(/\s+/);
+  const lines = [];
+  let line = "";
+  words.forEach((word) => {
+    const next = line ? `${line} ${word}` : word;
+    if (next.length > maxChars && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  });
+  if (line) lines.push(line);
+  return lines;
+};
+
+const downloadTenderForm = (tender) => {
+  const pageWidth = 842;
+  const pageHeight = 595;
+  const margin = 26;
+  const tableWidth = pageWidth - margin * 2;
+  const labelWidth = 270;
+  const startY = pageHeight - margin;
+  const lineHeight = 13;
+  let y = startY;
+  const commands = [
+    "0.96 0.98 1 rg",
+    "1 w",
+  ];
+
+  tenderFormRows.forEach((row) => {
+    const labelLines = wrapPdfText(row.label, 34);
+    const valueLines = wrapPdfText(getTenderFormValue(tender, row.key), 62);
+    const rowHeight = Math.max(36, (Math.max(labelLines.length, valueLines.length) * lineHeight) + 18);
+    y -= rowHeight;
+
+    commands.push(`0.86 0.91 0.96 rg ${margin} ${y} ${labelWidth} ${rowHeight} re f`);
+    commands.push(`0 0 0 RG ${margin} ${y} ${tableWidth} ${rowHeight} re S`);
+    commands.push(`${margin + labelWidth} ${y} m ${margin + labelWidth} ${y + rowHeight} l S`);
+    commands.push("0 0 0 rg");
+
+    labelLines.forEach((line, index) => {
+      commands.push(`BT /F2 12 Tf 1 0 0 1 ${margin + 10} ${y + rowHeight - 18 - (index * lineHeight)} Tm (${escapePdfText(line)}) Tj ET`);
+    });
+    valueLines.forEach((line, index) => {
+      commands.push(`BT /F1 12 Tf 1 0 0 1 ${margin + labelWidth + 10} ${y + rowHeight - 18 - (index * lineHeight)} Tm (${escapePdfText(line)}) Tj ET`);
+    });
+  });
+
+  const stream = commands.join("\n");
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+
+  const blob = new Blob([pdf], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${tender.tenderNumber || "tender-form"}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 };
 
 const getResponseMessage = (body, fallback) =>
@@ -137,8 +278,15 @@ export default function BursarBudgetWorkspace() {
         body: JSON.stringify({
           title: tenderForm.title,
           tenderNumber: tenderForm.tenderNumber,
-          description: tenderForm.description,
+          procuringEntityDepartment: tenderForm.procuringEntityDepartment,
+          tenderType: tenderForm.tenderType,
+          procurementMethod: tenderForm.procurementMethod,
           tenderValue: Number(tenderForm.tenderValue),
+          fundingSource: tenderForm.fundingSource,
+          publicationDate: toApiDateTime(tenderForm.publicationDate),
+          closingDateTime: toApiDateTime(tenderForm.closingDateTime),
+          bidValidityPeriod: tenderForm.bidValidityPeriod,
+          description: "Official tender creation form",
         }),
       });
       setNotice({ type: "success", message: "Tender created and notifications sent to internal users." });
@@ -295,6 +443,9 @@ export default function BursarBudgetWorkspace() {
     }))
     .filter((group) => group.rrs.length > 0);
   const finalRrsWithoutTender = finalRrs.filter((rr) => !rr.tenderId);
+  const updateTenderFormField = (key, value) => {
+    setTenderForm((prev) => ({ ...prev, [key]: value }));
+  };
 
   return (
     <div className="space-y-7">
@@ -341,13 +492,58 @@ export default function BursarBudgetWorkspace() {
         </Alert>
       )}
 
-      <section className="grid gap-6 xl:grid-cols-[0.85fr_1.2fr]">
+      <section className="grid gap-6 xl:grid-cols-[1.25fr_1fr]">
         <Panel title="Create Tender" eyebrow="Tender Details">
           <Box component="form" className="space-y-4" onSubmit={handleTenderSubmit}>
-            <TextField label="Tender title" value={tenderForm.title} onChange={(event) => setTenderForm((prev) => ({ ...prev, title: event.target.value }))} fullWidth required />
-            <TextField label="Tender ID" value={tenderForm.tenderNumber} onChange={(event) => setTenderForm((prev) => ({ ...prev, tenderNumber: event.target.value }))} fullWidth required />
-            <TextField label="Tender value" type="number" value={tenderForm.tenderValue} onChange={(event) => setTenderForm((prev) => ({ ...prev, tenderValue: event.target.value }))} fullWidth required />
-            <TextField label="Description" value={tenderForm.description} onChange={(event) => setTenderForm((prev) => ({ ...prev, description: event.target.value }))} fullWidth multiline minRows={3} />
+            <div className="overflow-hidden border border-[#111] bg-white">
+              {tenderFormRows.map((row) => (
+                <div key={row.key} className="grid grid-cols-[42%_58%] border-b border-[#111] last:border-b-0">
+                  <label className="flex items-center border-r border-[#111] bg-[#dbe7f3] px-3 py-3 font-serif text-base font-bold leading-5 text-[#111]">
+                    {row.label}
+                  </label>
+                  <div className="bg-white p-2">
+                    {row.input === "procurementMethod" ? (
+                      <TextField
+                        select
+                        SelectProps={{ native: true }}
+                        value={tenderForm[row.key]}
+                        onChange={(event) => updateTenderFormField(row.key, event.target.value)}
+                        fullWidth
+                        required={row.required}
+                        variant="standard"
+                        InputProps={{ disableUnderline: true }}
+                      >
+                        <option value="">Select method</option>
+                        {procurementMethodOptions.map((method) => (
+                          <option key={method} value={method}>
+                            {method}
+                          </option>
+                        ))}
+                      </TextField>
+                    ) : (
+                      <TextField
+                        type={row.type || "text"}
+                        value={tenderForm[row.key]}
+                        onChange={(event) => updateTenderFormField(row.key, event.target.value)}
+                        fullWidth
+                        required={row.required}
+                        variant="standard"
+                        InputProps={{ disableUnderline: true }}
+                        inputProps={{
+                          ...(row.type === "number" ? { min: 0, step: "0.01" } : {}),
+                          ...(row.input === "fundingSource" ? { list: "funding-source-options" } : {}),
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <datalist id="funding-source-options">
+              {fundingSourceOptions.map((source) => (
+                <option key={source} value={source} />
+              ))}
+            </datalist>
             <Button type="submit" variant="contained" disabled={loading} fullWidth sx={primaryButtonSx}>
               Create Tender
             </Button>
@@ -427,9 +623,25 @@ export default function BursarBudgetWorkspace() {
                     <Typography className="!mt-1 !text-sm !leading-7 !text-slate-600">
                       Tender value {formatCurrency(tender.tenderValue)} - Allocated {formatCurrency(tender.allocatedValue)} - Available {formatCurrency(Number(tender.tenderValue || 0) - Number(tender.allocatedValue || 0))}
                     </Typography>
+                    <Typography className="!mt-1 !text-sm !leading-7 !text-slate-600">
+                      {tender.procuringEntityDepartment || "Department not set"} - {tender.procurementMethod || "Method not set"}
+                    </Typography>
                   </div>
                   <div className="flex items-center gap-2">
                     <Chip label={tender.submittedToProcurement ? "SUBMITTED_TO_PROCUREMENT" : tender.status} size="small" sx={{ bgcolor: "#edf7fb", color: "#166e8c", fontWeight: 700 }} />
+                    <Tooltip title="Download tender form">
+                      <IconButton
+                        aria-label={`Download tender form ${tender.tenderNumber}`}
+                        onClick={() => downloadTenderForm(tender)}
+                        sx={{
+                          color: "#166e8c",
+                          bgcolor: "#edf7fb",
+                          "&:hover": { bgcolor: "#d8eef6" },
+                        }}
+                      >
+                        <DownloadRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                     <Tooltip title="Delete tender">
                       <span>
                         <IconButton
@@ -679,11 +891,11 @@ export default function BursarBudgetWorkspace() {
   );
 }
 
-function SummaryCard({ icon: Icon, label, value }) {
+function SummaryCard({ icon, label, value }) {
   return (
     <div className="rounded-[22px] bg-white/10 p-4 backdrop-blur">
       <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
-        <Icon />
+        {createElement(icon)}
       </div>
       <div className="mt-4 text-2xl font-black">{value}</div>
       <div className="mt-1 text-sm text-slate-200">{label}</div>

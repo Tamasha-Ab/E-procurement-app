@@ -1,21 +1,31 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import { useNavigate } from "react-router-dom";
 import PageHero from "../../components/PageHero";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime } from "../../services/apiClient";
+import { downloadTenderForm, getTenderFormValue, tenderFormRows } from "../../utils/tenderFormPdf";
+
+const getTenderIdFromNotification = (notification) => {
+  if (notification?.tenderId) return notification.tenderId;
+  if (!notification?.actionUrl) return null;
+  const queryText = notification.actionUrl.includes("?") ? notification.actionUrl.split("?")[1] : "";
+  return new URLSearchParams(queryText).get("tenderId");
+};
 
 export default function NotificationsPage() {
   const { token } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [selectedTender, setSelectedTender] = useState(null);
+  const [isTenderLoading, setIsTenderLoading] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
   const unreadCount = notifications.filter((notification) => !notification.read).length;
 
-  const loadNotifications = () => {
+  const loadNotifications = useCallback(() => {
     setIsLoading(true);
     setError("");
     apiRequest("/api/notifications/my", { token })
@@ -26,11 +36,13 @@ export default function NotificationsPage() {
       })
       .catch((err) => setError(err.message || "Could not load notifications."))
       .finally(() => setIsLoading(false));
-  };
+  }, [token]);
 
   useEffect(() => {
-    if (token) loadNotifications();
-  }, [token]);
+    if (token) {
+      Promise.resolve().then(loadNotifications);
+    }
+  }, [token, loadNotifications]);
 
   const openNotification = async (notification) => {
     setSelected(notification);
@@ -57,6 +69,20 @@ export default function NotificationsPage() {
     }
   };
 
+  useEffect(() => {
+    const tenderId = getTenderIdFromNotification(selected);
+    Promise.resolve().then(() => {
+      setSelectedTender(null);
+      if (!token || !tenderId) return;
+
+      setIsTenderLoading(true);
+      apiRequest(`/api/internal/tenders/${tenderId}`, { token })
+        .then((data) => setSelectedTender(data))
+        .catch((err) => setError(err.message || "Could not load tender details."))
+        .finally(() => setIsTenderLoading(false));
+    });
+  }, [selected, token]);
+
   const canScheduleMeeting = selected?.actionUrl?.startsWith("/procurement/tenders")
     && selected?.title?.toLowerCase().includes("pre-bid meeting");
   const canSubmitObjection = selected?.actionUrl?.startsWith("/vendor/objections")
@@ -64,6 +90,7 @@ export default function NotificationsPage() {
   const canViewObjection = selected?.actionUrl?.startsWith("/procurement/tenders")
     && selected?.actionUrl?.includes("section=objections")
     && selected?.title?.toLowerCase().includes("objection");
+  const selectedTenderId = getTenderIdFromNotification(selected);
 
   return (
     <div className="space-y-8">
@@ -139,6 +166,53 @@ export default function NotificationsPage() {
                 {!selected.read && <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-black text-white">New</span>}
               </div>
               <div className="rounded-[24px] bg-[#f8fcff] p-5 text-sm leading-7 text-slate-600">{selected.message}</div>
+              {isTenderLoading && (
+                <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Loading tender details...</div>
+              )}
+              {selectedTenderId && !isTenderLoading && !selectedTender && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsTenderLoading(true);
+                    apiRequest(`/api/internal/tenders/${selectedTenderId}`, { token })
+                      .then((data) => setSelectedTender(data))
+                      .catch((err) => setError(err.message || "Could not load tender details."))
+                      .finally(() => setIsTenderLoading(false));
+                  }}
+                  className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
+                >
+                  View Tender Form
+                </button>
+              )}
+              {selectedTender && (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Tender Form</div>
+                      <div className="mt-1 text-lg font-black text-[#10283f]">{selectedTender.tenderNumber}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => downloadTenderForm(selectedTender)}
+                      className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
+                    >
+                      Download PDF
+                    </button>
+                  </div>
+                  <div className="overflow-hidden border border-[#111] bg-white">
+                    {tenderFormRows.map((row) => (
+                      <div key={row.key} className="grid grid-cols-[42%_58%] border-b border-[#111] last:border-b-0">
+                        <div className="border-r border-[#111] bg-[#dbe7f3] px-3 py-3 font-serif text-base font-bold leading-5 text-[#111]">
+                          {row.label}
+                        </div>
+                        <div className="min-h-[42px] bg-white px-3 py-3 text-sm font-semibold leading-6 text-[#111]">
+                          {getTenderFormValue(selectedTender, row.key) || "-"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {canScheduleMeeting && (
                 <button
                   type="button"
