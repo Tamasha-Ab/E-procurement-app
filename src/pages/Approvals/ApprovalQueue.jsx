@@ -18,7 +18,7 @@ const priorityOptions = [
   { value: "LOW", label: "Low" },
 ];
 
-export default function ApprovalQueue({ roleKey, title, description, pendingUrl, actionBaseUrl, acceptedUrl, specificationBaseUrl }) {
+export default function ApprovalQueue({ roleKey, title, description, pendingUrl, actionBaseUrl, acceptedUrl, specificationBaseUrl, isDean = false, approveLabel = "Add to Final List", rejectLabel = "Return to Division Head" }) {
   const { token } = useAuth();
   const [requests, setRequests] = useState([]);
   const [acceptedRequests, setAcceptedRequests] = useState([]);
@@ -59,7 +59,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
   const performAction = async (action) => {
     if (!selected) return;
     const selectedItems = selected.items || [];
-    const isMultiItemReview = selectedItems.length > 1;
+    const isMultiItemReview = !isDean && selectedItems.length > 1;
     let endpointAction = action;
     if (isMultiItemReview && action === "review-items") {
       const missingDecision = selectedItems.find((item) => !itemDecisions[item.itemId]);
@@ -118,6 +118,28 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
     }
   };
 
+  const saveItemSpecificationTable = async (itemId, specificationTable) => {
+    setError("");
+    setMessage("");
+    setIsActing(true);
+    try {
+      const updatedItem = await apiRequest(`/api/approvals/hod/items/${itemId}/specification-table`, {
+        token,
+        method: "PUT",
+        body: specificationTable,
+      });
+      setSelected((current) => current ? {
+        ...current,
+        items: (current.items || []).map((item) => item.itemId === updatedItem.itemId ? updatedItem : item),
+      } : current);
+      setMessage("Item specification table updated.");
+    } catch (err) {
+      setError(err.message || "Could not update the item specification table.");
+    } finally {
+      setIsActing(false);
+    }
+  };
+
   const submitFinalListToTec = async () => {
     setError("");
     setMessage("");
@@ -128,7 +150,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
         method: "POST",
         body: { comment: "Division Head final list approved and submitted to TEC" },
       });
-      setMessage(`${submitted?.length || 0} RR${submitted?.length === 1 ? "" : "s"} submitted to TEC.`);
+      setMessage(`${submitted?.length || 0} RR${submitted?.length === 1 ? "" : "s"} submitted to Dean.`);
       setSelectedAccepted(null);
       resetSpecForm();
       loadRequests();
@@ -269,6 +291,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                 <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Justification</div>
                 <div className="mt-2 text-sm leading-7 text-slate-600">{selected.justification || "No justification provided."}</div>
               </div>
+              <FundingSummary request={selected} />
 
               {selected.rejectionReason && (
                 <div className="rounded-[24px] border border-red-200 bg-red-50 p-5">
@@ -289,6 +312,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                         <div>
                           <div className="font-bold text-[#10283f]">{item.itemName || `Item ${index + 1}`}</div>
                           <div className="mt-1 text-sm leading-6 text-slate-600">{item.description || "No item description."}</div>
+                          {item.specificationTable?.columns?.length > 0 && (roleKey === "HOD" ? <EditableSpecificationTable key={`${item.itemId}-${JSON.stringify(item.specificationTable)}`} table={item.specificationTable} onSave={(table) => saveItemSpecificationTable(item.itemId, table)} isSaving={isActing} /> : <SpecificationTable table={item.specificationTable} />)}
                         </div>
                         <div className="text-right text-sm font-bold text-[#166e8c]">
                           {formatMoney(item.estimatedTotalPrice)}
@@ -297,7 +321,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                       <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Qty {item.quantity} {item.unitOfMeasure || "Units"} | Unit {formatMoney(item.estimatedUnitPrice)}
                       </div>
-                      {(selected.items || []).length > 1 && (
+                      {(selected.items || []).length > 1 && !isDean && (
                         <div className="mt-4 grid gap-4 md:grid-cols-2">
                           <label className="block space-y-2">
                             <span className="text-sm font-bold text-[#10283f]">Item Decision</span>
@@ -349,7 +373,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                 </div>
               </div>
 
-              {(selected.items || []).length <= 1 ? (
+              {((selected.items || []).length <= 1 || isDean) ? (
                 <>
                   <label className="space-y-2 block">
                     <span className="text-sm font-bold text-[#10283f]">Decision comment</span>
@@ -365,10 +389,10 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                     </select>
                   </label>
 
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <button disabled={isActing} onClick={() => performAction("approve")} className="rounded-2xl bg-[#166e8c] px-4 py-3 font-bold text-white hover:bg-[#145f79] disabled:opacity-60">Add to Final List</button>
-                    <button disabled={isActing} onClick={() => performAction("reject")} className="rounded-2xl bg-red-600 px-4 py-3 font-bold text-white hover:bg-red-700 disabled:opacity-60">Reject</button>
-                    <button disabled={isActing} onClick={() => performAction("return")} className="rounded-2xl bg-[#0f2940] px-4 py-3 font-bold text-white hover:bg-[#173b5a] disabled:opacity-60">Return</button>
+                  <div className={`grid gap-3 ${isDean ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
+                    <button disabled={isActing} onClick={() => performAction("approve")} className="rounded-2xl bg-[#166e8c] px-4 py-3 font-bold text-white hover:bg-[#145f79] disabled:opacity-60">{approveLabel}</button>
+                    <button disabled={isActing} onClick={() => performAction("reject")} className="rounded-2xl bg-red-600 px-4 py-3 font-bold text-white hover:bg-red-700 disabled:opacity-60">{isDean ? rejectLabel : "Reject"}</button>
+                    {!isDean && <button disabled={isActing} onClick={() => performAction("return")} className="rounded-2xl bg-[#0f2940] px-4 py-3 font-bold text-white hover:bg-[#173b5a] disabled:opacity-60">Return</button>}
                   </div>
                 </>
               ) : (
@@ -387,10 +411,10 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Division Head Final List</div>
-                <div className="mt-2 text-sm text-slate-600">Approved RRs are held here until the final list is submitted to TEC.</div>
+                <div className="mt-2 text-sm text-slate-600">Approved RRs are held here until the final list is submitted to the Dean.</div>
               </div>
               <button type="button" disabled={isActing || acceptedRequests.length === 0} onClick={submitFinalListToTec} className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79] disabled:opacity-60">
-                Submit Final List to TEC
+                Submit Final List to Dean
               </button>
             </div>
             <div className="mt-6 space-y-4">
@@ -521,4 +545,37 @@ function DetailTile({ label, value }) {
       <div className="mt-2 text-sm font-bold text-[#10283f]">{value || "Not available"}</div>
     </div>
   );
+}
+
+function SpecificationTable({ table }) {
+  return <div className="mt-4 overflow-x-auto rounded-xl border border-[#dce8ef] bg-white">
+    <table className="min-w-full border-collapse text-sm">
+      <thead><tr>{table.columns.map((column, index) => <th key={index} className="border-b border-r border-[#dce8ef] bg-[#edf8fb] p-3 text-left font-bold text-[#10283f]">{column}</th>)}</tr></thead>
+      <tbody>{(table.rows || []).map((row, rowIndex) => <tr key={rowIndex}>{table.columns.map((_, columnIndex) => <td key={columnIndex} className="border-b border-r border-[#dce8ef] p-3 align-top text-slate-700">{row[columnIndex] || "—"}</td>)}</tr>)}</tbody>
+    </table>
+  </div>;
+}
+function FundingSummary({ request }) {
+  return <div className="rounded-[24px] bg-[#f8fcff] p-5">
+    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Contact and Funds</div>
+    <div className="mt-2 text-sm leading-7 text-slate-600">{request.contactPerson || "No contact person"} {request.contactTelephone ? `| ${request.contactTelephone}` : ""}</div>
+    <div className="mt-2 text-sm leading-7 text-slate-600">{request.goslFunded ? "GOSL funded" : "Non-GOSL funding"} | Plan: {request.includedInProcurementPlan ? "Included" : "Not included"} | Available: {formatMoney(request.balanceAvailable)}</div>
+  </div>;
+}
+function EditableSpecificationTable({ table, onSave, isSaving }) {
+  const [draft, setDraft] = useState(() => ({
+    columns: [...(table.columns || [])],
+    rows: (table.rows || []).map((row) => [...row]),
+  }));
+  const updateColumn = (columnIndex, value) => setDraft((current) => ({ ...current, columns: current.columns.map((column, index) => index === columnIndex ? value : column) }));
+  const updateCell = (rowIndex, columnIndex, value) => setDraft((current) => ({ ...current, rows: current.rows.map((row, index) => index === rowIndex ? row.map((cell, cellIndex) => cellIndex === columnIndex ? value : cell) : row) }));
+  const addColumn = () => setDraft((current) => ({ columns: [...current.columns, `Column ${current.columns.length + 1}`], rows: current.rows.map((row) => [...row, ""]) }));
+  const removeColumn = (columnIndex) => setDraft((current) => current.columns.length <= 1 ? current : ({ columns: current.columns.filter((_, index) => index !== columnIndex), rows: current.rows.map((row) => row.filter((_, index) => index !== columnIndex)) }));
+  const addRow = () => setDraft((current) => ({ ...current, rows: [...current.rows, current.columns.map(() => "")] }));
+  const removeRow = (rowIndex) => setDraft((current) => current.rows.length <= 1 ? current : ({ ...current, rows: current.rows.filter((_, index) => index !== rowIndex) }));
+
+  return <div className="mt-4 overflow-x-auto rounded-xl border border-[#9acbd9] bg-white p-3">
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div className="text-xs font-bold uppercase tracking-[0.14em] text-[#166e8c]">Editable item specifications</div><div className="flex gap-2"><button type="button" onClick={addColumn} className="rounded-lg border border-[#9acbd9] px-2 py-1 text-xs font-bold text-[#166e8c]">Add column</button><button type="button" onClick={addRow} className="rounded-lg border border-[#9acbd9] px-2 py-1 text-xs font-bold text-[#166e8c]">Add row</button><button type="button" disabled={isSaving} onClick={() => onSave(draft)} className="rounded-lg bg-[#166e8c] px-3 py-1 text-xs font-bold text-white disabled:opacity-60">Save table</button></div></div>
+    <table className="min-w-full border-collapse text-sm"><thead><tr>{draft.columns.map((column, columnIndex) => <th key={columnIndex} className="min-w-[160px] border border-[#dce8ef] bg-[#edf8fb] p-2"><div className="flex gap-1"><input value={column} onChange={(event) => updateColumn(columnIndex, event.target.value)} className="min-w-0 flex-1 bg-transparent font-bold outline-none" />{draft.columns.length > 1 && <button type="button" onClick={() => removeColumn(columnIndex)} className="text-red-600">×</button>}</div></th>)}<th className="border border-[#dce8ef] bg-[#edf8fb]" /></tr></thead><tbody>{draft.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, columnIndex) => <td key={columnIndex} className="border border-[#dce8ef] p-0"><textarea value={cell} onChange={(event) => updateCell(rowIndex, columnIndex, event.target.value)} rows={2} className="block w-full resize-y border-0 p-2 outline-none" /></td>)}<td className="border border-[#dce8ef] text-center">{draft.rows.length > 1 && <button type="button" onClick={() => removeRow(rowIndex)} className="text-red-600">×</button>}</td></tr>)}</tbody></table>
+  </div>;
 }

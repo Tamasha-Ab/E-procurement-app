@@ -101,6 +101,13 @@ export default function RequisitionDetails() {
               <InfoRow label="Division" value={requestDetails?.divisionName} />
               <InfoRow label="Description" value={requestDetails?.description} />
               <InfoRow label="Justification" value={requestDetails?.justification} />
+              <InfoRow label="Contact Person" value={requestDetails?.contactPerson} />
+              <InfoRow label="Telephone" value={requestDetails?.contactTelephone} />
+              <div className="rounded-[22px] bg-[#f8fcff] p-4">
+                <div className="text-xs font-bold uppercase tracking-[0.18em] text-[#166e8c]">Funds</div>
+                <div className="mt-2 text-sm font-semibold text-[#10283f]">{requestDetails?.goslFunded ? "GOSL funded" : "Non-GOSL funding"}{requestDetails?.projectName ? ` | Project: ${requestDetails.projectName}` : ""}{requestDetails?.voteNumber ? ` | Vote: ${requestDetails.voteNumber}` : ""}</div>
+                <div className="mt-2 text-sm text-slate-600">Procurement plan: {requestDetails?.includedInProcurementPlan ? "Included" : "Not included"} | Allocation {formatMoney(requestDetails?.budgetAllocation)} | Used {formatMoney(requestDetails?.usedAmountSoFar)} | Available {formatMoney(requestDetails?.balanceAvailable)}</div>
+              </div>
             </div>
 
             <div className="mt-6">
@@ -115,6 +122,7 @@ export default function RequisitionDetails() {
                       <div>
                         <div className="font-bold text-[#10283f]">{item.itemName || `Item ${index + 1}`}</div>
                         <div className="mt-1 text-sm leading-6 text-slate-600">{item.description || "No item description."}</div>
+                        {item.specificationTable?.columns?.length > 0 && <SpecificationTable table={item.specificationTable} />}
                       </div>
                       <div className="text-sm font-bold text-[#166e8c]">{formatMoney(item.estimatedTotalPrice)}</div>
                     </div>
@@ -167,4 +175,13 @@ function InfoRow({ label, value }) {
       <div className="mt-2 text-sm font-semibold text-[#10283f]">{value || "Not available"}</div>
     </div>
   );
+}
+
+function SpecificationTable({ table }) {
+  return <div className="mt-4 overflow-x-auto rounded-xl border border-[#dce8ef] bg-white">
+    <table className="min-w-full border-collapse text-sm">
+      <thead><tr>{table.columns.map((column, index) => <th key={index} className="border-b border-r border-[#dce8ef] bg-[#edf8fb] p-3 text-left font-bold text-[#10283f]">{column}</th>)}</tr></thead>
+      <tbody>{(table.rows || []).map((row, rowIndex) => <tr key={rowIndex}>{table.columns.map((_, columnIndex) => <td key={columnIndex} className="border-b border-r border-[#dce8ef] p-3 align-top text-slate-700">{row[columnIndex] || "—"}</td>)}</tr>)}</tbody>
+    </table>
+  </div>;
 }

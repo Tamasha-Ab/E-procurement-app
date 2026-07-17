@@ -16,6 +16,18 @@ export const approverDashboardConfig = {
     title: "Division Head approval queue",
     nextAction: "Review division requests waiting for your decision.",
   },
+  DEAN: {
+    pendingUrl: "/api/approvals/dean/pending?page=0&size=1",
+    queuePath: "/approvals/dean",
+    title: "Dean approval queue",
+    nextAction: "Review Division Head-approved requests from your faculty.",
+  },
+  VC: {
+    pendingUrl: "/api/approvals/vc/pending?page=0&size=1",
+    queuePath: "/approvals/vc",
+    title: "Vice Chancellor approval queue",
+    nextAction: "Review high-value or out-of-plan requests requiring VC approval.",
+  },
   TEC: {
     pendingUrl: "/api/approvals/tec/pending?page=0&size=1",
     queuePath: "/approvals/tec",

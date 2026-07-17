@@ -45,7 +45,7 @@ export default function TecApprovals() {
         body: { comment },
       });
       setMessage(decision === "approve"
-        ? `${selected.rrNumber} approved and submitted to Bursar.`
+        ? `${selected.rrNumber} approved and submitted to Finance Officer.`
         : `${selected.rrNumber} rejected and returned to Division Head.`);
       setSelected(null);
       setComment("");
@@ -62,7 +62,7 @@ export default function TecApprovals() {
       <PageHero
         eyebrow="Technical Review"
         title="TEC Reviews"
-        description="Review Division Head specifications, approve requests for Bursar, or reject them back to the Division Head with comments."
+        description="Review Division Head specifications, approve requests for Finance Officer, or reject them back to the Division Head with comments."
       >
         <div className="rounded-[24px] bg-white/10 p-5 text-right backdrop-blur">
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-100">Pending Reviews</div>
@@ -128,6 +128,7 @@ export default function TecApprovals() {
               </div>
 
               <DetailBlock title="Justification" value={selected.justification || "No justification provided."} />
+              <FundingSummary request={selected} />
 
               <section className="rounded-[24px] border border-[#dce8ef] bg-white p-5">
                 <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Requested Items</div>
@@ -141,6 +142,7 @@ export default function TecApprovals() {
                         <div>
                           <div className="font-bold text-[#10283f]">{item.itemName || `Item ${index + 1}`}</div>
                           <div className="mt-1 text-sm leading-6 text-slate-600">{item.description || "No item description."}</div>
+                          {item.specificationTable?.columns?.length > 0 && <SpecificationTable table={item.specificationTable} />}
                         </div>
                         <div className="text-right text-sm font-bold text-[#166e8c]">{formatMoney(item.estimatedTotalPrice)}</div>
                       </div>
@@ -193,7 +195,7 @@ export default function TecApprovals() {
 
               <div className="grid gap-3 md:grid-cols-2">
                 <button disabled={isSubmitting} type="button" onClick={() => performDecision("approve")} className="rounded-2xl bg-[#166e8c] px-5 py-3 font-bold text-white hover:bg-[#145f79] disabled:opacity-60">
-                  Approve and Send to Bursar
+                  Approve and Send to Finance Officer
                 </button>
                 <button disabled={isSubmitting} type="button" onClick={() => performDecision("reject")} className="rounded-2xl bg-red-600 px-5 py-3 font-bold text-white hover:bg-red-700 disabled:opacity-60">
                   Reject to Division Head
@@ -223,4 +225,21 @@ function DetailBlock({ title, value }) {
       <div className="mt-2 text-sm leading-7 text-slate-600">{value}</div>
     </div>
   );
+}
+
+function SpecificationTable({ table }) {
+  return <div className="mt-4 overflow-x-auto rounded-xl border border-[#dce8ef] bg-white">
+    <table className="min-w-full border-collapse text-sm">
+      <thead><tr>{table.columns.map((column, index) => <th key={index} className="border-b border-r border-[#dce8ef] bg-[#edf8fb] p-3 text-left font-bold text-[#10283f]">{column}</th>)}</tr></thead>
+      <tbody>{(table.rows || []).map((row, rowIndex) => <tr key={rowIndex}>{table.columns.map((_, columnIndex) => <td key={columnIndex} className="border-b border-r border-[#dce8ef] p-3 align-top text-slate-700">{row[columnIndex] || "—"}</td>)}</tr>)}</tbody>
+    </table>
+  </div>;
+}
+function FundingSummary({ request }) {
+  return <div className="rounded-[24px] bg-[#f8fcff] p-5">
+    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Contact and Funds</div>
+    <div className="mt-2 text-sm leading-7 text-slate-600">{request.contactPerson || "No contact person"} {request.contactTelephone ? `| ${request.contactTelephone}` : ""}</div>
+    <div className="mt-2 text-sm leading-7 text-slate-600">{request.goslFunded ? "GOSL funded" : "Non-GOSL funding"} | Plan: {request.includedInProcurementPlan ? "Included" : "Not included"}{request.projectName ? ` | Project: ${request.projectName}` : ""}{request.voteNumber ? ` | Vote: ${request.voteNumber}` : ""}</div>
+    <div className="mt-1 text-sm leading-7 text-slate-600">Allocation: {formatMoney(request.budgetAllocation)} | Used: {formatMoney(request.usedAmountSoFar)} | Available: {formatMoney(request.balanceAvailable)}</div>
+  </div>;
 }

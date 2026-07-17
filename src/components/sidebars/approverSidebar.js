@@ -12,6 +12,18 @@ export const hodSidebarItems = [
   { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
 ];
 
+export const deanSidebarItems = [
+  { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
+  { label: "Dean Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/approvals/dean" },
+  { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
+];
+
+export const vcSidebarItems = [
+  { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
+  { label: "VC Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/approvals/vc" },
+  { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
+];
+
 export const tecSidebarItems = [
   { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
   { label: "Technical Reviews", icon: EngineeringRoundedIcon, path: "/approvals/tec" },
@@ -24,4 +36,6 @@ export const approverSidebarItemsByRole = {
   DIVISION_HEAD: hodSidebarItems,
   HOD: hodSidebarItems,
   TEC: tecSidebarItems,
+  DEAN: deanSidebarItems,
+  VC: vcSidebarItems,
 };

@@ -37,11 +37,14 @@ const STRENGTH_CONFIG = [
 
 const STAFF_ROLE_OPTIONS = [
   { value: "DIVISION_HEAD", label: "Division Head" },
+  { value: "DEAN", label: "Dean" },
+  { value: "VC", label: "Vice Chancellor" },
   { value: "STAFF_MEMBER", label: "Staff Member" },
 ];
 
 const FINANCE_ROLE_OPTIONS = [
   { value: "PROCUREMENT_OFFICER", label: "Procurement Officer" },
+  { value: "FINANCE_OFFICER", label: "Finance Officer" },
   { value: "BURSAR", label: "Bursar" },
 ];
 

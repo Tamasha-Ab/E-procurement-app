@@ -29,6 +29,8 @@ import RequisitionDetails from "./pages/Staff/RequisitionDetails.jsx";
 import HodApprovals from "./pages/Approvals/HodApprovals.jsx";
 import HodAuditTrail from "./pages/Approvals/HodAuditTrail.jsx";
 import TecApprovals from "./pages/Approvals/TecApprovals.jsx";
+import DeanApprovals from "./pages/Approvals/DeanApprovals.jsx";
+import VcApprovals from "./pages/Approvals/VcApprovals.jsx";
 import TecAuditTrail from "./pages/Approvals/TecAuditTrail.jsx";
 import ProcurementWorkspace from "./pages/Procurement/ProcurementWorkspace.jsx";
 import ProcurementRfqList from "./pages/Procurement/ProcurementRfqList.jsx";
@@ -223,6 +225,8 @@ const App = () => {
             <Route path="/approvals/hod" element={<HodApprovals />} />
             <Route path="/approvals/hod/audit-trail" element={<HodAuditTrail />} />
             <Route path="/approvals/tec" element={<TecApprovals />} />
+            <Route path="/approvals/dean" element={<DeanApprovals />} />
+            <Route path="/approvals/vc" element={<VcApprovals />} />
             <Route path="/approvals/tec/audit-trail" element={<TecAuditTrail />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/procurement/tenders" element={<ProcurementWorkspace />} />
