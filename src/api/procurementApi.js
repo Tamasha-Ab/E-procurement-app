@@ -72,10 +72,12 @@ export const procurementApi = {
       apiRequest(`${procurementBase}/purchase-orders/${poId}/status`, { token, method: "PATCH", body: payload }),
   },
   vendors: {
-    search: (token, search = "") =>
+    categories: (token) => apiRequest(`${procurementBase}/vendor-categories`, { token }),
+    search: (token, search = "", category = "") =>
       apiRequest(
         `${procurementBase}/vendors?${new URLSearchParams({
           ...(search ? { search } : {}),
+          ...(category ? { category } : {}),
         })}`,
         { token }
       ),

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatMoney } from "../../services/apiClient";
+import { downloadRequisitionForm } from "../../utils/requisitionDocument";
 
 export default function TecApprovals() {
   const { token } = useAuth();
@@ -117,6 +119,10 @@ export default function TecApprovals() {
                 <h3 className="text-2xl font-black text-[#10283f]">{selected.title}</h3>
                 <div className="mt-2 text-sm leading-7 text-slate-600">{selected.description || "No description provided."}</div>
               </div>
+              <button type="button" onClick={() => downloadRequisitionForm(selected)} className="inline-flex items-center gap-2 rounded-2xl border border-[#dce8ef] px-4 py-2 text-sm font-bold text-[#166e8c] transition hover:bg-[#edf7fb]">
+                <DownloadRoundedIcon fontSize="small" />
+                Download RR Form
+              </button>
 
               <div className="grid gap-3 md:grid-cols-2">
                 <DetailTile label="RR Number" value={selected.rrNumber} />

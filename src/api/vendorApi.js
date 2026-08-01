@@ -50,8 +50,13 @@ export const vendorRequest = async (path, options = {}) => {
 
 const basePath = "/api/vendor/procurement";
 const catalogPath = "/api/vendor/catalog";
+const profilePath = "/api/vendor/profile";
 
 export const vendorApi = {
+  profile: {
+    get: () => vendorRequest(profilePath),
+    resubmit: (payload) => vendorRequest(`${profilePath}/resubmit`, { method: "PATCH", body: payload }),
+  },
   catalog: {
     list: () => vendorRequest(catalogPath),
     create: (payload) => vendorRequest(catalogPath, { method: "POST", body: payload }),

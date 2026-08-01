@@ -30,7 +30,10 @@ const unwrap = async (response) => {
   }
 
   if (!response.ok) {
-    throw new Error(body?.message || body?.error || text || response.statusText || "Request failed");
+    const fieldErrors = body?.errors && typeof body.errors === "object"
+      ? Object.values(body.errors).filter(Boolean).join(", ")
+      : "";
+    throw new Error(fieldErrors || body?.message || body?.error || text || response.statusText || "Request failed");
   }
 
   return body?.data ?? body;

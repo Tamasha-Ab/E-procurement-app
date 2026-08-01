@@ -16,6 +16,24 @@ export const approverDashboardConfig = {
     title: "Division Head approval queue",
     nextAction: "Review division requests waiting for your decision.",
   },
+  DEAN: {
+    pendingUrl: "/api/approvals/dean/pending?page=0&size=1",
+    queuePath: "/approvals/dean",
+    title: "Dean approval queue",
+    nextAction: "Review Division Head approved requests waiting for Dean decision.",
+  },
+  VC: {
+    pendingUrl: "/api/approvals/vc/pending?page=0&size=1",
+    queuePath: "/approvals/vc",
+    title: "Vice Chancellor workspace",
+    nextAction: "Review RRs over LKR 500,000 or outside the procurement plan before BEC review.",
+  },
+  BEC: {
+    pendingUrl: "/api/approvals/bec/pending?page=0&size=1",
+    queuePath: "/approvals/bec",
+    title: "BEC approval queue",
+    nextAction: "Review Dean or VC approved RRs and submit approved requests to Bursar.",
+  },
   TEC: {
     pendingUrl: "/api/approvals/tec/pending?page=0&size=1",
     queuePath: "/approvals/tec",
@@ -37,8 +55,8 @@ export const emptyStaffStats = {
 
 export const workflowHighlights = [
   "Staff creates RR with item details and justification.",
-  "Division Head reviews the request and submits accepted RRs to TEC.",
-  "TEC, Bursar, and Procurement continue the approved workflow.",
+  "Division Head reviews the request and submits accepted RRs to Dean.",
+  "Dean, TEC, Bursar, and Procurement continue the approved workflow.",
 ];
 
 export const bursarFeatureCards = [

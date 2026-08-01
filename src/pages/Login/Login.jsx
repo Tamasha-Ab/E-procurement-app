@@ -13,6 +13,7 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 
 function Login({ onClose, openRegister }) {
   const googleButtonRef = useRef(null);
+  const googleInitializedRef = useRef(false);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const {
     register,
@@ -85,9 +86,10 @@ function Login({ onClose, openRegister }) {
         return;
       }
 
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: async (response) => {
+      if (!googleInitializedRef.current) {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: async (response) => {
           setLoginError("");
           setIsGoogleLoading(true);
 
@@ -105,7 +107,9 @@ function Login({ onClose, openRegister }) {
             setIsGoogleLoading(false);
           }
         },
-      });
+        });
+        googleInitializedRef.current = true;
+      }
 
       googleButtonRef.current.innerHTML = "";
       window.google.accounts.id.renderButton(googleButtonRef.current, {
@@ -113,7 +117,7 @@ function Login({ onClose, openRegister }) {
         size: "large",
         shape: "pill",
         text: "signin_with",
-        width: "100%",
+        width: 320,
       });
 
       setIsGoogleReady(true);

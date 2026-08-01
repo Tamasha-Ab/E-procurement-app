@@ -13,10 +13,22 @@ import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import PowerSettingsNewRoundedIcon from "@mui/icons-material/PowerSettingsNewRounded";
+import { useLocation } from "react-router-dom";
 import { adminApi } from "../../api/adminApi";
 
-const mainRoles = ["ADMIN", "FACULTY_STAFF", "FINANCE", "VENDOR"];
-const subRoles = ["DIVISION_HEAD", "STAFF_MEMBER", "TEC", "PROCUREMENT_OFFICER", "FINANCE_OFFICER", "BURSAR"];
+const mainRoles = ["ADMIN", "UNIVERSITY_EXECUTIVE", "FACULTY_STAFF", "FINANCE", "DPC"];
+const subRolesByMainRole = {
+  UNIVERSITY_EXECUTIVE: ["VC"],
+  FACULTY_STAFF: ["DIVISION_HEAD", "DEAN", "STAFF_MEMBER", "TEC"],
+  FINANCE: [
+    "PROCUREMENT_OFFICER",
+    "FINANCE_OFFICER",
+    "SENIOR_ASSISTANT_BURSAR",
+    "ASSISTANT_BURSAR",
+    "BURSAR",
+    "BEC",
+  ],
+};
 const statuses = ["PENDING", "APPROVED", "REJECTED"];
 
 const initialForm = {
@@ -40,16 +52,26 @@ const getFullName = (user) =>
   [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || "Unnamed user";
 
 export default function AdminUsers() {
+  const location = useLocation();
   const [users, setUsers] = useState([]);
   const [page, setPage] = useState({ number: 0, totalPages: 1, totalElements: 0 });
   const [faculties, setFaculties] = useState([]);
   const [divisions, setDivisions] = useState([]);
-  const [filters, setFilters] = useState({ search: "", status: "", mainRole: "" });
+  const [filters, setFilters] = useState(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return {
+      search: searchParams.get("search") || "",
+      status: searchParams.get("status") || "",
+      mainRole: searchParams.get("mainRole") || "",
+    };
+  });
   const [form, setForm] = useState(initialForm);
   const [editing, setEditing] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const subRoleOptions = subRolesByMainRole[form.mainRole] || [];
+  const isUniversityExecutive = form.mainRole === "UNIVERSITY_EXECUTIVE";
 
   const params = useMemo(() => {
     const next = { page: page.number, size: 10, sort: "createdAt,desc" };
@@ -68,11 +90,12 @@ export default function AdminUsers() {
         adminApi.faculties.all().catch(() => []),
         fetch("/api/divisions").then((response) => response.json()).catch(() => ({ data: [] })),
       ]);
-      setUsers(userPage.content || []);
+      const nonVendorUsers = (userPage.content || []).filter((user) => user.mainRole !== "VENDOR");
+      setUsers(nonVendorUsers);
       setPage({
         number: userPage.number || 0,
         totalPages: userPage.totalPages || 1,
-        totalElements: userPage.totalElements || 0,
+        totalElements: nonVendorUsers.length,
       });
       setFaculties(Array.isArray(facultyList) ? facultyList : []);
       setDivisions(Array.isArray(divisionResponse?.data) ? divisionResponse.data : []);
@@ -86,6 +109,16 @@ export default function AdminUsers() {
   useEffect(() => {
     load();
   }, [params]);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    setFilters({
+      search: searchParams.get("search") || "",
+      status: searchParams.get("status") || "",
+      mainRole: searchParams.get("mainRole") || "",
+    });
+    setPage((current) => ({ ...current, number: 0 }));
+  }, [location.search]);
 
   const openCreate = () => {
     setEditing(null);
@@ -106,24 +139,42 @@ export default function AdminUsers() {
     setDialogOpen(true);
   };
 
+  const updateMainRole = (mainRole) => {
+    const nextSubRoles = subRolesByMainRole[mainRole] || [];
+    setForm((current) => ({
+      ...current,
+      mainRole,
+      subRole: nextSubRoles.length === 1 ? nextSubRoles[0] : "",
+      facultyId: mainRole === "UNIVERSITY_EXECUTIVE" ? "" : current.facultyId,
+      divisionId: mainRole === "UNIVERSITY_EXECUTIVE" ? "" : current.divisionId,
+    }));
+  };
+
   const submit = async (event) => {
     event.preventDefault();
+    setError("");
+    const nextSubRoles = subRolesByMainRole[form.mainRole] || [];
     const payload = {
       ...form,
-      facultyId: form.facultyId ? Number(form.facultyId) : null,
-      divisionId: form.divisionId ? Number(form.divisionId) : null,
+      subRole: nextSubRoles.length ? form.subRole : null,
+      facultyId: isUniversityExecutive ? null : form.facultyId ? Number(form.facultyId) : null,
+      divisionId: isUniversityExecutive ? null : form.divisionId ? Number(form.divisionId) : null,
       vendorId: form.vendorId ? Number(form.vendorId) : null,
     };
 
-    if (editing) {
-      delete payload.password;
-      await adminApi.users.update(editing.userId, payload);
-    } else {
-      await adminApi.users.create(payload);
-    }
+    try {
+      if (editing) {
+        delete payload.password;
+        await adminApi.users.update(editing.userId, payload);
+      } else {
+        await adminApi.users.create(payload);
+      }
 
-    setDialogOpen(false);
-    await load();
+      setDialogOpen(false);
+      await load();
+    } catch (submitError) {
+      setError(submitError.message || "Could not save user.");
+    }
   };
 
   const approve = async (user, approved) => {
@@ -197,7 +248,9 @@ export default function AdminUsers() {
                     <div className="font-semibold text-slate-700">{user.mainRole}</div>
                     <div className="mt-1 text-slate-500">{user.subRole || "No sub role"}</div>
                   </td>
-                  <td className="px-5 py-4 text-slate-600">{[user.facultyName, user.divisionName].filter(Boolean).join(" / ") || user.vendorName || "Not assigned"}</td>
+                  <td className="px-5 py-4 text-slate-600">
+                    {[user.facultyName, user.divisionName].filter(Boolean).join(" / ") || "Not assigned"}
+                  </td>
                   <td className="px-5 py-4">
                     <span className="rounded-full bg-[#edf7fb] px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-[#166e8c]">{user.userStatus}</span>
                     <div className="mt-2 text-xs text-slate-500">{user.active ? "Active" : "Inactive"}</div>
@@ -233,18 +286,18 @@ export default function AdminUsers() {
             <TextField label="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
             <TextField label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
             {!editing ? <TextField label="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required /> : null}
-            <TextField select label="Main role" value={form.mainRole} onChange={(e) => setForm({ ...form, mainRole: e.target.value })}>
+            <TextField select label="Main role" value={form.mainRole} onChange={(e) => updateMainRole(e.target.value)}>
               {mainRoles.map((role) => <MenuItem key={role} value={role}>{role}</MenuItem>)}
             </TextField>
-            <TextField select label="Sub role" value={form.subRole} onChange={(e) => setForm({ ...form, subRole: e.target.value })}>
+            <TextField select label="Sub role" value={form.subRole} onChange={(e) => setForm({ ...form, subRole: e.target.value })} disabled={!subRoleOptions.length}>
               <MenuItem value="">None</MenuItem>
-              {subRoles.map((role) => <MenuItem key={role} value={role}>{role}</MenuItem>)}
+              {subRoleOptions.map((role) => <MenuItem key={role} value={role}>{role}</MenuItem>)}
             </TextField>
-            <TextField select label="Faculty" value={form.facultyId} onChange={(e) => setForm({ ...form, facultyId: e.target.value })}>
+            <TextField select label="Faculty" value={form.facultyId} onChange={(e) => setForm({ ...form, facultyId: e.target.value })} disabled={isUniversityExecutive}>
               <MenuItem value="">None</MenuItem>
               {faculties.map((faculty) => <MenuItem key={faculty.id} value={faculty.id}>{faculty.facultyName}</MenuItem>)}
             </TextField>
-            <TextField select label="Division" value={form.divisionId} onChange={(e) => setForm({ ...form, divisionId: e.target.value })}>
+            <TextField select label="Division" value={form.divisionId} onChange={(e) => setForm({ ...form, divisionId: e.target.value })} disabled={isUniversityExecutive}>
               <MenuItem value="">None</MenuItem>
               {divisions.map((division) => <MenuItem key={division.divisionId} value={division.divisionId}>{division.divisionName}</MenuItem>)}
             </TextField>

@@ -35,6 +35,8 @@ const formatCurrency = (value) => {
 const getResponseMessage = (body, fallback) =>
   body?.message || body?.error || fallback || "Request failed";
 
+const bursarSubRoles = ["BURSAR", "ASSISTANT_BURSAR", "SENIOR_ASSISTANT_BURSAR"];
+
 const formatActionLabel = (entry) => {
   if (entry?.action === "BUDGET_CHECKED") return "APPROVED";
   if (entry?.action === "SUBMITTED" && entry?.toStatus === "READY_FOR_PROCUREMENT") {
@@ -50,7 +52,7 @@ export default function BursarAuditTrail() {
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState(null);
   const [expandedIds, setExpandedIds] = useState(() => new Set());
-  const isBursar = user?.mainRole === "FINANCE" && user?.subRole === "BURSAR";
+  const isBursar = user?.mainRole === "FINANCE" && bursarSubRoles.includes(user?.subRole);
 
   const authHeaders = useMemo(
     () => ({
@@ -128,7 +130,7 @@ export default function BursarAuditTrail() {
       <section className="rounded-[30px] border border-[#dce8ef] bg-white p-8 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
         <Typography className="!text-2xl !font-bold !text-[#10283f]">Bursar Access Required</Typography>
         <Typography className="!mt-3 !text-sm !leading-7 !text-slate-600">
-          This audit trail is available only for FINANCE users with BURSAR sub-role.
+          This audit trail is available only for FINANCE users with Bursar, Assistant Bursar, or Senior Assistant Bursar sub-role.
         </Typography>
       </section>
     );

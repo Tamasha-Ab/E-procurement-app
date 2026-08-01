@@ -1,6 +1,7 @@
 import { Box } from "@mui/material";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
+import VendorDecisionPopup from "./VendorDecisionPopup";
 
 const Layout = ({ children }) => {
   return (
@@ -12,6 +13,7 @@ const Layout = ({ children }) => {
           {children}
         </Box>
       </Box>
+      <VendorDecisionPopup />
     </Box>
   );
 };

@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
+import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
+import { useNavigate, useParams } from "react-router-dom";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatMoney } from "../../services/apiClient";
+import { downloadRequisitionForm } from "../../utils/requisitionDocument";
+import { VENDOR_CATEGORY_OPTIONS } from "../../constants/vendorCategories";
 
 const emptySpecForm = {
   specId: null,
@@ -12,28 +16,113 @@ const emptySpecForm = {
   recommendedProcurementMethod: "RFQ",
 };
 
+const emptySpecRow = { description: "", requiredSpecification: "" };
+
 const priorityOptions = [
   { value: "HIGH", label: "High" },
   { value: "MEDIUM", label: "Medium" },
   { value: "LOW", label: "Low" },
 ];
 
+const sampleImageSrc = (spec) => {
+  if (!spec?.sampleImageBase64) return null;
+  return `data:${spec.sampleImageContentType || "image/jpeg"};base64,${spec.sampleImageBase64}`;
+};
+
+const specificationImages = (spec) => {
+  if (spec?.sampleImages?.length) {
+    return spec.sampleImages
+      .filter((image) => image.imageBase64)
+      .map((image) => ({
+        name: image.imageName || "Sample image",
+        src: `data:${image.contentType || "image/jpeg"};base64,${image.imageBase64}`,
+      }));
+  }
+  const legacySrc = sampleImageSrc(spec);
+  return legacySrc ? [{ name: spec.sampleImageName || "Sample image", src: legacySrc }] : [];
+};
+
+const parseSpecificationTableRows = (specificationText = "") => specificationText
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter((line) => line && !line.startsWith("Item Name") && !line.startsWith("Qty"))
+  .map((line) => {
+    const numberedMatch = line.match(/^\d+\.\s*(.*?)\s+-\s*(.*)$/);
+    if (numberedMatch) return { description: numberedMatch[1], requiredSpecification: numberedMatch[2] };
+    const [description, ...requiredParts] = line.split(":");
+    return { description: description?.trim() || "", requiredSpecification: requiredParts.join(":").trim() };
+  })
+  .filter((row) => row.description || row.requiredSpecification);
+
+const parseSubmittedForm = (description = "") => {
+  const form = {};
+  description.split(/\r?\n/).forEach((line) => {
+    const [rawKey, ...rawValueParts] = line.split(":");
+    if (!rawKey || rawValueParts.length === 0) return;
+    const key = rawKey.trim();
+    const value = rawValueParts.join(":").trim();
+
+    if (key === "Faculty/Admin") form.facultyAdmin = value;
+    if (key === "Department/Branch") form.departmentBranch = value;
+    if (key === "Contact Person") form.contactPerson = value;
+    if (key === "Telephone No") form.telephoneNo = value;
+    if (key === "Included in procurement plan") form.includedInPlan = value;
+    if (key === "Budgeted allocation") form.budgetAllocation = value;
+    if (key === "Used amount so far") form.usedAmount = value;
+    if (key === "Balance available") form.balanceAvailable = value;
+    if (key === "Purpose") form.purpose = value;
+
+    if (key === "Funds") {
+      const fundsMatch = value.match(/GOSL\s+(Yes|No),\s+Project\s+(.*),\s+Vote\s+(.*)$/i);
+      if (fundsMatch) {
+        form.fundsGosl = fundsMatch[1];
+        form.project = fundsMatch[2];
+        form.vote = fundsMatch[3];
+      }
+    }
+  });
+  return form;
+};
+
+const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
+
 export default function ApprovalQueue({ roleKey, title, description, pendingUrl, actionBaseUrl, acceptedUrl, specificationBaseUrl }) {
   const { token } = useAuth();
+  const navigate = useNavigate();
+  const { rrId } = useParams();
   const [requests, setRequests] = useState([]);
   const [acceptedRequests, setAcceptedRequests] = useState([]);
   const [selected, setSelected] = useState(null);
   const [selectedAccepted, setSelectedAccepted] = useState(null);
   const [specForm, setSpecForm] = useState(emptySpecForm);
+  const [specRows, setSpecRows] = useState([emptySpecRow]);
+  const [specImages, setSpecImages] = useState([]);
   const [comment, setComment] = useState("");
   const [priority, setPriority] = useState("MEDIUM");
   const [itemPriorities, setItemPriorities] = useState({});
   const [itemDecisions, setItemDecisions] = useState({});
   const [itemComments, setItemComments] = useState({});
+  const [categorySearch, setCategorySearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isActing, setIsActing] = useState(false);
+  const usesDetailRoute = roleKey === "HOD" || roleKey === "DEAN" || roleKey === "VC" || roleKey === "BEC";
+  const isDetailPage = usesDetailRoute && Boolean(rrId);
+  const isQueuePage = usesDetailRoute && !rrId;
+  const isDeanReview = roleKey === "DEAN";
+  const isBecReview = roleKey === "BEC";
+  const isReadOnlyApprover = roleKey === "DEAN" || roleKey === "VC" || roleKey === "BEC";
+  const queuePath = `/approvals/${roleKey.toLowerCase()}`;
+  const filteredVendorCategories = VENDOR_CATEGORY_OPTIONS.filter((category) =>
+    category.toLowerCase().includes(categorySearch.trim().toLowerCase())
+  );
 
   const loadRequests = () => {
     setIsLoading(true);
@@ -56,10 +145,16 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
     loadAcceptedRequests();
   }, [pendingUrl, acceptedUrl, token]);
 
+  useEffect(() => {
+    if (!isDetailPage) return;
+    const nextSelected = requests.find((request) => String(request.rrId) === String(rrId));
+    if (nextSelected) selectPendingRequest(nextSelected);
+  }, [isDetailPage, requests, rrId]);
+
   const performAction = async (action) => {
     if (!selected) return;
     const selectedItems = selected.items || [];
-    const isMultiItemReview = selectedItems.length > 1;
+    const isMultiItemReview = !isReadOnlyApprover && selectedItems.length > 1;
     let endpointAction = action;
     if (isMultiItemReview && action === "review-items") {
       const missingDecision = selectedItems.find((item) => !itemDecisions[item.itemId]);
@@ -80,8 +175,16 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
       const hasApprovedItem = selectedItems.some((item) => itemDecisions[item.itemId] === "APPROVED");
       endpointAction = hasApprovedItem ? "approve" : "reject";
     }
-    if (!isMultiItemReview && action === "approve" && !priority) {
+    if (!isReadOnlyApprover && !isMultiItemReview && action === "approve" && !priority) {
       setError("Priority is required before adding the RR to the final list.");
+      return;
+    }
+    if (isReadOnlyApprover && action === "reject" && !comment.trim()) {
+      setError("Rejection comment is required.");
+      return;
+    }
+    if (isBecReview && !selectedCategory) {
+      setError("Select a vendor category for this RR.");
       return;
     }
     setError("");
@@ -94,14 +197,17 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
         method: "POST",
         body: {
           comment: isMultiItemReview ? "" : comment,
-          priority: !isMultiItemReview && endpointAction === "approve" ? priority : null,
+          priority: !isReadOnlyApprover && !isMultiItemReview && endpointAction === "approve" ? priority : null,
           itemPriorities: isMultiItemReview ? itemPriorities : null,
           itemDecisions: isMultiItemReview ? itemDecisions : null,
           itemComments: isMultiItemReview ? itemComments : null,
+          categories: isBecReview ? [selectedCategory] : null,
         },
       });
       setMessage(isMultiItemReview
         ? `${selected.rrNumber} item review saved.`
+        : isBecReview
+          ? `${selected.rrNumber} category list saved.`
         : `${selected.rrNumber} ${endpointAction} completed.`);
       setSelected(null);
       setComment("");
@@ -109,6 +215,11 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
       setItemPriorities({});
       setItemDecisions({});
       setItemComments({});
+      setSelectedCategory("");
+      setCategorySearch("");
+      if (isDetailPage) {
+        navigate(queuePath);
+      }
       loadRequests();
       loadAcceptedRequests();
     } catch (err) {
@@ -126,9 +237,9 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
       const submitted = await apiRequest(`${actionBaseUrl}/final-list/submit`, {
         token,
         method: "POST",
-        body: { comment: "Division Head final list approved and submitted to TEC" },
+        body: { comment: "Division Head final list approved and submitted to Dean" },
       });
-      setMessage(`${submitted?.length || 0} RR${submitted?.length === 1 ? "" : "s"} submitted to TEC.`);
+      setMessage(`${submitted?.length || 0} RR${submitted?.length === 1 ? "" : "s"} submitted to Dean.`);
       setSelectedAccepted(null);
       resetSpecForm();
       loadRequests();
@@ -141,6 +252,13 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
   };
 
   const startSpecEdit = (spec) => {
+    const rows = parseSpecificationTableRows(spec.specificationText);
+    const existingImages = specificationImages(spec).map((image, index) => ({
+      id: `saved-${spec.specId || "spec"}-${index}`,
+      name: image.name,
+      contentType: image.src.match(/^data:(.*?);base64,/)?.[1] || "image/jpeg",
+      dataUrl: image.src,
+    }));
     setSpecForm({
       specId: spec.specId,
       itemId: spec.itemId || "",
@@ -148,9 +266,48 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
       attachmentUrl: spec.attachmentUrl || "",
       recommendedProcurementMethod: spec.recommendedProcurementMethod || "RFQ",
     });
+    setSpecRows(rows.length ? rows : [{ ...emptySpecRow }]);
+    setSpecImages(existingImages);
   };
 
-  const resetSpecForm = () => setSpecForm(emptySpecForm);
+  const resetSpecForm = () => {
+    setSpecForm(emptySpecForm);
+    setSpecRows([{ ...emptySpecRow }]);
+    setSpecImages([]);
+  };
+
+  const updateSpecRow = (index, field, value) => {
+    setSpecRows((current) => current.map((row, rowIndex) => (
+      rowIndex === index ? { ...row, [field]: value } : row
+    )));
+  };
+
+  const addSpecRow = () => {
+    setSpecRows((current) => [...current, { ...emptySpecRow }]);
+  };
+
+  const removeSpecRow = (index) => {
+    setSpecRows((current) => (current.length === 1
+      ? [{ ...emptySpecRow }]
+      : current.filter((_, rowIndex) => rowIndex !== index)));
+  };
+
+  const handleSpecImageFiles = async (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    const nextImages = await Promise.all(files.map(async (file, index) => ({
+      id: `new-${Date.now()}-${index}-${file.name}`,
+      name: file.name,
+      contentType: file.type || "image/jpeg",
+      dataUrl: await readFileAsDataUrl(file),
+    })));
+    setSpecImages((current) => [...current, ...nextImages]);
+    event.target.value = "";
+  };
+
+  const removeSpecImage = (imageId) => {
+    setSpecImages((current) => current.filter((image) => image.id !== imageId));
+  };
 
   const selectPendingRequest = (request) => {
     const nextItemPriorities = {};
@@ -162,48 +319,154 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
       nextItemComments[item.itemId] = item.hodComment || "";
     });
     setSelected(request);
+    setSelectedAccepted(null);
+    resetSpecForm();
     setComment("");
     setPriority(request.priority || "MEDIUM");
     setItemPriorities(nextItemPriorities);
     setItemDecisions(nextItemDecisions);
     setItemComments(nextItemComments);
+    const savedCategories = (request.vendorCategories || "")
+      .split(",")
+      .map((category) => category.trim())
+      .filter(Boolean);
+    setSelectedCategory(savedCategories[0] || "");
+    setCategorySearch("");
   };
 
-  const saveSpecification = async (event) => {
+  const openPendingRequest = (request) => {
+    if (usesDetailRoute) {
+      navigate(`${queuePath}/${request.rrId}`);
+      return;
+    }
+    selectPendingRequest(request);
+  };
+
+  const saveSpecification = async (event, targetRequest, targetList) => {
     event.preventDefault();
-    if (!selectedAccepted || !specificationBaseUrl) return;
+    if (!targetRequest || !specificationBaseUrl) return;
     setError("");
     setMessage("");
+    const filledRows = specRows.filter((row) => row.description.trim() || row.requiredSpecification.trim());
+    if (!filledRows.length) {
+      setError("At least one specification row is required.");
+      return;
+    }
     setIsActing(true);
 
     try {
       await apiRequest(
         specForm.specId
           ? `${specificationBaseUrl}/specifications/${specForm.specId}`
-          : `${specificationBaseUrl}/${selectedAccepted.rrId}/specifications`,
+          : `${specificationBaseUrl}/${targetRequest.rrId}/specifications`,
         {
           token,
           method: specForm.specId ? "PUT" : "POST",
           body: {
             itemId: specForm.itemId ? Number(specForm.itemId) : null,
-            specificationText: specForm.specificationText,
+            specificationText: filledRows.map((row) => `${row.description || "Description"}: ${row.requiredSpecification || "Not provided"}`).join("\n"),
             attachmentUrl: specForm.attachmentUrl || null,
             recommendedProcurementMethod: specForm.recommendedProcurementMethod,
+            sampleImages: specImages.map((image) => ({
+              name: image.name,
+              contentType: image.contentType,
+              dataUrl: image.dataUrl,
+            })),
           },
         }
       );
       setMessage("Specification saved.");
       resetSpecForm();
-      await loadAcceptedRequests();
-      const refreshed = await apiRequest(`${acceptedUrl}?page=0&size=20`, { token });
-      const nextSelected = (refreshed?.content || []).find((item) => item.rrId === selectedAccepted.rrId);
-      setSelectedAccepted(nextSelected || null);
+      const refreshUrl = targetList === "accepted" ? acceptedUrl : pendingUrl;
+      const refreshed = await apiRequest(`${refreshUrl}?page=0&size=20`, { token });
+      const refreshedItems = refreshed?.content || [];
+      if (targetList === "accepted") {
+        setAcceptedRequests(refreshedItems);
+        setSelectedAccepted(refreshedItems.find((item) => item.rrId === targetRequest.rrId) || null);
+      } else {
+        setRequests(refreshedItems);
+        setSelected(refreshedItems.find((item) => item.rrId === targetRequest.rrId) || null);
+      }
     } catch (err) {
       setError(err.message || "Could not save specification.");
     } finally {
       setIsActing(false);
     }
   };
+
+  const renderSpecificationEditor = (targetRequest, targetList) => (
+    <form onSubmit={(event) => saveSpecification(event, targetRequest, targetList)} className="space-y-4 rounded-[24px] bg-[#f8fcff] p-5">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] border-collapse bg-white text-sm text-[#10283f]">
+          <thead>
+            <tr>
+              <th className="border border-slate-700 px-3 py-2 text-left">Description</th>
+              <th className="border border-slate-700 px-3 py-2 text-left">Required Specification</th>
+              <th className="w-24 border border-slate-700 px-3 py-2 text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {specRows.map((row, index) => (
+              <tr key={`spec-row-${index}`}>
+                <td className="border border-slate-700 p-2">
+                  <input
+                    value={row.description}
+                    onChange={(event) => updateSpecRow(index, "description", event.target.value)}
+                    className="w-full rounded-xl border border-[#dce8ef] px-3 py-2 outline-none focus:border-[#166e8c]"
+                  />
+                </td>
+                <td className="border border-slate-700 p-2">
+                  <textarea
+                    value={row.requiredSpecification}
+                    onChange={(event) => updateSpecRow(index, "requiredSpecification", event.target.value)}
+                    rows={2}
+                    className="w-full rounded-xl border border-[#dce8ef] px-3 py-2 outline-none focus:border-[#166e8c]"
+                  />
+                </td>
+                <td className="border border-slate-700 p-2 text-center">
+                  <button type="button" onClick={() => removeSpecRow(index)} className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-100">
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" onClick={addSpecRow} className="rounded-2xl border border-[#dce8ef] px-4 py-2 text-sm font-bold text-[#166e8c] hover:bg-white">
+        Add Row
+      </button>
+      <label className="block space-y-2">
+        <span className="text-sm font-bold text-[#10283f]">Sample Images</span>
+        <input type="file" accept="image/*" multiple onChange={handleSpecImageFiles} className="w-full rounded-2xl border border-[#dce8ef] bg-white px-4 py-3 text-sm outline-none focus:border-[#166e8c]" />
+      </label>
+      {specImages.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {specImages.map((image) => (
+            <div key={image.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="truncate text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{image.name}</div>
+                <button type="button" onClick={() => removeSpecImage(image.id)} className="rounded-xl bg-red-50 px-3 py-1 text-xs font-bold text-red-600 hover:bg-red-100">
+                  Remove
+                </button>
+              </div>
+              <img src={image.dataUrl} alt={image.name} className="max-h-48 w-full object-contain" />
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <button disabled={isActing} className="rounded-2xl bg-[#166e8c] px-5 py-3 font-bold text-white hover:bg-[#145f79] disabled:opacity-60">
+          {specForm.specId ? "Update Specification" : "Add Specification"}
+        </button>
+        {specForm.specId && (
+          <button type="button" onClick={resetSpecForm} className="rounded-2xl border border-[#dce8ef] px-5 py-3 font-bold text-[#10283f] hover:bg-slate-50">
+            New Specification
+          </button>
+        )}
+      </div>
+    </form>
+  );
 
   return (
     <div className="space-y-8">
@@ -220,7 +483,14 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
         </div>
       )}
 
-      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      {isDetailPage && (
+        <button type="button" onClick={() => navigate(queuePath)} className="rounded-2xl border border-[#dce8ef] bg-white px-5 py-3 text-sm font-bold text-[#166e8c] hover:bg-[#edf7fb]">
+          Back to {roleKey} Queue
+        </button>
+      )}
+
+      <section className={`grid gap-6 ${isDetailPage || isQueuePage ? "" : "xl:grid-cols-[1.1fr_0.9fr]"}`}>
+        {!isDetailPage && (
         <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
           <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">{roleKey} Queue</div>
           <div className="mt-6 space-y-4">
@@ -230,7 +500,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
               <button
                 key={request.rrId}
                 type="button"
-                onClick={() => selectPendingRequest(request)}
+                onClick={() => openPendingRequest(request)}
                 className={`w-full rounded-[26px] border p-5 text-left transition ${selected?.rrId === request.rrId ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#dce8ef] bg-white hover:bg-[#f8fcff]"}`}
               >
                 <div className="flex flex-wrap items-center gap-3">
@@ -244,17 +514,23 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
             ))}
           </div>
         </div>
+        )}
 
+        {!isQueuePage && (
         <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
           <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Decision Panel</div>
           {!selected ? (
-            <div className="mt-6 rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Select a pending request to approve, reject, or return.</div>
+            <div className="mt-6 rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Loading request details...</div>
           ) : (
             <div className="mt-6 space-y-5">
               <div>
                 <h3 className="text-2xl font-black text-[#10283f]">{selected.title}</h3>
-                <div className="mt-2 text-sm leading-7 text-slate-600">{selected.description || "No description provided."}</div>
+                <div className="mt-2 text-sm leading-7 text-slate-600">{selected.rrNumber}</div>
               </div>
+              <button type="button" onClick={() => downloadRequisitionForm(selected)} className="inline-flex items-center gap-2 rounded-2xl border border-[#dce8ef] px-4 py-2 text-sm font-bold text-[#166e8c] transition hover:bg-[#edf7fb]">
+                <DownloadRoundedIcon fontSize="small" />
+                Download RR Form
+              </button>
 
               <div className="grid gap-3 md:grid-cols-2">
                 <DetailTile label="RR Number" value={selected.rrNumber} />
@@ -263,6 +539,69 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                 <DetailTile label="Division" value={selected.divisionName || "Not recorded"} />
                 <DetailTile label="Estimated Total" value={formatMoney(selected.estimatedTotalAmount)} />
                 <DetailTile label="Current Status" value={selected.status} />
+                {selected.vendorCategories && <DetailTile label="Vendor Categories" value={selected.vendorCategories} />}
+              </div>
+
+              <div className="rounded-[24px] border border-[#dce8ef] bg-white p-5">
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Submitted RR Details</div>
+                <SubmittedRequisitionForm request={selected} />
+              </div>
+
+              <div className="rounded-[24px] border border-[#dce8ef] bg-white p-5">
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Submitted Specifications</div>
+                <div className="mt-4 space-y-4">
+                  {(selected.technicalSpecifications || []).length === 0 && (
+                    <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">No specification details submitted.</div>
+                  )}
+                  {(selected.technicalSpecifications || []).map((spec) => {
+                    const images = specificationImages(spec);
+                    const rows = parseSpecificationTableRows(spec.specificationText);
+                    return (
+                      <div key={spec.specId || spec.itemId || spec.itemName} className="rounded-2xl bg-slate-50 p-4">
+                        <div className="font-bold text-[#10283f]">{spec.itemName || selected.itemName || "General RR specification"}</div>
+                        <div className="mt-3 overflow-x-auto">
+                          <table className="w-full min-w-[560px] border-collapse bg-white text-sm text-[#10283f]">
+                            <thead>
+                              <tr>
+                                <th className="border border-slate-700 px-3 py-2 text-left">Description</th>
+                                <th className="border border-slate-700 px-3 py-2 text-left">Required Specification</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.length === 0 && (
+                                <tr><td colSpan={2} className="border border-slate-700 px-3 py-3 text-slate-600">No specification text provided.</td></tr>
+                              )}
+                              {rows.map((row, index) => (
+                                <tr key={`${row.description}-${index}`}>
+                                  <td className="border border-slate-700 px-3 py-2 font-semibold">{row.description}</td>
+                                  <td className="border border-slate-700 px-3 py-2">{row.requiredSpecification}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {images.length > 0 && (
+                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                            {images.map((image, index) => (
+                              <div key={`${image.name}-${index}`} className="border border-slate-200 bg-white p-2">
+                                <div className="mb-2 truncate text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{image.name}</div>
+                                <img src={image.src} alt={image.name} className="max-h-72 w-full object-contain" />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {!isReadOnlyApprover && (
+                        <div className="mt-4">
+                          <button type="button" onClick={() => startSpecEdit(spec)} className="rounded-xl bg-[#edf7fb] px-4 py-2 text-sm font-bold text-[#166e8c] hover:bg-[#d9edf5]">
+                            Edit Specification
+                          </button>
+                        </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {!isReadOnlyApprover && specificationBaseUrl && selected && renderSpecificationEditor(selected, "pending")}
               </div>
 
               <div className="rounded-[24px] bg-[#f8fcff] p-5">
@@ -272,7 +611,9 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
 
               {selected.rejectionReason && (
                 <div className="rounded-[24px] border border-red-200 bg-red-50 p-5">
-                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-red-700">Rejected by TEC</div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-red-700">
+                    Rejected by {selected.status === "DEAN_REJECTED" ? "Dean" : "TEC"}
+                  </div>
                   <div className="mt-2 text-sm leading-7 text-red-700">{selected.rejectionReason}</div>
                 </div>
               )}
@@ -297,7 +638,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                       <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Qty {item.quantity} {item.unitOfMeasure || "Units"} | Unit {formatMoney(item.estimatedUnitPrice)}
                       </div>
-                      {(selected.items || []).length > 1 && (
+                      {!isReadOnlyApprover && (selected.items || []).length > 1 && (
                         <div className="mt-4 grid gap-4 md:grid-cols-2">
                           <label className="block space-y-2">
                             <span className="text-sm font-bold text-[#10283f]">Item Decision</span>
@@ -349,26 +690,68 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                 </div>
               </div>
 
-              {(selected.items || []).length <= 1 ? (
+              {isBecReview ? (
+                <div className="space-y-5 rounded-[24px] border border-[#dce8ef] bg-white p-5">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Vendor Category List</div>
+                    <div className="mt-2 text-sm leading-7 text-slate-600">Select the one supplier category that best matches this RR.</div>
+                  </div>
+                  <input
+                    type="search"
+                    value={categorySearch}
+                    onChange={(event) => setCategorySearch(event.target.value)}
+                    placeholder="Search vendor categories"
+                    className="w-full rounded-2xl border border-[#dce8ef] px-4 py-3 text-sm outline-none focus:border-[#166e8c]"
+                  />
+                  <div className="grid max-h-80 gap-2 overflow-y-auto rounded-2xl border border-[#dce8ef] bg-[#f8fcff] p-3 md:grid-cols-2">
+                    {filteredVendorCategories.map((category) => (
+                      <label key={category} className="flex cursor-pointer items-start gap-2 rounded-xl bg-white px-3 py-2 text-sm text-[#10283f] hover:bg-[#edf7fb]">
+                        <input
+                          type="radio"
+                          name="becVendorCategory"
+                          checked={selectedCategory === category}
+                          onChange={() => setSelectedCategory(category)}
+                          className="mt-1"
+                        />
+                        <span>{category}</span>
+                      </label>
+                    ))}
+                    {filteredVendorCategories.length === 0 && (
+                      <div className="rounded-xl bg-white px-3 py-2 text-sm text-slate-500 md:col-span-2">No matching categories.</div>
+                    )}
+                  </div>
+                  {selectedCategory && (
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-[#edf7fb] px-3 py-1 text-xs font-bold text-[#166e8c]">
+                        {selectedCategory}
+                      </span>
+                    </div>
+                  )}
+                  <button disabled={isActing} onClick={() => performAction("approve")} className="w-full rounded-2xl bg-[#166e8c] px-4 py-3 font-bold text-white hover:bg-[#145f79] disabled:opacity-60">
+                    Save Category List
+                  </button>
+                </div>
+              ) : isReadOnlyApprover || (selected.items || []).length <= 1 ? (
                 <>
                   <label className="space-y-2 block">
                     <span className="text-sm font-bold text-[#10283f]">Decision comment</span>
                     <textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={5} className="w-full rounded-2xl border border-[#dce8ef] px-4 py-3 outline-none focus:border-[#166e8c]" />
                   </label>
 
-                  <label className="block space-y-2">
-                    <span className="text-sm font-bold text-[#10283f]">RR Priority</span>
-                    <select value={priority} onChange={(event) => setPriority(event.target.value)} className="w-full rounded-2xl border border-[#dce8ef] bg-white px-4 py-3 outline-none focus:border-[#166e8c]">
-                      {priorityOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <button disabled={isActing} onClick={() => performAction("approve")} className="rounded-2xl bg-[#166e8c] px-4 py-3 font-bold text-white hover:bg-[#145f79] disabled:opacity-60">Add to Final List</button>
+                  <div className={`grid gap-3 ${isReadOnlyApprover ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
+                    <button disabled={isActing} onClick={() => performAction("approve")} className="rounded-2xl bg-[#166e8c] px-4 py-3 font-bold text-white hover:bg-[#145f79] disabled:opacity-60">
+                      {roleKey === "DEAN"
+                        ? "Approve and Route"
+                        : roleKey === "VC"
+                          ? "Approve and Send to BEC"
+                          : roleKey === "BEC"
+                            ? "Approve and Send to Bursar"
+                            : "Add to Final List"}
+                    </button>
                     <button disabled={isActing} onClick={() => performAction("reject")} className="rounded-2xl bg-red-600 px-4 py-3 font-bold text-white hover:bg-red-700 disabled:opacity-60">Reject</button>
-                    <button disabled={isActing} onClick={() => performAction("return")} className="rounded-2xl bg-[#0f2940] px-4 py-3 font-bold text-white hover:bg-[#173b5a] disabled:opacity-60">Return</button>
+                    {!isReadOnlyApprover && (
+                      <button disabled={isActing} onClick={() => performAction("return")} className="rounded-2xl bg-[#0f2940] px-4 py-3 font-bold text-white hover:bg-[#173b5a] disabled:opacity-60">Return</button>
+                    )}
                   </div>
                 </>
               ) : (
@@ -379,18 +762,19 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
             </div>
           )}
         </div>
+        )}
       </section>
 
       {acceptedUrl && (
-        <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <section>
           <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Division Head Final List</div>
-                <div className="mt-2 text-sm text-slate-600">Approved RRs are held here until the final list is submitted to TEC.</div>
+                <div className="mt-2 text-sm text-slate-600">Approved RRs are held here until the final list is submitted to Dean.</div>
               </div>
               <button type="button" disabled={isActing || acceptedRequests.length === 0} onClick={submitFinalListToTec} className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79] disabled:opacity-60">
-                Submit Final List to TEC
+                Submit Final List to Dean
               </button>
             </div>
             <div className="mt-6 space-y-4">
@@ -436,78 +820,6 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
               ))}
             </div>
           </div>
-
-          <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
-            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Specifications</div>
-            {!selectedAccepted ? (
-              <div className="mt-6 rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Select an accepted RR to add or edit specifications.</div>
-            ) : (
-              <div className="mt-6 space-y-5">
-                <div>
-                  <h3 className="text-2xl font-black text-[#10283f]">{selectedAccepted.title}</h3>
-                  <div className="mt-2 text-sm leading-7 text-slate-600">{selectedAccepted.rrNumber}</div>
-                </div>
-
-                <form onSubmit={saveSpecification} className="space-y-4 rounded-[24px] bg-[#f8fcff] p-5">
-                  <label className="block space-y-2">
-                    <span className="text-sm font-bold text-[#10283f]">Item</span>
-                    <select value={specForm.itemId} onChange={(event) => setSpecForm((current) => ({ ...current, itemId: event.target.value }))} className="w-full rounded-2xl border border-[#dce8ef] px-4 py-3 outline-none focus:border-[#166e8c]">
-                      <option value="">General RR specification</option>
-                      {(selectedAccepted.items || []).filter((item) => item.hodDecision !== "REJECTED").map((item) => (
-                        <option key={item.itemId} value={item.itemId}>{item.itemName}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block space-y-2">
-                    <span className="text-sm font-bold text-[#10283f]">Specification</span>
-                    <textarea value={specForm.specificationText} onChange={(event) => setSpecForm((current) => ({ ...current, specificationText: event.target.value }))} rows={5} required className="w-full rounded-2xl border border-[#dce8ef] px-4 py-3 outline-none focus:border-[#166e8c]" />
-                  </label>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <label className="block space-y-2">
-                      <span className="text-sm font-bold text-[#10283f]">Procurement method</span>
-                      <select value={specForm.recommendedProcurementMethod} onChange={(event) => setSpecForm((current) => ({ ...current, recommendedProcurementMethod: event.target.value }))} className="w-full rounded-2xl border border-[#dce8ef] px-4 py-3 outline-none focus:border-[#166e8c]">
-                        <option value="RFQ">RFQ</option>
-                        <option value="OPEN_COMPETITIVE_BIDDING">Open Competitive Bidding</option>
-                        <option value="NATIONAL_COMPETITIVE_BIDDING">National Competitive Bidding</option>
-                      </select>
-                    </label>
-                    <label className="block space-y-2">
-                      <span className="text-sm font-bold text-[#10283f]">Attachment URL</span>
-                      <input value={specForm.attachmentUrl} onChange={(event) => setSpecForm((current) => ({ ...current, attachmentUrl: event.target.value }))} className="w-full rounded-2xl border border-[#dce8ef] px-4 py-3 outline-none focus:border-[#166e8c]" />
-                    </label>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <button disabled={isActing} className="rounded-2xl bg-[#166e8c] px-5 py-3 font-bold text-white hover:bg-[#145f79] disabled:opacity-60">
-                      {specForm.specId ? "Update Specification" : "Add Specification"}
-                    </button>
-                    {specForm.specId && (
-                      <button type="button" onClick={resetSpecForm} className="rounded-2xl border border-[#dce8ef] px-5 py-3 font-bold text-[#10283f] hover:bg-slate-50">
-                        New Specification
-                      </button>
-                    )}
-                  </div>
-                </form>
-
-                <div className="space-y-3">
-                  {(selectedAccepted.technicalSpecifications || []).length === 0 && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No specifications added yet.</div>}
-                  {(selectedAccepted.technicalSpecifications || []).map((spec) => (
-                    <div key={spec.specId} className="rounded-[24px] border border-[#dce8ef] bg-white p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-black text-[#10283f]">{spec.itemName || "General RR specification"}</div>
-                          <div className="mt-2 text-sm leading-7 text-slate-600">{spec.specificationText}</div>
-                          <div className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">{spec.recommendedProcurementMethod || "RFQ"}</div>
-                        </div>
-                        <button type="button" onClick={() => startSpecEdit(spec)} className="rounded-xl bg-[#edf7fb] px-4 py-2 text-sm font-bold text-[#166e8c] hover:bg-[#d9edf5]">
-                          Edit
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
         </section>
       )}
     </div>
@@ -519,6 +831,116 @@ function DetailTile({ label, value }) {
     <div className="rounded-[20px] bg-slate-50 p-4">
       <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">{label}</div>
       <div className="mt-2 text-sm font-bold text-[#10283f]">{value || "Not available"}</div>
+    </div>
+  );
+}
+
+function SubmittedRequisitionForm({ request }) {
+  const form = parseSubmittedForm(request.description || "");
+  const firstItem = request.items?.[0] || {};
+  const total = firstItem.estimatedTotalPrice || request.estimatedTotalAmount;
+  const cell = "border border-slate-700 align-top";
+  const label = "border border-slate-700 bg-slate-100 px-3 py-3 text-center text-sm font-black text-[#10283f]";
+
+  return (
+    <div className="mt-4 overflow-x-auto">
+      <div className="min-w-[780px] border border-slate-700 bg-white p-4 text-[#10283f]">
+        <div className="grid gap-4 md:grid-cols-[1fr_170px]">
+          <div>
+            <div className="text-xl font-black uppercase tracking-wide">University of Ruhuna - Faculty of Engineering</div>
+            <div className="text-lg font-black uppercase">Purchase Requisition Form</div>
+            <div className="mt-1 text-xs leading-5 text-slate-700">
+              Finance Branch<br />
+              Tel: Extension 1101 Fax 0912245762<br />
+              Email: bursar@eng.ruh.ac.lk<br />
+              Web: http://www.eng.ruh.ac.lk
+            </div>
+          </div>
+          <div className="space-y-2 text-sm">
+            <div className="grid grid-cols-[70px_1fr] border border-slate-700">
+              <div className="border-r border-slate-700 px-2 py-2 font-semibold">Form No</div>
+              <div className="px-2 py-2">{request.rrNumber || ""}</div>
+            </div>
+            <div className="grid grid-cols-[70px_1fr] border border-slate-700">
+              <div className="border-r border-slate-700 px-2 py-2 font-semibold">Date</div>
+              <div className="px-2 py-2">{request.submittedAt ? new Date(request.submittedAt).toLocaleDateString() : ""}</div>
+            </div>
+            <div className="text-right text-xs italic text-slate-600">To be Completed in triplicate</div>
+          </div>
+        </div>
+
+        <table className="mt-5 w-full border-collapse text-sm">
+          <tbody>
+            <tr>
+              <td rowSpan={3} className={label}>User</td>
+              <td className={`${cell} w-44 px-3 py-2 font-semibold`}>Faculty/Admin</td>
+              <td colSpan={3} className={`${cell} px-3 py-2`}>{form.facultyAdmin || request.facultyName || ""}</td>
+            </tr>
+            <tr>
+              <td className={`${cell} px-3 py-2 font-semibold`}>Department/Branch</td>
+              <td colSpan={3} className={`${cell} px-3 py-2`}>{form.departmentBranch || request.divisionName || ""}</td>
+            </tr>
+            <tr>
+              <td className={`${cell} px-3 py-2 font-semibold`}>Contact Person</td>
+              <td className={`${cell} px-3 py-2`}>{form.contactPerson || request.requestedByName || ""}</td>
+              <td className={`${cell} w-32 px-3 py-2 font-semibold`}>Telephone No</td>
+              <td className={`${cell} px-3 py-2`}>{form.telephoneNo || ""}</td>
+            </tr>
+
+            <tr>
+              <td rowSpan={5} className={label}>Funds</td>
+              <td colSpan={4} className={`${cell} px-3 py-2`}>
+                <div className="flex flex-wrap gap-5">
+                  <span><b>Funds GOSL</b> {form.fundsGosl || ""}</span>
+                  <span><b>Project</b> {form.project || ""}</span>
+                  <span><b>Vote</b> {form.vote || ""}</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td colSpan={2} className={`${cell} px-3 py-2`}>
+                Whether the item/items requested included in procurement plan
+                <div className="mt-2 font-semibold">{form.includedInPlan || ""}</div>
+              </td>
+              <td colSpan={2} className={`${cell} px-3 py-2 text-center`}>
+                * If No should get the Vice Chancellor's approval
+                <div className="mt-4 font-black">Approved</div>
+              </td>
+            </tr>
+            <tr>
+              <td colSpan={2} className={`${cell} px-3 py-2`}>Budgeted allocation Rs. {form.budgetAllocation || ""}</td>
+              <td rowSpan={3} colSpan={2} className={`${cell} px-3 py-8 text-center font-black`}>Vice Chancellor</td>
+            </tr>
+            <tr>
+              <td colSpan={2} className={`${cell} px-3 py-2`}>Used amount so far Rs. {form.usedAmount || ""}</td>
+            </tr>
+            <tr>
+              <td colSpan={2} className={`${cell} px-3 py-2`}>Balance available Rs. {form.balanceAvailable || ""}</td>
+            </tr>
+
+            <tr>
+              <td rowSpan={2} className={label}>Object</td>
+              <td className={`${cell} px-2 py-2 text-center font-semibold`}>Description of the item/items intended to be purchased</td>
+              <td className={`${cell} px-2 py-2 text-center font-semibold`}>Cost (Approximately)</td>
+              <td className={`${cell} px-2 py-2 text-center font-semibold`}>Qty. Required</td>
+              <td className={`${cell} px-2 py-2 text-center font-semibold`}>Qty. Already Available</td>
+            </tr>
+            <tr className="h-32">
+              <td className={`${cell} p-3`}>{firstItem.description || firstItem.itemName || request.itemName || ""}</td>
+              <td className={`${cell} p-3`}>{formatMoney(firstItem.estimatedUnitPrice || request.estimatedUnitPrice)}</td>
+              <td className={`${cell} p-3`}>{firstItem.quantity || request.quantity || ""}</td>
+              <td className={`${cell} p-3`}></td>
+            </tr>
+            <tr>
+              <td className={label}>Purpose</td>
+              <td colSpan={4} className={`${cell} px-3 py-3`}>
+                <div className="font-semibold">{form.purpose || "Normal"}</div>
+                <div className="mt-2"><b>Estimated Total:</b> {formatMoney(total)}</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -3,6 +3,8 @@ import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
 import AccountBalanceRoundedIcon from "@mui/icons-material/AccountBalanceRounded";
 import BusinessRoundedIcon from "@mui/icons-material/BusinessRounded";
 import PendingActionsRoundedIcon from "@mui/icons-material/PendingActionsRounded";
+import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import { useNavigate } from "react-router-dom";
 import { adminApi } from "../../api/adminApi";
 
 const emptyStats = {
@@ -26,6 +28,7 @@ const normalizeStats = (stats, pendingPage) => ({
 });
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState(emptyStats);
   const [faculties, setFaculties] = useState([]);
   const [divisions, setDivisions] = useState([]);
@@ -68,10 +71,10 @@ export default function AdminDashboard() {
   }, []);
 
   const cards = [
-    { label: "Total Users", value: numberValue(stats.totalUsers), icon: PeopleAltRoundedIcon },
-    { label: "Pending Approvals", value: numberValue(stats.pendingApprovals), icon: PendingActionsRoundedIcon },
-    { label: "Faculties", value: numberValue(faculties.length), icon: AccountBalanceRoundedIcon },
-    { label: "Divisions", value: numberValue(divisions.length), icon: BusinessRoundedIcon },
+    { label: "Total Users", value: numberValue(stats.totalUsers), icon: PeopleAltRoundedIcon, path: "/admin/users" },
+    { label: "Pending Approvals", value: numberValue(stats.pendingApprovals), icon: PendingActionsRoundedIcon, path: "/admin/users?status=PENDING" },
+    { label: "Faculties", value: numberValue(faculties.length), icon: AccountBalanceRoundedIcon, path: "/admin/faculties" },
+    { label: "Divisions", value: numberValue(divisions.length), icon: BusinessRoundedIcon, path: "/admin/divisions" },
   ];
 
   return (
@@ -94,15 +97,23 @@ export default function AdminDashboard() {
         {cards.map((card) => {
           const Icon = card.icon;
           return (
-            <div key={card.label} className="rounded-[28px] border border-[#dce8ef] bg-white p-5 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
+            <button
+              key={card.label}
+              type="button"
+              onClick={() => navigate(card.path)}
+              className="rounded-[28px] border border-[#dce8ef] bg-white p-5 text-left shadow-[0_18px_45px_rgba(15,41,64,0.06)] transition hover:-translate-y-0.5 hover:border-[#166e8c] hover:shadow-[0_24px_55px_rgba(15,41,64,0.1)]"
+            >
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-slate-500">{card.label}</div>
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#edf7fb] text-[#166e8c]">
                   <Icon fontSize="small" />
                 </span>
               </div>
-              <div className="mt-4 text-3xl font-black text-[#10283f]">{loading ? "..." : card.value}</div>
-            </div>
+              <div className="mt-4 flex items-end justify-between gap-3">
+                <div className="text-3xl font-black text-[#10283f]">{loading ? "..." : card.value}</div>
+                <ArrowForwardRoundedIcon className="text-[#166e8c]" fontSize="small" />
+              </div>
+            </button>
           );
         })}
       </section>

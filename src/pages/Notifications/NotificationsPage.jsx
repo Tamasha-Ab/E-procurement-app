@@ -1,19 +1,36 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
-import { useNavigate } from "react-router-dom";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import { useNavigate, useParams } from "react-router-dom";
 import PageHero from "../../components/PageHero";
 import { useAuth } from "../../contexts/AuthContext";
-import { apiRequest, formatDateTime } from "../../services/apiClient";
+import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
+import { procurementApi } from "../../api/procurementApi";
 
 export default function NotificationsPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
+  const { notificationId } = useParams();
   const [notifications, setNotifications] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [selectedTender, setSelectedTender] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
+  const isVendor = user?.mainRole === "VENDOR";
   const unreadCount = notifications.filter((notification) => !notification.read).length;
+  const selectedTenderId = useMemo(() => {
+    const match = selected?.actionUrl?.match(/^\/tenders\/(\d+)/);
+    return match ? match[1] : null;
+  }, [selected?.actionUrl]);
+  const selectedTenderNumber = useMemo(() => {
+    const match = selected?.message?.match(/Tender\s+([^\s]+)\s+-/i);
+    return match ? match[1] : null;
+  }, [selected?.message]);
+  const tenderDetailId = selectedTenderId || selectedTender?.tenderId;
+  const isBecCategoryListNotification = selected?.rrId
+    && selected?.title?.toLowerCase().includes("bec category list submitted");
 
   const loadNotifications = () => {
     setIsLoading(true);
@@ -22,7 +39,10 @@ export default function NotificationsPage() {
       .then((data) => {
         const list = Array.isArray(data) ? data : [];
         setNotifications(list);
-        setSelected((current) => current ? list.find((item) => item.notificationId === current.notificationId) || list[0] || null : list[0] || null);
+        const routedNotification = notificationId
+          ? list.find((item) => String(item.notificationId) === String(notificationId))
+          : null;
+        setSelected((current) => routedNotification || (current ? list.find((item) => item.notificationId === current.notificationId) || list[0] || null : list[0] || null));
       })
       .catch((err) => setError(err.message || "Could not load notifications."))
       .finally(() => setIsLoading(false));
@@ -30,10 +50,22 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     if (token) loadNotifications();
-  }, [token]);
+  }, [token, notificationId]);
 
-  const openNotification = async (notification) => {
+  useEffect(() => {
+    if (!notificationId || notifications.length === 0) return;
+    const routedNotification = notifications.find((item) => String(item.notificationId) === String(notificationId));
+    if (routedNotification) openNotification(routedNotification, { skipNavigate: true });
+  }, [notificationId, notifications]);
+
+  const openNotification = async (notification, options = {}) => {
+    if (!options.skipNavigate) {
+      navigate(`/notifications/${notification.notificationId}`);
+    }
     setSelected(notification);
+    if (isVendor) {
+      setIsDetailModalOpen(true);
+    }
     if (notification.read) return;
 
     try {
@@ -45,6 +77,9 @@ export default function NotificationsPage() {
         item.notificationId === notification.notificationId ? updated : item
       )));
       setSelected(updated);
+      if (isVendor) {
+        setIsDetailModalOpen(true);
+      }
       window.dispatchEvent(new Event("notifications:changed"));
     } catch (err) {
       setError(err.message || "Could not mark notification as read.");
@@ -52,10 +87,30 @@ export default function NotificationsPage() {
   };
 
   const scheduleMeetingFromNotification = () => {
+    if (isBecCategoryListNotification) {
+      navigate(`/finance/category-rr/${selected.rrId}`);
+      return;
+    }
     if (selected?.actionUrl) {
       navigate(selected.actionUrl);
     }
   };
+
+  useEffect(() => {
+    setSelectedTender(null);
+    if (!token || (!selectedTenderId && !selectedTenderNumber)) return;
+
+    const request = selectedTenderId
+      ? procurementApi.tenders.detail(token, selectedTenderId)
+      : procurementApi.tenders.list(token).then((data) => {
+        const list = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : [];
+        return list.find((tender) => tender.tenderNumber === selectedTenderNumber) || null;
+      });
+
+    request
+      .then(setSelectedTender)
+      .catch(() => setSelectedTender(null));
+  }, [token, selectedTenderId, selectedTenderNumber]);
 
   const canScheduleMeeting = selected?.actionUrl?.startsWith("/procurement/tenders")
     && selected?.title?.toLowerCase().includes("pre-bid meeting");
@@ -64,6 +119,95 @@ export default function NotificationsPage() {
   const canViewObjection = selected?.actionUrl?.startsWith("/procurement/tenders")
     && selected?.actionUrl?.includes("section=objections")
     && selected?.title?.toLowerCase().includes("objection");
+  const canOpenAction = selected?.actionUrl
+    && !tenderDetailId
+    && !canScheduleMeeting
+    && !canSubmitObjection
+    && !canViewObjection;
+
+  const renderNotificationDetails = ({ showTitle = true, showActions = true } = {}) => (
+    !selected ? (
+      <div className="mt-6 rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Select a notification to view its details.</div>
+    ) : (
+      <div className="mt-6 space-y-5">
+        {showTitle && (
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-2xl font-black text-[#10283f]">{selected.title}</h2>
+          {!selected.read && <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-black text-white">New</span>}
+        </div>
+        )}
+        <div className="rounded-[24px] bg-[#f8fcff] p-5 text-sm leading-7 text-slate-600 whitespace-pre-line">{selected.message}</div>
+        {showActions && tenderDetailId && (
+          <button
+            type="button"
+            onClick={() => navigate(`/tenders/${tenderDetailId}`)}
+            className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
+          >
+            View Full Details
+          </button>
+        )}
+        {showActions && canScheduleMeeting && (
+          <button
+            type="button"
+            onClick={scheduleMeetingFromNotification}
+            className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
+          >
+            Schedule Meeting
+          </button>
+        )}
+        {showActions && canSubmitObjection && (
+          <button
+            type="button"
+            onClick={scheduleMeetingFromNotification}
+            className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
+          >
+            Submit Objections
+          </button>
+        )}
+        {showActions && canViewObjection && (
+          <button
+            type="button"
+            onClick={scheduleMeetingFromNotification}
+            className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
+          >
+            View Details
+          </button>
+        )}
+        {showActions && canOpenAction && (
+          <button
+            type="button"
+            onClick={scheduleMeetingFromNotification}
+            className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
+          >
+            {isBecCategoryListNotification ? "View RR Details" : "Open"}
+          </button>
+        )}
+        {(selectedTenderId || selectedTenderNumber) && (
+          <div className="rounded-[24px] border border-[#dce8ef] bg-[#f8fcff] p-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Tender Summary</div>
+            {selectedTender ? (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <div className="text-xl font-black text-[#10283f]">{selectedTender.tenderNumber} - {selectedTender.title}</div>
+                  <div className="mt-2 text-sm leading-7 text-slate-600">
+                    {selectedTender.tenderType || "Tender type not set"} | {selectedTender.procurementMethod || "Method not set"} | {formatMoney(selectedTender.tenderValue)}
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <DetailTile label="Funding Source" value={selectedTender.fundingSource || "Not set"} />
+                  <DetailTile label="Closing Date" value={selectedTender.closingDateTime ? formatDateTime(selectedTender.closingDateTime) : "Not set"} />
+                  <DetailTile label="Status" value={statusLabel(selectedTender.status)} />
+                  <DetailTile label="Created By" value={selectedTender.createdByName || "Not recorded"} />
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 text-sm text-slate-600">Loading tender summary...</div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  );
 
   return (
     <div className="space-y-8">
@@ -80,7 +224,7 @@ export default function NotificationsPage() {
 
       {error && <div className="rounded-[24px] bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
-      <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+      <section className={isVendor ? "grid gap-6" : "grid gap-6 xl:grid-cols-[0.85fr_1.15fr]"}>
         <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -128,54 +272,37 @@ export default function NotificationsPage() {
           </div>
         </div>
 
+        {!isVendor && (
         <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
           <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Notification Details</div>
-          {!selected ? (
-            <div className="mt-6 rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Select a notification to view its details.</div>
-          ) : (
-            <div className="mt-6 space-y-5">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-black text-[#10283f]">{selected.title}</h2>
-                {!selected.read && <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-black text-white">New</span>}
-              </div>
-              <div className="rounded-[24px] bg-[#f8fcff] p-5 text-sm leading-7 text-slate-600">{selected.message}</div>
-              {canScheduleMeeting && (
-                <button
-                  type="button"
-                  onClick={scheduleMeetingFromNotification}
-                  className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
-                >
-                  Schedule Meeting
-                </button>
-              )}
-              {canSubmitObjection && (
-                <button
-                  type="button"
-                  onClick={scheduleMeetingFromNotification}
-                  className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
-                >
-                  Submit Objections
-                </button>
-              )}
-              {canViewObjection && (
-                <button
-                  type="button"
-                  onClick={scheduleMeetingFromNotification}
-                  className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
-                >
-                  View Details
-                </button>
-              )}
-              <div className="grid gap-3 md:grid-cols-2">
-                <DetailTile label="Created" value={formatDateTime(selected.createdAt)} />
-                <DetailTile label="Read At" value={selected.readAt ? formatDateTime(selected.readAt) : "Unread"} />
-                <DetailTile label="RR Number" value={selected.rrNumber || "Not linked"} />
-                <DetailTile label="Type" value={selected.notificationType || "IN APP"} />
-              </div>
-            </div>
-          )}
+          {renderNotificationDetails()}
         </div>
+        )}
       </section>
+
+      {isVendor && isDetailModalOpen && selected && (
+        <div className="fixed inset-0 z-[1250] flex items-center justify-center bg-slate-950/60 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-[28px] bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Notification Details</div>
+                <h2 className="mt-2 text-2xl font-black text-[#10283f]">{selected.title}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDetailModalOpen(false)}
+                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                aria-label="Close notification details"
+              >
+                <CloseRoundedIcon fontSize="small" />
+              </button>
+            </div>
+            <div className="max-h-[calc(90vh-104px)] overflow-y-auto p-6">
+              {renderNotificationDetails({ showTitle: false, showActions: false })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

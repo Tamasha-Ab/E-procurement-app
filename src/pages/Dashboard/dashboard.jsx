@@ -8,7 +8,9 @@ export default function Dashboard() {
   const { user } = useAuth();
   const subRole = user?.subRole;
 
+  if (user?.mainRole === "FINANCE" && user?.subRole === "BEC") return <ApproverDashboard />;
   if (user?.mainRole === "FINANCE") return <FinanceDashboard />;
+  if (user?.mainRole === "UNIVERSITY_EXECUTIVE") return <ApproverDashboard />;
   if (approverDashboardConfig[subRole]) return <ApproverDashboard />;
 
   return <StaffDashboard />;
