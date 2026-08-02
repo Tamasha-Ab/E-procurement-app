@@ -8,9 +8,7 @@ import {
   MenuItem,
   TextField,
 } from "@mui/material";
-import AddTaskRoundedIcon from "@mui/icons-material/AddTaskRounded";
 import AssignmentRoundedIcon from "@mui/icons-material/AssignmentRounded";
-import BusinessCenterRoundedIcon from "@mui/icons-material/BusinessCenterRounded";
 import LocalOfferRoundedIcon from "@mui/icons-material/LocalOfferRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
@@ -91,7 +89,6 @@ const safeList = (value) => (Array.isArray(value) ? value : []);
 export default function VendorDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [rfqs, setRfqs] = useState([]);
   const [bids, setBids] = useState([]);
   const [quotations, setQuotations] = useState([]);
   const [offers, setOffers] = useState([]);
@@ -111,9 +108,8 @@ export default function VendorDashboard() {
     setError("");
 
     try {
-      const [profileData, rfqList, bidList, quotationList, offerList, poList, reportList] = await Promise.all([
+      const [profileData, bidList, quotationList, offerList, poList, reportList] = await Promise.all([
         vendorApi.profile.get().catch(() => null),
-        vendorApi.rfqs.list().catch(() => []),
         vendorApi.bids.list().catch(() => []),
         vendorApi.quotations.list().catch(() => []),
         vendorApi.offers.list().catch(() => []),
@@ -133,7 +129,6 @@ export default function VendorDashboard() {
           contactPerson: current.contactPerson || profileData.vendorContactPerson || "",
         }));
       }
-      setRfqs(safeList(rfqList));
       setBids(safeList(bidList));
       setQuotations(safeList(quotationList));
       setOffers(safeList(offerList));
@@ -150,14 +145,6 @@ export default function VendorDashboard() {
     load();
   }, []);
 
-  const submittedRfqIds = useMemo(() => {
-    const ids = new Set();
-    bids.forEach((bid) => ids.add(bid.rfqId));
-    quotations.forEach((quotation) => ids.add(quotation.rfqId));
-    return ids;
-  }, [bids, quotations]);
-
-  const activeRfqs = rfqs.filter((rfq) => !submittedRfqIds.has(rfq.rfqId));
   const vendorName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.username || "Vendor";
   const vendorStatus = profile?.vendorStatus || user?.vendorStatus || "";
   const isRejectedVendor = vendorStatus === "REJECTED";
@@ -165,10 +152,10 @@ export default function VendorDashboard() {
   const canSubmitVendorWork = vendorStatus === "APPROVED";
 
   const cards = [
-    { label: "Invited RFQs", value: rfqs.length, icon: BusinessCenterRoundedIcon },
-    { label: "Open Opportunities", value: activeRfqs.length, icon: LocalOfferRoundedIcon },
     { label: "Submitted Bids", value: bids.length + quotations.length, icon: AssignmentRoundedIcon },
     { label: "Purchase Orders", value: purchaseOrders.length, icon: ReceiptLongRoundedIcon },
+    { label: "Offer Letters", value: offers.length, icon: LocalOfferRoundedIcon },
+    { label: "Reports", value: reports.length, icon: AssignmentRoundedIcon },
   ];
 
   const openDialog = (type, item) => {
@@ -380,63 +367,6 @@ export default function VendorDashboard() {
           )}
         </section>
       )}
-
-      <section>
-        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">RFQ Invitations</div>
-              <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Open vendor opportunities</h2>
-            </div>
-            <div className="rounded-full bg-[#edf7fb] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">
-              {activeRfqs.length} Actionable
-            </div>
-          </div>
-
-          <div className="mt-6 space-y-4">
-            {rfqs.length ? (
-              rfqs.map((rfq) => (
-                <div key={rfq.rfqId} className="rounded-[24px] border border-[#e6eef3] bg-slate-50 p-5">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#166e8c]">
-                        {rfq.rfqNumber || `RFQ-${rfq.rfqId}`}
-                      </div>
-                      <h3 className="mt-2 text-xl font-bold text-[#10283f]">{rfq.title || "Untitled RFQ"}</h3>
-                      <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">{rfq.description || "No description provided."}</p>
-                      <div className="mt-4 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
-                        <span>Submission: {formatDate(rfq.submissionDeadline)}</span>
-                        <span>Bid opening: {formatDate(rfq.bidOpeningDateTime)}</span>
-                        <span>Objection: {formatDate(rfq.objectionDeadline)}</span>
-                      </div>
-                    </div>
-                    <span className={`self-start rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] ${statusClass(rfq.status)}`}>
-                      {rfq.status || "Open"}
-                    </span>
-                  </div>
-
-                  {canSubmitVendorWork && (
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    <Button
-                      size="small"
-                      variant="contained"
-                      startIcon={<AddTaskRoundedIcon />}
-                      onClick={() => openDialog("quotation", rfq)}
-                      sx={{ textTransform: "none", bgcolor: "#166e8c" }}
-                    >
-                      Quotation
-                    </Button>
-                  </div>
-                  )}
-                </div>
-              ))
-            ) : (
-              <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No RFQ invitations are available right now.</div>
-            )}
-          </div>
-        </div>
-
-      </section>
 
       <section className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">

@@ -4,6 +4,7 @@ import EngineeringRoundedIcon from "@mui/icons-material/EngineeringRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
+import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
 
 export const hodSidebarItems = [
   { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
@@ -25,6 +26,7 @@ export const tecSidebarItems = [
 export const deanSidebarItems = [
   { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
   { label: "Dean Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/approvals/dean" },
+  { label: "Quotation Approval", icon: GavelRoundedIcon, path: "/approvals/quotation-authority" },
   { label: "Tenders", icon: StorefrontRoundedIcon, path: "/tenders" },
   { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
 ];
@@ -32,6 +34,7 @@ export const deanSidebarItems = [
 export const vcSidebarItems = [
   { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
   { label: "VC Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/approvals/vc" },
+  { label: "Quotation Approval", icon: GavelRoundedIcon, path: "/approvals/quotation-authority" },
   { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
 ];
 

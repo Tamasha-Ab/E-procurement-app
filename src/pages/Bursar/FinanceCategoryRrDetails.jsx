@@ -4,6 +4,7 @@ import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
+import { requestDisplayName } from "../../utils/procurementDisplay";
 
 const financeSubRoles = ["BURSAR", "ASSISTANT_BURSAR", "SENIOR_ASSISTANT_BURSAR"];
 
@@ -112,8 +113,8 @@ export default function FinanceCategoryRrDetails() {
     <div className="space-y-8">
       <PageHero
         eyebrow="Finance Department"
-        title={selected?.rrNumber || "Category RR Details"}
-        description="View the RR submitted by BEC under the selected vendor category."
+        title={selected ? `Submitted RR Details - ${requestDisplayName(selected)}` : "Submitted RR Details"}
+        description="View the submitted RR details and submitted specifications from the BEC category list."
       >
         <div className="rounded-[24px] bg-white/10 p-5 text-right backdrop-blur">
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-100">Category</div>
@@ -127,8 +128,8 @@ export default function FinanceCategoryRrDetails() {
       {!loading && !selected && (
         <div className="space-y-4 rounded-[24px] bg-white p-5">
           <div className="text-sm text-slate-600">This RR is not available in the Finance Department list anymore.</div>
-          <button type="button" onClick={() => navigate("/notifications")} className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]">
-            Back to Notifications
+          <button type="button" onClick={() => navigate("/finance/received-rr-lists")} className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]">
+            Back to Received RR Lists
           </button>
         </div>
       )}
@@ -138,20 +139,20 @@ export default function FinanceCategoryRrDetails() {
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-black text-[#10283f]">{selected.title}</h2>
+                <h2 className="text-2xl font-black text-[#10283f]">{requestDisplayName(selected)}</h2>
                 <StatusPill status={selected.status} />
               </div>
               <div className="mt-2 text-sm leading-7 text-slate-600">
                 {selected.divisionName || selected.facultyName || "Not assigned"} | {formatDateTime(selected.submittedAt)}
               </div>
             </div>
-            <button type="button" onClick={() => navigate("/notifications")} className="rounded-2xl border border-[#dce8ef] px-5 py-3 text-sm font-bold text-[#10283f] hover:bg-slate-50">
+            <button type="button" onClick={() => navigate("/finance/received-rr-lists")} className="rounded-2xl border border-[#dce8ef] px-5 py-3 text-sm font-bold text-[#10283f] hover:bg-slate-50">
               Back
             </button>
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-3">
-            <DetailTile label="RR Number" value={selected.rrNumber} />
+            <DetailTile label="Request Name" value={requestDisplayName(selected)} />
             <DetailTile label="Category" value={selected.vendorCategories || "Not recorded"} />
             <DetailTile label="Amount" value={formatMoney(selected.estimatedTotalAmount)} />
             <DetailTile label="Requested By" value={selected.requestedByName || "Not recorded"} />
@@ -240,6 +241,16 @@ export default function FinanceCategoryRrDetails() {
               })}
             </div>
           </section>
+
+          <div className="mt-6 flex justify-end">
+            <button
+              type="button"
+              onClick={() => navigate(`/bursar/create-rfq?rrId=${selected.rrId}&category=${encodeURIComponent(selected.vendorCategories || "")}`)}
+              className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
+            >
+              Create and send RFQ
+            </button>
+          </div>
         </section>
       )}
     </div>
@@ -285,7 +296,6 @@ function SubmittedRequisitionForm({ request }) {
               <div className="border-r border-slate-700 px-2 py-2 font-semibold">Date</div>
               <div className="px-2 py-2">{request.submittedAt ? new Date(request.submittedAt).toLocaleDateString() : ""}</div>
             </div>
-            <div className="text-right text-xs italic text-slate-600">To be Completed in triplicate</div>
           </div>
         </div>
 
@@ -324,18 +334,16 @@ function SubmittedRequisitionForm({ request }) {
               </td>
               <td colSpan={2} className={`${cell} px-3 py-2 text-center`}>
                 * If No should get the Vice Chancellor's approval
-                <div className="mt-4 font-black">Approved</div>
               </td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cell} px-3 py-2`}>Budgeted allocation Rs. {form.budgetAllocation || ""}</td>
-              <td rowSpan={3} colSpan={2} className={`${cell} px-3 py-8 text-center font-black`}>Vice Chancellor</td>
+              <td colSpan={4} className={`${cell} px-3 py-2`}>Budgeted allocation Rs. {form.budgetAllocation || ""}</td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cell} px-3 py-2`}>Used amount so far Rs. {form.usedAmount || ""}</td>
+              <td colSpan={4} className={`${cell} px-3 py-2`}>Used amount so far Rs. {form.usedAmount || ""}</td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cell} px-3 py-2`}>Balance available Rs. {form.balanceAvailable || ""}</td>
+              <td colSpan={4} className={`${cell} px-3 py-2`}>Balance available Rs. {form.balanceAvailable || ""}</td>
             </tr>
 
             <tr>

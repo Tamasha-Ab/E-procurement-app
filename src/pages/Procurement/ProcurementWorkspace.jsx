@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { procurementApi, vendorProcurementApi } from "../../api/procurementApi";
 import { formatDateTime, formatMoney } from "../../services/apiClient";
+import { requestDisplayName, rfqDisplayName, rfqContext } from "../../utils/procurementDisplay";
 
 const cardClass = "rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]";
 const inputClass = "w-full rounded-2xl border border-[#dce8ef] bg-white px-4 py-3 text-sm outline-none focus:border-[#166e8c]";
@@ -84,6 +85,58 @@ function getArray(data) {
   return [];
 }
 
+function parseVendorSpecificationRows(specificationText = "") {
+  return String(specificationText || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const withoutNumber = line.replace(/^\d+\.\s*/, "");
+      const [descriptionPart, detailPart = ""] = withoutNumber.split(/\s+-\s+Required:\s*/);
+      const [requiredPart = "", conformityPart = ""] = detailPart.split(/\s+\|\s+Conformity:\s*/);
+      const [conformity = "", bidderResponse = ""] = conformityPart.split(/\s+\|\s+Bidder Response:\s*/);
+      return {
+        description: descriptionPart.trim(),
+        requiredSpecification: requiredPart.trim(),
+        conformity: conformity.trim(),
+        bidderResponse: bidderResponse.trim(),
+      };
+    })
+    .filter((row) => row.description || row.requiredSpecification || row.conformity || row.bidderResponse);
+}
+
+function VendorSpecificationTable({ specificationText }) {
+  const rows = parseVendorSpecificationRows(specificationText);
+  if (!rows.length) {
+    return <div className="mt-2 text-sm leading-7 text-slate-700">Vendor did not submit a specification text.</div>;
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-[#c8dce7] bg-white">
+      <table className="w-full table-fixed border-collapse text-sm">
+        <thead className="bg-[#edf7fb] text-[#10283f]">
+          <tr>
+            <th className="w-[24%] border border-[#c8dce7] px-3 py-2 text-left">Description</th>
+            <th className="w-[36%] border border-[#c8dce7] px-3 py-2 text-left">Required Specification</th>
+            <th className="w-[14%] border border-[#c8dce7] px-3 py-2 text-center">Conformity</th>
+            <th className="w-[26%] border border-[#c8dce7] px-3 py-2 text-left">Bidder Response</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={`${row.description}-${index}`} className="bg-white">
+              <td className="break-words border border-[#c8dce7] px-3 py-2 align-top text-slate-700">{row.description || "Not provided"}</td>
+              <td className="break-words border border-[#c8dce7] px-3 py-2 align-top text-slate-700">{row.requiredSpecification || "Not provided"}</td>
+              <td className="break-words border border-[#c8dce7] px-3 py-2 text-center align-top font-bold text-[#10283f]">{row.conformity || "Not provided"}</td>
+              <td className="break-words border border-[#c8dce7] px-3 py-2 align-top text-slate-700">{row.bidderResponse || "N/A"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function Notice({ error, message }) {
   if (!error && !message) return null;
   return (
@@ -140,11 +193,11 @@ function RfqList({ rfqs, onSelect, selectedId }) {
           }`}
         >
           <div className="flex flex-wrap items-center gap-3">
-            <h3 className="text-lg font-black text-[#10283f]">{rfq.title || rfq.rfqNumber || `RFQ ${rfq.rfqId}`}</h3>
+            <h3 className="text-lg font-black text-[#10283f]">{rfqDisplayName(rfq)}</h3>
             <StatusPill status={rfq.status} />
           </div>
           <div className="mt-2 text-sm leading-7 text-slate-600">
-            ID {rfq.rfqId} | {rfq.rfqNumber || "No RFQ number"} | Opens {formatDateTime(rfq.bidOpeningDateTime)}
+            {rfqContext(rfq) || "Invitation"} | Opens {formatDateTime(rfq.bidOpeningDateTime)}
           </div>
         </button>
       ))}
@@ -218,7 +271,7 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
 
   const readyRequestOptions = readyRequests.map((request) => ({
     value: request.rrId,
-    label: `${request.rrNumber || `RR ${request.rrId}`} - ${request.title || "Untitled"} - ${formatMoney(request.estimatedTotalAmount)}`,
+    label: `${requestDisplayName(request)} - ${request.vendorCategories || request.divisionName || "Request"} - ${formatMoney(request.estimatedTotalAmount)}`,
   }));
   const tenderOptions = tenders
     .filter((tender) => tender.status === "READY_FOR_RFQ")
@@ -231,7 +284,7 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
     : readyRequests;
   const rfqOptions = rfqs.map((rfq) => ({
     value: rfq.rfqId,
-    label: `${rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - ${rfq.title || "Untitled"} - ${rfq.status || "DRAFT"}`,
+    label: `${rfqDisplayName(rfq)} - ${rfq.status || "DRAFT"}`,
   }));
   const acceptedOfferOptions = acceptedOffers.map((offer) => ({
     value: offer.offerLetterId,
@@ -558,14 +611,17 @@ function ProcurementOfficerWorkspace({ token, setError, setMessage }) {
   );
 }
 
-function TecWorkspace({ token, setError, setMessage }) {
+function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const tecQuery = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const requestedMeetingRfqId = tecQuery.get("section") === "meeting" ? tecQuery.get("rfqId") || "" : "";
   const requestedMeetingVendorId = tecQuery.get("section") === "meeting" ? tecQuery.get("vendorId") || "" : "";
   const requestedMeetingVendorName = tecQuery.get("section") === "meeting" ? tecQuery.get("vendorName") || "" : "";
   const requestedObjectionRfqId = tecQuery.get("section") === "objections" ? tecQuery.get("rfqId") || "" : "";
-  const [activeSection, setActiveSection] = useState("meeting");
+  const requestedQuotationRfqId = tecQuery.get("section") === "quotations" ? tecQuery.get("rfqId") || "" : "";
+  const reviewerLabel = quotationReviewOnly ? "BEC" : "TEC";
+  const [activeSection, setActiveSection] = useState(quotationReviewOnly ? "quotations" : "meeting");
   const [spec, setSpec] = useState(initialSpec);
   const [meeting, setMeeting] = useState(initialMeeting);
   const [completeMeeting, setCompleteMeeting] = useState({ meetingId: "", minutesDocumentUrl: "", changeSummary: "" });
@@ -591,15 +647,15 @@ function TecWorkspace({ token, setError, setMessage }) {
   );
   const publishedRfqOptions = publishedRfqs.map((rfq) => ({
     value: rfq.rfqId,
-    label: `${rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - ${rfq.title || "Untitled"} - ${rfq.status || "PUBLISHED"}`,
+    label: `${rfqDisplayName(rfq)} - ${rfqContext(rfq) || rfq.status || "PUBLISHED"}`,
   }));
   const loadedRfqOptions = [
     ...tecRfqs.map((rfq) => ({
       value: rfq.rfqId,
-      label: `${rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - ${rfq.title || "Untitled"} - ${rfq.status || "CREATED"}`,
+      label: `${rfqDisplayName(rfq)} - ${rfqContext(rfq) || rfq.status || "CREATED"}`,
     })),
     ...(rfqLookup && !tecRfqs.some((rfq) => String(rfq.rfqId) === String(rfqLookup))
-      ? [{ value: rfqLookup, label: `RFQ ID ${rfqLookup}` }]
+      ? [{ value: rfqLookup, label: `Selected request ${rfqLookup}` }]
       : []),
   ];
   const bidOptions = bids.map((bid) => ({
@@ -624,7 +680,7 @@ function TecWorkspace({ token, setError, setMessage }) {
     ? [{ value: meetingRecord.meetingId, label: `Meeting ${meetingRecord.meetingId} - ${meetingRecord.status || "Saved"}` }]
     : [];
   const selectedRfq = tecRfqs.find((rfq) => String(rfq.rfqId) === String(rfqLookup));
-  const selectedOpeningTime = selectedRfq?.bidOpeningDateTime || selectedRfq?.submissionDeadline;
+  const selectedOpeningTime = selectedRfq?.submissionDeadline || selectedRfq?.bidOpeningDateTime;
   const isSelectedRfqOpen = selectedOpeningTime ? new Date(selectedOpeningTime).getTime() <= Date.now() : false;
   const quotationsAreSealed = quotations.some((quotation) => quotation.sealed);
   const approvedQuotationItemsByItem = quotations
@@ -641,13 +697,15 @@ function TecWorkspace({ token, setError, setMessage }) {
         [key]: [...(groups[key] || []), item],
       };
     }, {});
-  const sections = [
-    { id: "meeting", label: "Pre-Bid Meeting" },
-    { id: "quotations", label: "Quotations" },
-    { id: "objections", label: "Objections" },
-    { id: "reports", label: "Rejected Reports" },
-    { id: "offer", label: "Offer Letter" },
-  ];
+  const sections = quotationReviewOnly
+    ? [{ id: "quotations", label: "Quotations" }]
+    : [
+        { id: "meeting", label: "Pre-Bid Meeting" },
+        { id: "quotations", label: "Quotations" },
+        { id: "objections", label: "Objections" },
+        { id: "reports", label: "Rejected Reports" },
+        { id: "offer", label: "Offer Letter" },
+      ];
 
   const update = (setter) => (event) => {
     const { name, value, type, checked } = event.target;
@@ -658,8 +716,8 @@ function TecWorkspace({ token, setError, setMessage }) {
     setError("");
     try {
       const [readyData, publishedData] = await Promise.all([
-        procurementApi.rfqs.readyForSpecifications(token).catch(() => []),
-        procurementApi.rfqs.publishedForTec(token),
+        quotationReviewOnly ? [] : procurementApi.rfqs.readyForSpecifications(token).catch(() => []),
+        quotationReviewOnly ? procurementApi.rfqs.publishedForBec(token) : procurementApi.rfqs.publishedForTec(token),
       ]);
       const readyRfqs = getArray(readyData);
       const publishedList = getArray(publishedData);
@@ -668,13 +726,15 @@ function TecWorkspace({ token, setError, setMessage }) {
       const selectableRfqs = Array.from(
         new Map([...readyRfqs, ...publishedList].filter((rfq) => rfq?.rfqId).map((rfq) => [String(rfq.rfqId), rfq])).values()
       );
-      if (requestedMeetingRfqId) {
+      if (requestedQuotationRfqId) {
+        selectLoadedRfq(requestedQuotationRfqId);
+      } else if (requestedMeetingRfqId) {
         selectLoadedRfq(requestedMeetingRfqId);
       } else if (selectableRfqs.length && !rfqLookup) {
         selectLoadedRfq(String(selectableRfqs[0].rfqId));
       }
     } catch (err) {
-      setError(err.message || "Could not load TEC RFQs.");
+      setError(err.message || `Could not load ${reviewerLabel} RFQs.`);
     }
   };
 
@@ -715,6 +775,14 @@ function TecWorkspace({ token, setError, setMessage }) {
     setError("");
     setMessage("");
     try {
+      if (quotationReviewOnly) {
+        const quotationData = await procurementApi.rfqs.quotations(token, targetRfqId);
+        setQuotations(getArray(quotationData));
+        setSelectedQuotation(null);
+        setRfqLookup(targetRfqId);
+        setMessage("RFQ quotation data loaded.");
+        return;
+      }
       const [bidData, quotationData, objectionData, reportData, meetingData] = await Promise.all([
         procurementApi.rfqs.bids(token, targetRfqId),
         procurementApi.rfqs.quotations(token, targetRfqId),
@@ -738,6 +806,14 @@ function TecWorkspace({ token, setError, setMessage }) {
       setError(err.message || "Could not load RFQ evaluation data.");
     }
   };
+
+  useEffect(() => {
+    if (requestedQuotationRfqId) {
+      setActiveSection("quotations");
+      selectLoadedRfq(requestedQuotationRfqId);
+      loadRfqWork(null, requestedQuotationRfqId);
+    }
+  }, [requestedQuotationRfqId]);
 
   const createSpec = async (event) => {
     event.preventDefault();
@@ -860,6 +936,10 @@ function TecWorkspace({ token, setError, setMessage }) {
       });
       setMessage(technicallyQualified ? "Quotation item approved and added to its approved list." : "Quotation item rejected with comment.");
       setQuotationItemDecisions((current) => ({ ...current, [itemId]: { technicallyQualified: true, evaluationComment: "" } }));
+      if (quotationReviewOnly && technicallyQualified) {
+        navigate("/approvals/bec/vendor-review");
+        return;
+      }
       loadRfqWork();
     } catch (err) {
       setError(err.message || "Could not evaluate quotation item.");
@@ -1097,16 +1177,15 @@ This offer letter is issued for the selected quotation item listed above.`;
       )}
 
       {activeSection === "quotations" && (
-        <ActionCard eyebrow="RFQ Quotations" title="Check and Evaluate Vendor Quotations">
+        <ActionCard eyebrow="RFQ Quotations" title={quotationReviewOnly ? "BEC Vendor Specification Review" : "Check and Evaluate Vendor Quotations"}>
           <DataTable
             rows={publishedRfqs}
             empty="No published RFQs available for quotation checking."
             columns={[
-              { key: "rfqId", label: "RFQ ID" },
-              { key: "rfqNumber", label: "RFQ" },
-              { key: "title", label: "Title" },
+              { key: "title", label: "Quotation Request", render: (row) => rfqDisplayName(row) },
+              { key: "category", label: "Context", render: (row) => rfqContext(row) || "Not recorded" },
               { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
-              { key: "bidOpeningDateTime", label: "Opening Time", render: (row) => formatDateTime(row.bidOpeningDateTime || row.submissionDeadline) },
+              { key: "bidOpeningDateTime", label: "Closing Time", render: (row) => formatDateTime(row.submissionDeadline || row.bidOpeningDateTime) },
             ]}
           />
           <form onSubmit={loadRfqWork} className="grid gap-3 md:grid-cols-[1fr_auto]">
@@ -1124,20 +1203,20 @@ This offer letter is issued for the selected quotation item listed above.`;
           {selectedRfq && (
             <div className={`rounded-[24px] p-4 text-sm font-semibold ${isSelectedRfqOpen ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
               {isSelectedRfqOpen
-                ? `RFQ ${selectedRfq.rfqNumber || selectedRfq.rfqId} is open for quotation evaluation.`
-                : `RFQ ${selectedRfq.rfqNumber || selectedRfq.rfqId} quotations are sealed until ${formatDateTime(selectedOpeningTime)}.`}
+                ? `${rfqDisplayName(selectedRfq)} is open for quotation evaluation.`
+                : `${rfqDisplayName(selectedRfq)} quotations are sealed until ${formatDateTime(selectedOpeningTime)}.`}
             </div>
           )}
           <DataTable
             rows={quotations}
-            empty="Select an RFQ and click Load Tender Data to see submitted quotations."
+            empty="Select an RFQ and click Show Quotations to see submitted quotations."
             columns={[
               { key: "quotationId", label: "Quotation ID" },
-              { key: "vendorName", label: "Vendor", render: (row) => (row.sealed ? "Sealed until opening" : row.vendorName || "Vendor") },
+              { key: "vendorName", label: "Vendor", render: (row) => (row.sealed ? "Sealed until closing" : row.vendorName || "Vendor") },
               { key: "quotedAmount", label: "Amount", render: (row) => (row.sealed ? "Sealed" : formatMoney(row.quotedAmount)) },
               { key: "deliveryPeriodDays", label: "Delivery Days", render: (row) => (row.sealed ? "Sealed" : row.deliveryPeriodDays ?? "Not set") },
               { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
-              { key: "openingDateTime", label: "Opening Time", render: (row) => formatDateTime(row.openingDateTime || selectedOpeningTime) },
+              { key: "openingDateTime", label: "Closing Time", render: (row) => formatDateTime(row.openingDateTime || selectedOpeningTime) },
               { key: "technicallyQualified", label: "Qualified", render: (row) => (row.sealed ? "Locked" : row.technicallyQualified ? "Yes" : "No") },
               {
                 key: "actions",
@@ -1151,7 +1230,7 @@ This offer letter is issued for the selected quotation item listed above.`;
             ]}
           />
           {quotationsAreSealed && (
-            <EmptyState text="Quotation details are locked. TEC can open and evaluate these quotations only after the official opening time." />
+            <EmptyState text={`Quotation details are locked. ${reviewerLabel} can open and evaluate these quotations only after the bid closing time.`} />
           )}
           {selectedQuotation ? (
             <div className="rounded-[28px] border border-[#dce8ef] bg-[#fbfdff] p-5">
@@ -1179,7 +1258,7 @@ This offer letter is issued for the selected quotation item listed above.`;
                       <div className="text-sm font-black text-[#10283f]">{item.requisitionItemName || `Item ${item.requisitionItemId}`}</div>
                       <div className="text-sm font-bold text-[#166e8c]">{formatMoney(item.quotedTotalPrice)}</div>
                     </div>
-                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div className="mt-4 grid gap-4">
                       <div className="rounded-2xl bg-slate-50 p-4">
                         <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">University / RR Specification</div>
                         <div className="mt-2 text-sm leading-7 text-slate-700">{item.requiredSpecification || "No RR specification linked to this item."}</div>
@@ -1189,7 +1268,7 @@ This offer letter is issued for the selected quotation item listed above.`;
                       </div>
                       <div className="rounded-2xl bg-[#edf7fb] p-4">
                         <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Vendor Specification</div>
-                        <div className="mt-2 text-sm leading-7 text-slate-700">{item.vendorSpecification || "Vendor did not submit a specification text."}</div>
+                        <VendorSpecificationTable specificationText={item.vendorSpecification} />
                         {item.specificationDocumentUrl && (
                           <a className="mt-3 inline-block text-sm font-bold text-[#166e8c]" href={item.specificationDocumentUrl} target="_blank" rel="noreferrer">Open vendor spec document</a>
                         )}
@@ -1209,7 +1288,7 @@ This offer letter is issued for the selected quotation item listed above.`;
                       </div>
                       {item.tecComment && (
                         <div className="mt-3 rounded-xl bg-slate-100 p-3 text-sm leading-6 text-slate-700">
-                          TEC comment: {item.tecComment}
+                          {reviewerLabel} comment: {item.tecComment}
                         </div>
                       )}
                       {itemApproved ? (
@@ -1263,7 +1342,7 @@ This offer letter is issued for the selected quotation item listed above.`;
             <EmptyState text="Click View Details on a quotation to compare RR specifications with vendor specifications and approve or reject each item separately." />
           ) : null}
 
-          <div className="rounded-[28px] border border-[#dce8ef] bg-white p-5">
+          {!quotationReviewOnly && <div className="rounded-[28px] border border-[#dce8ef] bg-white p-5">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Approved Quotation Lists By Item</div>
             <div className="mt-4">
               {!Object.keys(approvedQuotationItemsByItem).length ? (
@@ -1324,8 +1403,8 @@ This offer letter is issued for the selected quotation item listed above.`;
                 </div>
               )}
             </div>
-          </div>
-          {offerLetterDraft && (
+          </div>}
+          {!quotationReviewOnly && offerLetterDraft && (
             <div className="rounded-[28px] border border-[#b9dce8] bg-[#f8fcff] p-5 shadow-[0_18px_45px_rgba(15,41,64,0.08)]">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Offer Letter</div>
               <h3 className="mt-2 text-xl font-black text-[#10283f]">
@@ -1454,11 +1533,11 @@ function VendorWorkspace({ token, setError, setMessage, focusQuotation = false, 
 
   const rfqOptions = rfqs.map((rfq) => ({
     value: rfq.rfqId,
-    label: `${rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - ${rfq.title || "Untitled"} - ${rfq.status || "PUBLISHED"}`,
+    label: `${rfqDisplayName(rfq)} - ${rfqContext(rfq) || rfq.status || "PUBLISHED"}`,
   }));
   const selectedQuotationRfq = rfqs.find((rfq) => String(rfq.rfqId) === String(quotationForm.rfqId));
   const selectedQuotationItems = selectedQuotationRfq?.requisitionRequests?.flatMap((rr) =>
-    (rr.items || []).map((item) => ({ ...item, rrNumber: rr.rrNumber, rrTitle: rr.title }))
+    (rr.items || []).map((item) => ({ ...item, requestName: requestDisplayName(rr), rrTitle: rr.title }))
   ) || [];
   const quotedItemIdsForSelectedRfq = new Set(
     quotations
@@ -1687,7 +1766,7 @@ function VendorWorkspace({ token, setError, setMessage, focusQuotation = false, 
             <div className="rounded-[24px] border border-[#dce8ef] bg-[#fbfdff] p-4">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Tender Items</div>
               <h3 className="mt-2 text-lg font-black text-[#10283f]">
-                {selectedQuotationRfq.tenderNumber || selectedQuotationRfq.rfqNumber} - {selectedQuotationRfq.tenderTitle || selectedQuotationRfq.title}
+                {rfqDisplayName(selectedQuotationRfq)}
               </h3>
               <div className="mt-4 space-y-3">
                 {!selectedQuotationItems.length && <EmptyState text="No RR items are linked to this RFQ." />}
@@ -1707,7 +1786,7 @@ function VendorWorkspace({ token, setError, setMessage, focusQuotation = false, 
                         <span>
                           <span className="block text-sm font-black text-[#10283f]">{item.itemName}</span>
                           <span className="block text-xs leading-6 text-slate-600">
-                            {item.rrNumber} - {item.rrTitle} | Requested qty {item.quantity} {item.unitOfMeasure || ""}
+                            {item.requestName || item.rrTitle || "Related request"} | Requested qty {item.quantity} {item.unitOfMeasure || ""}
                           </span>
                           {alreadyQuoted && <span className="mt-1 block text-xs font-bold text-emerald-700">Quotation already submitted for this item</span>}
                           {item.description && <span className="block text-xs leading-6 text-slate-600">{item.description}</span>}
@@ -1791,7 +1870,7 @@ function VendorWorkspace({ token, setError, setMessage, focusQuotation = false, 
           empty="No bids submitted yet."
           columns={[
             { key: "bidId", label: "Bid ID" },
-            { key: "rfqNumber", label: "RFQ" },
+            { key: "title", label: "Quotation Request", render: (row) => rfqDisplayName(row, "Submitted bid") },
             { key: "bidAmount", label: "Amount", render: (row) => formatMoney(row.bidAmount) },
             { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
           ]}
@@ -1806,7 +1885,7 @@ function VendorWorkspace({ token, setError, setMessage, focusQuotation = false, 
           empty="No quotations submitted yet."
           columns={[
             { key: "quotationId", label: "Quotation ID" },
-            { key: "rfqNumber", label: "RFQ" },
+            { key: "title", label: "Quotation Request", render: (row) => rfqDisplayName(row, "Submitted quotation") },
             { key: "quotedAmount", label: "Amount", render: (row) => formatMoney(row.quotedAmount) },
             { key: "deliveryPeriodDays", label: "Delivery Days" },
             { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
@@ -1898,13 +1977,13 @@ export default function ProcurementWorkspace() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const focusQuotation = user?.mainRole === "VENDOR"
-    && (location.pathname === "/vendor/tenders" || query.get("section") === "quotation");
+  const focusQuotation = user?.mainRole === "VENDOR" && query.get("section") === "quotation";
   const initialRfqId = query.get("rfqId") || "";
 
   const role = useMemo(() => {
     if (user?.mainRole === "VENDOR") return "VENDOR";
     if (user?.mainRole === "FINANCE" && user?.subRole === "PROCUREMENT_OFFICER") return "PROCUREMENT_OFFICER";
+    if (user?.mainRole === "FINANCE" && user?.subRole === "BEC") return "BEC";
     if (user?.mainRole === "FACULTY_STAFF" && user?.subRole === "TEC") return "TEC";
     return "UNSUPPORTED";
   }, [user]);
@@ -1919,6 +1998,11 @@ export default function ProcurementWorkspace() {
       eyebrow: "Technical Evaluation Committee",
       title: "Bid Evaluation Workspace",
       description: "Manage specifications, optional pre-bid meetings, sealed bid evaluation, objections, recommendations, and offer letters.",
+    },
+    BEC: {
+      eyebrow: "Bid Evaluation Committee",
+      title: "Quotation Specification Review",
+      description: "Review vendor quotations after the bid closing time and compare vendor specifications with RR specifications.",
     },
     VENDOR: {
       eyebrow: "Vendor Portal",
@@ -1945,6 +2029,7 @@ export default function ProcurementWorkspace() {
 
       {role === "PROCUREMENT_OFFICER" && <ProcurementOfficerWorkspace token={token} setError={setError} setMessage={setMessage} />}
       {role === "TEC" && <TecWorkspace token={token} setError={setError} setMessage={setMessage} />}
+      {role === "BEC" && <TecWorkspace token={token} setError={setError} setMessage={setMessage} quotationReviewOnly />}
       {role === "VENDOR" && (
         <VendorWorkspace
           token={token}
@@ -1954,7 +2039,7 @@ export default function ProcurementWorkspace() {
           initialRfqId={initialRfqId}
         />
       )}
-      {role === "UNSUPPORTED" && <EmptyState text="Please login using PROCUREMENT_OFFICER, TEC, or VENDOR role to use this module." />}
+      {role === "UNSUPPORTED" && <EmptyState text="Please login using PROCUREMENT_OFFICER, BEC, TEC, or VENDOR role to use this module." />}
     </div>
   );
 }

@@ -239,7 +239,6 @@ function SubmittedRequisitionForm({ request }) {
               <div className="border-r border-slate-700 px-2 py-2 font-semibold">Date</div>
               <div className="px-2 py-2">{request?.submittedAt ? new Date(request.submittedAt).toLocaleDateString() : ""}</div>
             </div>
-            <div className="text-right text-xs italic text-slate-600">To be Completed in triplicate</div>
           </div>
         </div>
 
@@ -278,18 +277,16 @@ function SubmittedRequisitionForm({ request }) {
               </td>
               <td colSpan={2} className={`${cell} px-3 py-2 text-center`}>
                 * If No should get the Vice Chancellor's approval
-                <div className="mt-4 font-black">Approved</div>
               </td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cell} px-3 py-2`}>Budgeted allocation Rs. {form.budgetAllocation || ""}</td>
-              <td rowSpan={3} colSpan={2} className={`${cell} px-3 py-8 text-center font-black`}>Vice Chancellor</td>
+              <td colSpan={4} className={`${cell} px-3 py-2`}>Budgeted allocation Rs. {form.budgetAllocation || ""}</td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cell} px-3 py-2`}>Used amount so far Rs. {form.usedAmount || ""}</td>
+              <td colSpan={4} className={`${cell} px-3 py-2`}>Used amount so far Rs. {form.usedAmount || ""}</td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cell} px-3 py-2`}>Balance available Rs. {form.balanceAvailable || ""}</td>
+              <td colSpan={4} className={`${cell} px-3 py-2`}>Balance available Rs. {form.balanceAvailable || ""}</td>
             </tr>
 
             <tr>

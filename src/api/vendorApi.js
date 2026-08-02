@@ -56,6 +56,9 @@ export const vendorApi = {
   profile: {
     get: () => vendorRequest(profilePath),
     resubmit: (payload) => vendorRequest(`${profilePath}/resubmit`, { method: "PATCH", body: payload }),
+    quotationDocuments: () => vendorRequest(`${profilePath}/quotation-documents`),
+    saveQuotationDocuments: (quotationDocuments) =>
+      vendorRequest(`${profilePath}/quotation-documents`, { method: "PATCH", body: { quotationDocuments } }),
   },
   catalog: {
     list: () => vendorRequest(catalogPath),
@@ -86,5 +89,6 @@ export const vendorApi = {
   },
   purchaseOrders: {
     list: () => vendorRequest(`${basePath}/purchase-orders`),
+    detail: (poId) => vendorRequest(`${basePath}/purchase-orders/${poId}`),
   },
 };

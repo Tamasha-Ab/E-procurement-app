@@ -19,6 +19,7 @@ export const procurementApi = {
     list: (token) => apiRequest(`${procurementBase}/rfqs?page=0&size=20`, { token }),
     readyForSpecifications: (token) => apiRequest(`${procurementBase}/rfqs/ready-for-specifications`, { token }),
     publishedForTec: (token) => apiRequest(`${procurementBase}/tec/published-rfqs`, { token }),
+    publishedForBec: (token) => apiRequest(`${procurementBase}/bec/published-rfqs`, { token }),
     detail: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}`, { token }),
     create: (token, payload) => apiRequest(`${procurementBase}/rfqs`, { token, method: "POST", body: payload }),
     inviteVendors: (token, rfqId, payload) =>
@@ -62,6 +63,12 @@ export const procurementApi = {
   offers: {
     create: (token, rfqId, payload) =>
       apiRequest(`${procurementBase}/rfqs/${rfqId}/offer-letters`, { token, method: "POST", body: payload }),
+    pendingAuthority: (token) => apiRequest(`${procurementBase}/offer-letters/pending-authority`, { token }),
+    decideAuthority: (token, offerLetterId, payload) =>
+      apiRequest(`${procurementBase}/offer-letters/${offerLetterId}/authority-decision`, { token, method: "PATCH", body: payload }),
+    selectedVendors: (token) => apiRequest(`${procurementBase}/offer-letters/selected-vendors`, { token }),
+    sendToVendor: (token, offerLetterId) =>
+      apiRequest(`${procurementBase}/offer-letters/${offerLetterId}/send-to-vendor`, { token, method: "PATCH" }),
   },
   purchaseOrders: {
     acceptedOffers: (token) => apiRequest(`${procurementBase}/accepted-offer-letters`, { token }),

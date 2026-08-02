@@ -4,6 +4,7 @@ import StatusPill from "../../components/StatusPill";
 import { procurementApi } from "../../api/procurementApi";
 import { useAuth } from "../../contexts/AuthContext";
 import { formatDateTime } from "../../services/apiClient";
+import { rfqDisplayName, requestDisplayName, rfqContext } from "../../utils/procurementDisplay";
 
 const cardClass = "rounded-[28px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]";
 
@@ -77,11 +78,11 @@ export default function ProcurementRfqList() {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-xl font-black text-[#10283f]">{rfq.title || rfq.rfqNumber}</h3>
+                    <h3 className="text-xl font-black text-[#10283f]">{rfqDisplayName(rfq)}</h3>
                     <StatusPill status={rfq.status} />
                   </div>
                   <div className="mt-2 text-sm leading-7 text-slate-600">
-                    {rfq.rfqNumber || `RFQ ${rfq.rfqId}`} | Created by {rfq.createdByName || "Procurement Officer"}
+                    {rfqContext(rfq) || "Quotation request"} | Created by {rfq.createdByName || "Procurement Officer"}
                   </div>
                 </div>
                 <div className="rounded-2xl bg-[#edf7fb] px-4 py-3 text-sm font-bold text-[#166e8c]">
@@ -90,7 +91,7 @@ export default function ProcurementRfqList() {
               </div>
 
               <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <Detail label="Linked RR" value={rfq.rrNumber || "Tender-level RFQ"} />
+                <Detail label="Linked Request" value={requestDisplayName(rfq.requisitionRequests?.[0] || rfq, "Tender-level request")} />
                 <Detail label="Bid Start" value={formatDateTime(rfq.bidStartDateTime)} />
                 <Detail label="Submission Deadline" value={formatDateTime(rfq.submissionDeadline)} />
                 <Detail label="Bid Opening" value={formatDateTime(rfq.bidOpeningDateTime)} />

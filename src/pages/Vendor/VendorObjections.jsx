@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { vendorApi } from "../../api/vendorApi";
+import { rfqDisplayName, rfqContext } from "../../utils/procurementDisplay";
 
 const inputClass = "w-full rounded-2xl border border-[#dce8ef] bg-white px-4 py-3 text-sm outline-none focus:border-[#166e8c]";
 const buttonClass = "rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79] disabled:opacity-60";
@@ -108,7 +109,7 @@ export default function VendorObjections() {
               <option value="">{loading ? "Loading RFQs..." : "Select RFQ"}</option>
               {rfqs.map((rfq) => (
                 <option key={rfq.rfqId} value={rfq.rfqId}>
-                  {rfq.rfqNumber || `RFQ ${rfq.rfqId}`} - {rfq.title || "Untitled"}
+                  {rfqDisplayName(rfq)}{rfqContext(rfq) ? ` - ${rfqContext(rfq)}` : ""}
                 </option>
               ))}
             </select>
@@ -117,7 +118,7 @@ export default function VendorObjections() {
           {selectedRfq ? (
             <div className="rounded-[24px] bg-[#f8fcff] p-5 text-sm leading-7 text-slate-600">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="font-black text-[#10283f]">{selectedRfq.rfqNumber || `RFQ ${selectedRfq.rfqId}`}</span>
+                <span className="font-black text-[#10283f]">{rfqDisplayName(selectedRfq)}</span>
                 <StatusPill status={deadlineClosed ? "OBJECTION_CLOSED" : "OBJECTION_OPEN"} />
               </div>
               <div className="mt-2">Objection deadline: {formatDate(selectedRfq.objectionDeadline)}</div>

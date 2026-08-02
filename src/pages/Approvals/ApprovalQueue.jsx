@@ -7,6 +7,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatMoney } from "../../services/apiClient";
 import { downloadRequisitionForm } from "../../utils/requisitionDocument";
 import { VENDOR_CATEGORY_OPTIONS } from "../../constants/vendorCategories";
+import { requestDisplayName, requestContext } from "../../utils/procurementDisplay";
 
 const emptySpecForm = {
   specId: null,
@@ -504,11 +505,11 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                 className={`w-full rounded-[26px] border p-5 text-left transition ${selected?.rrId === request.rrId ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#dce8ef] bg-white hover:bg-[#f8fcff]"}`}
               >
                 <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-lg font-black text-[#10283f]">{request.title}</h3>
+                  <h3 className="text-lg font-black text-[#10283f]">{requestDisplayName(request)}</h3>
                   <StatusPill status={request.status} />
                 </div>
                 <div className="mt-2 text-sm leading-7 text-slate-600">
-                  {request.rrNumber} | {request.divisionName || request.facultyName || "Division"} | {formatMoney(request.estimatedTotalAmount)}
+                  {requestContext(request) || request.divisionName || request.facultyName || "Division"} | {formatMoney(request.estimatedTotalAmount)}
                 </div>
               </button>
             ))}
@@ -524,8 +525,8 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
           ) : (
             <div className="mt-6 space-y-5">
               <div>
-                <h3 className="text-2xl font-black text-[#10283f]">{selected.title}</h3>
-                <div className="mt-2 text-sm leading-7 text-slate-600">{selected.rrNumber}</div>
+                <h3 className="text-2xl font-black text-[#10283f]">{requestDisplayName(selected)}</h3>
+                <div className="mt-2 text-sm leading-7 text-slate-600">{requestContext(selected) || selected.divisionName || selected.facultyName || "Request details"}</div>
               </div>
               <button type="button" onClick={() => downloadRequisitionForm(selected)} className="inline-flex items-center gap-2 rounded-2xl border border-[#dce8ef] px-4 py-2 text-sm font-bold text-[#166e8c] transition hover:bg-[#edf7fb]">
                 <DownloadRoundedIcon fontSize="small" />
@@ -533,7 +534,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
               </button>
 
               <div className="grid gap-3 md:grid-cols-2">
-                <DetailTile label="RR Number" value={selected.rrNumber} />
+                <DetailTile label="Request Name" value={requestDisplayName(selected)} />
                 <DetailTile label="Requested By" value={selected.requestedByName || "Staff member"} />
                 <DetailTile label="Faculty" value={selected.facultyName || "Not recorded"} />
                 <DetailTile label="Division" value={selected.divisionName || "Not recorded"} />
@@ -790,11 +791,11 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                   className={`w-full rounded-[26px] border p-5 text-left transition ${selectedAccepted?.rrId === request.rrId ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#dce8ef] bg-white hover:bg-[#f8fcff]"}`}
                 >
                   <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-lg font-black text-[#10283f]">{request.title}</h3>
+                    <h3 className="text-lg font-black text-[#10283f]">{requestDisplayName(request)}</h3>
                     <StatusPill status={request.status} />
                   </div>
                   <div className="mt-2 text-sm leading-7 text-slate-600">
-                    {request.rrNumber} | {request.divisionName || request.facultyName || "Division"} | Priority {request.priority || "Not set"} | Specs {(request.technicalSpecifications || []).length}
+                    {requestContext(request) || request.divisionName || request.facultyName || "Division"} | Priority {request.priority || "Not set"} | Specs {(request.technicalSpecifications || []).length}
                   </div>
                   {(request.items || []).length > 1 && (
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -865,7 +866,6 @@ function SubmittedRequisitionForm({ request }) {
               <div className="border-r border-slate-700 px-2 py-2 font-semibold">Date</div>
               <div className="px-2 py-2">{request.submittedAt ? new Date(request.submittedAt).toLocaleDateString() : ""}</div>
             </div>
-            <div className="text-right text-xs italic text-slate-600">To be Completed in triplicate</div>
           </div>
         </div>
 
@@ -904,18 +904,16 @@ function SubmittedRequisitionForm({ request }) {
               </td>
               <td colSpan={2} className={`${cell} px-3 py-2 text-center`}>
                 * If No should get the Vice Chancellor's approval
-                <div className="mt-4 font-black">Approved</div>
               </td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cell} px-3 py-2`}>Budgeted allocation Rs. {form.budgetAllocation || ""}</td>
-              <td rowSpan={3} colSpan={2} className={`${cell} px-3 py-8 text-center font-black`}>Vice Chancellor</td>
+              <td colSpan={4} className={`${cell} px-3 py-2`}>Budgeted allocation Rs. {form.budgetAllocation || ""}</td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cell} px-3 py-2`}>Used amount so far Rs. {form.usedAmount || ""}</td>
+              <td colSpan={4} className={`${cell} px-3 py-2`}>Used amount so far Rs. {form.usedAmount || ""}</td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cell} px-3 py-2`}>Balance available Rs. {form.balanceAvailable || ""}</td>
+              <td colSpan={4} className={`${cell} px-3 py-2`}>Balance available Rs. {form.balanceAvailable || ""}</td>
             </tr>
 
             <tr>

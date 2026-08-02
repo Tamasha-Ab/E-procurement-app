@@ -109,10 +109,10 @@ export default function FinanceDashboard() {
           </div>
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             <SummaryTile
-              label="Finance Department RRs"
+              label="Received RR Lists"
               value={summary.pendingRrs}
-              helper="Waiting at finance review"
-              onClick={() => navigate("/bursar/budgets?tab=approvals")}
+              helper="BEC submitted category-wise RRs"
+              onClick={() => navigate("/finance/received-rr-lists")}
             />
             <SummaryTile
               label="Final RR List"

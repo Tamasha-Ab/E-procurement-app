@@ -4,6 +4,7 @@ import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney } from "../../services/apiClient";
+import { requestDisplayName, requestContext } from "../../utils/procurementDisplay";
 
 export default function MyRequisitions() {
   const { token } = useAuth();
@@ -61,11 +62,11 @@ export default function MyRequisitions() {
               >
                 <div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-lg font-black text-[#10283f]">{request.title}</h3>
+                    <h3 className="text-lg font-black text-[#10283f]">{requestDisplayName(request)}</h3>
                     <StatusPill status={request.status} />
                   </div>
                   <div className="mt-2 text-sm leading-7 text-slate-600">
-                    {request.rrNumber} | Stage: {request.currentStage} | {request.status === "DRAFT" ? `Updated: ${formatDateTime(request.updatedAt)}` : `Submitted: ${formatDateTime(request.submittedAt)}`}
+                    {requestContext(request) || `Stage: ${request.currentStage}`} | {request.status === "DRAFT" ? `Updated: ${formatDateTime(request.updatedAt)}` : `Submitted: ${formatDateTime(request.submittedAt)}`}
                   </div>
                 </div>
                 <div className="text-right">

@@ -4,6 +4,7 @@ import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney } from "../../services/apiClient";
+import { requestDisplayName } from "../../utils/procurementDisplay";
 
 const sampleImageSrc = (spec) => {
   if (!spec?.sampleImageBase64) return null;
@@ -135,7 +136,7 @@ export default function BecCategoryList() {
       await apiRequest(`/api/approvals/bec/category-list/${request.rrId}/undo`, {
         token,
         method: "POST",
-        body: { comment: `BEC moved ${request.rrNumber} back to the queue` },
+        body: { comment: `BEC moved ${requestDisplayName(request)} back to the queue` },
       });
       navigate("/approvals/bec");
     } catch (err) {
@@ -150,7 +151,7 @@ export default function BecCategoryList() {
       <div className="space-y-8">
         <PageHero
           eyebrow="BEC"
-          title={selectedRequest?.rrNumber || "Category List RR"}
+          title={selectedRequest ? requestDisplayName(selectedRequest) : "Category List Request"}
           description="View the categorized RR details before sending or undoing the category assignment."
         >
           <div className="rounded-[24px] bg-white/10 p-5 text-right backdrop-blur">
@@ -179,7 +180,7 @@ export default function BecCategoryList() {
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-2xl font-black text-[#10283f]">{selectedRequest.title}</h2>
+                  <h2 className="text-2xl font-black text-[#10283f]">{requestDisplayName(selectedRequest)}</h2>
                   <StatusPill status={selectedRequest.status} />
                 </div>
                 <div className="mt-2 text-sm leading-7 text-slate-600">
@@ -202,7 +203,7 @@ export default function BecCategoryList() {
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
-              <DetailTile label="RR Number" value={selectedRequest.rrNumber} />
+              <DetailTile label="Request Name" value={requestDisplayName(selectedRequest)} />
               <DetailTile label="Category" value={selectedRequest.vendorCategories} />
               <DetailTile label="Amount" value={formatMoney(selectedRequest.estimatedTotalAmount)} />
               <DetailTile label="Requested By" value={selectedRequest.requestedByName} />
@@ -328,7 +329,7 @@ export default function BecCategoryList() {
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Category</div>
                 <h2 className="mt-2 text-2xl font-black text-[#10283f]">{category}</h2>
-                <div className="mt-2 text-sm text-slate-600">{categoryRequests.length} RR{categoryRequests.length === 1 ? "" : "s"} in this list</div>
+                <div className="mt-2 text-sm text-slate-600">{categoryRequests.length} request{categoryRequests.length === 1 ? "" : "s"} in this list</div>
               </div>
               <button
                 type="button"
@@ -344,8 +345,8 @@ export default function BecCategoryList() {
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-[#f5fbff] text-xs uppercase tracking-[0.18em] text-[#166e8c]">
                   <tr>
-                    <th className="px-4 py-3">RR</th>
-                    <th className="px-4 py-3">Title</th>
+                    <th className="px-4 py-3">Request</th>
+                    <th className="px-4 py-3">Category</th>
                     <th className="px-4 py-3">Division</th>
                     <th className="px-4 py-3">Amount</th>
                     <th className="px-4 py-3">Status</th>
@@ -355,8 +356,8 @@ export default function BecCategoryList() {
                 <tbody className="divide-y divide-slate-100">
                   {categoryRequests.map((request) => (
                     <tr key={request.rrId}>
-                      <td className="px-4 py-3 font-bold text-[#10283f]">{request.rrNumber}</td>
-                      <td className="px-4 py-3 text-slate-700">{request.title}</td>
+                      <td className="px-4 py-3 font-bold text-[#10283f]">{requestDisplayName(request)}</td>
+                      <td className="px-4 py-3 text-slate-700">{request.vendorCategories || "Uncategorized"}</td>
                       <td className="px-4 py-3 text-slate-600">{request.divisionName || request.facultyName || "Not assigned"}</td>
                       <td className="px-4 py-3 font-semibold text-[#166e8c]">{formatMoney(request.estimatedTotalAmount)}</td>
                       <td className="px-4 py-3"><StatusPill status={request.status} /></td>
@@ -430,7 +431,6 @@ function SubmittedRequisitionForm({ request }) {
               <div className="border-r border-slate-700 px-2 py-2 font-semibold">Date</div>
               <div className="px-2 py-2">{request.submittedAt ? new Date(request.submittedAt).toLocaleDateString() : ""}</div>
             </div>
-            <div className="text-right text-xs italic text-slate-600">To be Completed in triplicate</div>
           </div>
         </div>
 
@@ -469,18 +469,16 @@ function SubmittedRequisitionForm({ request }) {
               </td>
               <td colSpan={2} className={`${cell} px-3 py-2 text-center`}>
                 * If No should get the Vice Chancellor's approval
-                <div className="mt-4 font-black">Approved</div>
               </td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cell} px-3 py-2`}>Budgeted allocation Rs. {form.budgetAllocation || ""}</td>
-              <td rowSpan={3} colSpan={2} className={`${cell} px-3 py-8 text-center font-black`}>Vice Chancellor</td>
+              <td colSpan={4} className={`${cell} px-3 py-2`}>Budgeted allocation Rs. {form.budgetAllocation || ""}</td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cell} px-3 py-2`}>Used amount so far Rs. {form.usedAmount || ""}</td>
+              <td colSpan={4} className={`${cell} px-3 py-2`}>Used amount so far Rs. {form.usedAmount || ""}</td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cell} px-3 py-2`}>Balance available Rs. {form.balanceAvailable || ""}</td>
+              <td colSpan={4} className={`${cell} px-3 py-2`}>Balance available Rs. {form.balanceAvailable || ""}</td>
             </tr>
 
             <tr>

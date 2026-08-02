@@ -15,6 +15,7 @@ import Layout from "./components/Layout.jsx";
 import Dashboard from "./pages/Dashboard/dashboard.jsx";
 import BursarBudgetWorkspace from "./pages/Bursar/BursarBudgetWorkspace.jsx";
 import FinanceCategoryRrDetails from "./pages/Bursar/FinanceCategoryRrDetails.jsx";
+import ReceivedRrLists from "./pages/Bursar/ReceivedRrLists.jsx";
 import BursarTenderWorkspace from "./pages/Bursar/BursarTenderWorkspace.jsx";
 import BursarAuditTrail from "./pages/Bursar/BursarAuditTrail.jsx";
 import AdminDashboard from "./pages/Admin/AdminDashboard.jsx";
@@ -28,15 +29,23 @@ import DpcAuditTrail from "./pages/Dpc/DpcAuditTrail.jsx";
 import VendorDashboard from "./pages/Vendor/VendorDashboard.jsx";
 import VendorQuotations from "./pages/Vendor/VendorQuotations.jsx";
 import VendorObjections from "./pages/Vendor/VendorObjections.jsx";
+import VendorRfqDocument from "./pages/Vendor/VendorRfqDocument.jsx";
+import VendorPurchaseOrderDetails from "./pages/Vendor/VendorPurchaseOrderDetails.jsx";
+import VendorRfqInvitations from "./pages/Vendor/VendorRfqInvitations.jsx";
+import VendorQuotationSubmission from "./pages/Vendor/VendorQuotationSubmission.jsx";
 import { useAuth } from "./contexts/AuthContext";
 import CreateRequisition from "./pages/Staff/CreateRequisition.jsx";
 import MyRequisitions from "./pages/Staff/MyRequisitions.jsx";
+import StaffAuditTrail from "./pages/Staff/StaffAuditTrail.jsx";
 import RequisitionDetails from "./pages/Staff/RequisitionDetails.jsx";
 import HodApprovals from "./pages/Approvals/HodApprovals.jsx";
 import DeanApprovals from "./pages/Approvals/DeanApprovals.jsx";
 import VcApprovals from "./pages/Approvals/VcApprovals.jsx";
 import BecApprovals from "./pages/Approvals/BecApprovals.jsx";
 import BecCategoryList from "./pages/Approvals/BecCategoryList.jsx";
+import BecVendorReview from "./pages/Approvals/BecVendorReview.jsx";
+import BecSelectedVendors from "./pages/Approvals/BecSelectedVendors.jsx";
+import QuotationAuthorityApprovals from "./pages/Approvals/QuotationAuthorityApprovals.jsx";
 import BecAuditTrail from "./pages/Approvals/BecAuditTrail.jsx";
 import HodAuditTrail from "./pages/Approvals/HodAuditTrail.jsx";
 import TecApprovals from "./pages/Approvals/TecApprovals.jsx";
@@ -231,11 +240,14 @@ const App = () => {
             <Route path="/dashboard" element={dashboardElement} />
             <Route path="/bursar/budgets" element={<BursarBudgetWorkspace />} />
             <Route path="/finance/category-rr/:rrId" element={<FinanceCategoryRrDetails />} />
-            <Route path="/bursar/tenders" element={<BursarTenderWorkspace />} />
+            <Route path="/finance/received-rr-lists" element={<ReceivedRrLists />} />
+            <Route path="/bursar/create-rfq" element={<BursarTenderWorkspace />} />
             <Route path="/bursar/audit-trail" element={<BursarAuditTrail />} />
+            <Route path="/finance/audit-trail" element={<BursarAuditTrail />} />
             <Route path="/requisition/create" element={<CreateRequisition />} />
             <Route path="/requisition/create/:rrId" element={<CreateRequisition />} />
             <Route path="/requisitions" element={<MyRequisitions />} />
+            <Route path="/staff/audit-trail" element={<StaffAuditTrail />} />
             <Route path="/requisitions/:rrId" element={<RequisitionDetails />} />
             <Route path="/approvals/hod" element={<HodApprovals />} />
             <Route path="/approvals/hod/:rrId" element={<HodApprovals />} />
@@ -243,14 +255,19 @@ const App = () => {
             <Route path="/approvals/dean/:rrId" element={<DeanApprovals />} />
             <Route path="/approvals/vc" element={<VcApprovals />} />
             <Route path="/approvals/vc/:rrId" element={<VcApprovals />} />
+            <Route path="/approvals/quotation-authority" element={<QuotationAuthorityApprovals />} />
             <Route path="/approvals/bec" element={<BecApprovals />} />
             <Route path="/approvals/bec/:rrId" element={<BecApprovals />} />
+            <Route path="/approvals/bec/quotations" element={<ProcurementWorkspace />} />
+            <Route path="/approvals/bec/vendor-review" element={<BecVendorReview />} />
+            <Route path="/approvals/bec/selected-vendors" element={<BecSelectedVendors />} />
             <Route path="/approvals/bec-category-list" element={<BecCategoryList />} />
             <Route path="/approvals/bec-category-list/:rrId" element={<BecCategoryList />} />
             <Route path="/approvals/bec/audit-trail" element={<BecAuditTrail />} />
             <Route path="/approvals/hod/audit-trail" element={<HodAuditTrail />} />
             <Route path="/approvals/tec" element={<TecApprovals />} />
             <Route path="/approvals/tec/audit-trail" element={<TecAuditTrail />} />
+            <Route path="/dpc/quotation-approvals" element={<QuotationAuthorityApprovals />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/notifications/:notificationId" element={<NotificationsPage />} />
             <Route path="/tenders" element={<TenderDirectory />} />
@@ -259,6 +276,12 @@ const App = () => {
             <Route path="/procurement/rfqs" element={<ProcurementRfqList />} />
             <Route path="/vendor/quotations" element={<VendorQuotations />} />
             <Route path="/vendor/objections" element={<VendorObjections />} />
+            <Route path="/vendor/rfq-invitations" element={<VendorRfqInvitations />} />
+            <Route path="/vendor/quotation-submission" element={<VendorQuotationSubmission />} />
+            <Route path="/vendor/quotation-submission/rfq-selection" element={<VendorQuotationSubmission />} />
+            <Route path="/vendor/quotation-submission/items" element={<VendorQuotationSubmission />} />
+            <Route path="/vendor/rfqs/:rfqId/document" element={<VendorRfqDocument />} />
+            <Route path="/vendor/purchase-orders/:poId" element={<VendorPurchaseOrderDetails />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/faculties" element={<AdminFaculties />} />
             <Route path="/admin/departments" element={<AdminDepartments />} />

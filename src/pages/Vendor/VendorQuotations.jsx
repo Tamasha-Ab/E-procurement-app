@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { vendorApi } from "../../api/vendorApi";
+import { rfqDisplayName } from "../../utils/procurementDisplay";
 
 const cardClass = "rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]";
 
@@ -105,12 +106,12 @@ export default function VendorQuotations() {
               >
                 <div className="flex flex-wrap items-center gap-3">
                   <h3 className="text-lg font-black text-[#10283f]">
-                    {quotation.rfqNumber || `RFQ ${quotation.rfqId || "Not set"}`}
+                    {rfqDisplayName(quotation, "Submitted quotation")}
                   </h3>
                   <StatusPill status={quotation.status || "SUBMITTED"} />
                 </div>
                 <div className="mt-2 text-sm leading-7 text-slate-600">
-                  Quotation {quotation.quotationId} | {money(quotation.quotedAmount)} | Submitted {formatDate(quotation.submittedAt)}
+                  {money(quotation.quotedAmount)} | Submitted {formatDate(quotation.submittedAt)}
                 </div>
               </button>
             ))}
@@ -130,7 +131,7 @@ export default function VendorQuotations() {
           ) : (
             <div className="mt-6 space-y-5">
               <div className="grid gap-3 md:grid-cols-2">
-                <DetailTile label="RFQ" value={selectedQuotation.rfqNumber || selectedQuotation.rfqId} />
+                <DetailTile label="Quotation Request" value={rfqDisplayName(selectedQuotation, "Submitted quotation")} />
                 <DetailTile label="Status" value={selectedQuotation.status || "SUBMITTED"} />
                 <DetailTile label="Quoted Amount" value={money(selectedQuotation.quotedAmount)} />
                 <DetailTile label="Delivery Period" value={selectedQuotation.deliveryPeriodDays ? `${selectedQuotation.deliveryPeriodDays} days` : "Not set"} />

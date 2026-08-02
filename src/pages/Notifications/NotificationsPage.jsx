@@ -29,6 +29,10 @@ export default function NotificationsPage() {
     return match ? match[1] : null;
   }, [selected?.message]);
   const tenderDetailId = selectedTenderId || selectedTender?.tenderId;
+  const selectedVendorRfqId = useMemo(() => {
+    const match = selected?.actionUrl?.match(/^\/vendor\/rfqs\/(\d+)\/document/);
+    return match ? match[1] : null;
+  }, [selected?.actionUrl]);
   const isBecCategoryListNotification = selected?.rrId
     && selected?.title?.toLowerCase().includes("bec category list submitted");
 
@@ -89,6 +93,10 @@ export default function NotificationsPage() {
   const scheduleMeetingFromNotification = () => {
     if (isBecCategoryListNotification) {
       navigate(`/finance/category-rr/${selected.rrId}`);
+      return;
+    }
+    if (selectedVendorRfqId) {
+      navigate(`/vendor/rfq-invitations?rfqId=${selectedVendorRfqId}`);
       return;
     }
     if (selected?.actionUrl) {
@@ -179,7 +187,7 @@ export default function NotificationsPage() {
             onClick={scheduleMeetingFromNotification}
             className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
           >
-            {isBecCategoryListNotification ? "View RR Details" : "Open"}
+            {selectedVendorRfqId ? "View" : isBecCategoryListNotification ? "View RR Details" : "Open"}
           </button>
         )}
         {(selectedTenderId || selectedTenderNumber) && (
@@ -298,7 +306,7 @@ export default function NotificationsPage() {
               </button>
             </div>
             <div className="max-h-[calc(90vh-104px)] overflow-y-auto p-6">
-              {renderNotificationDetails({ showTitle: false, showActions: false })}
+              {renderNotificationDetails({ showTitle: false, showActions: true })}
             </div>
           </div>
         </div>

@@ -378,7 +378,6 @@ export default function CreateRequisition() {
               <div className="border-r border-slate-700 px-2 py-2 font-semibold">Date</div>
               <div className="px-2 py-2">{today}</div>
             </div>
-            <div className="text-right text-sm italic text-slate-600">To be Completed in triplicate</div>
           </div>
         </div>
 
@@ -423,18 +422,16 @@ export default function CreateRequisition() {
               </td>
               <td colSpan={2} className={`${cellClass} px-3 py-2 text-center`}>
                 * If No should get the Vice Chancellor's approval
-                <div className="mt-4 font-black">Approved</div>
               </td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cellClass} px-3 py-2`}>Budgeted allocation Rs. <input name="budgetAllocation" value={form.budgetAllocation} onChange={updateField} className="ml-3 border border-slate-500 px-2 py-1 outline-none" /></td>
-              <td rowSpan={3} colSpan={2} className={`${cellClass} px-3 py-8 text-center font-black`}>Vice Chancellor</td>
+              <td colSpan={4} className={`${cellClass} px-3 py-2`}>Budgeted allocation Rs. <input name="budgetAllocation" value={form.budgetAllocation} onChange={updateField} className="ml-3 border border-slate-500 px-2 py-1 outline-none" /></td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cellClass} px-3 py-2`}>Used amount so far Rs. <input name="usedAmount" value={form.usedAmount} onChange={updateField} className="ml-3 border border-slate-500 px-2 py-1 outline-none" /></td>
+              <td colSpan={4} className={`${cellClass} px-3 py-2`}>Used amount so far Rs. <input name="usedAmount" value={form.usedAmount} onChange={updateField} className="ml-3 border border-slate-500 px-2 py-1 outline-none" /></td>
             </tr>
             <tr>
-              <td colSpan={2} className={`${cellClass} px-3 py-2`}>Balance available Rs. <input name="balanceAvailable" value={form.balanceAvailable} onChange={updateField} className="ml-3 border border-slate-500 px-2 py-1 outline-none" /></td>
+              <td colSpan={4} className={`${cellClass} px-3 py-2`}>Balance available Rs. <input name="balanceAvailable" value={form.balanceAvailable} onChange={updateField} className="ml-3 border border-slate-500 px-2 py-1 outline-none" /></td>
             </tr>
 
             <tr>

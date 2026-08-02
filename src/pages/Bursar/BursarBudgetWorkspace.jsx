@@ -15,8 +15,6 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
-import AssignmentTurnedInRoundedIcon from "@mui/icons-material/AssignmentTurnedInRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
@@ -26,6 +24,7 @@ import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import { useAuth } from "../../contexts/AuthContext";
 import { downloadRequisitionForm } from "../../utils/requisitionDocument";
+import { requestDisplayName, requestContext } from "../../utils/procurementDisplay";
 
 const bursarSubRoles = ["BURSAR", "ASSISTANT_BURSAR", "SENIOR_ASSISTANT_BURSAR"];
 const tenderTypeOptions = ["Goods", "Works", "Services", "IT Systems"];
@@ -507,12 +506,6 @@ export default function BursarBudgetWorkspace() {
           </Button>
         </div>
 
-        <div className="mt-7 grid gap-4 md:grid-cols-4">
-          <SummaryCard icon={AccountBalanceWalletRoundedIcon} label="Tender Value Total" value={formatCurrency(totalTenderValue)} />
-          <SummaryCard icon={AssignmentTurnedInRoundedIcon} label="TEC Approved RRs" value={pendingRrs.length} />
-          <SummaryCard icon={CheckCircleRoundedIcon} label="Final RRs" value={finalRrs.length} />
-          <SummaryCard icon={AccountBalanceWalletRoundedIcon} label="Allocated Value" value={formatCurrency(totalAllocatedValue)} />
-        </div>
       </section>
 
       {notice && (
@@ -588,115 +581,6 @@ export default function BursarBudgetWorkspace() {
         </Panel>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <Panel title="Tender Value Pools" eyebrow="Tender Balances">
-          <div className="space-y-4">
-            {tenders.length === 0 && <EmptyState text="No tenders have been created yet." />}
-            {tenders.map((tender) => (
-              <div key={tender.tenderId} className="rounded-[24px] border border-[#e0ebf1] bg-[#fbfdff] p-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <Typography className="!text-lg !font-bold !text-[#10283f]">{tender.title}</Typography>
-                    <Typography className="!mt-2 !text-sm !leading-7 !text-slate-600">{tender.tenderNumber}</Typography>
-                    <Typography className="!mt-1 !text-sm !leading-7 !text-slate-600">
-                      Tender value {formatCurrency(tender.tenderValue)} - Allocated {formatCurrency(tender.allocatedValue)} - Available {formatCurrency(Number(tender.tenderValue || 0) - Number(tender.allocatedValue || 0))}
-                    </Typography>
-                    {tender.tenderType && (
-                      <Typography className="!mt-1 !text-sm !leading-7 !text-slate-600">
-                        {tender.tenderType} - {tender.procurementMethod || "Method not set"} - {tender.fundingSource || "Funding not set"}
-                      </Typography>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Chip label={tender.submittedToProcurement ? "SUBMITTED_TO_PROCUREMENT" : tender.status} size="small" sx={{ bgcolor: "#edf7fb", color: "#166e8c", fontWeight: 700 }} />
-                    <Tooltip title="View filled form">
-                      <IconButton
-                        aria-label={`View tender form ${tender.tenderNumber}`}
-                        onClick={() => setPreviewTender(tender)}
-                        sx={{ color: "#166e8c", bgcolor: "#edf7fb", "&:hover": { bgcolor: "#d9edf5" } }}
-                      >
-                        <VisibilityRoundedIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Download filled form">
-                      <IconButton
-                        aria-label={`Download tender form ${tender.tenderNumber}`}
-                        onClick={() => downloadTenderForm(tender)}
-                        sx={{ color: "#166e8c", bgcolor: "#edf7fb", "&:hover": { bgcolor: "#d9edf5" } }}
-                      >
-                        <DownloadRoundedIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete tender">
-                      <span>
-                        <IconButton
-                          aria-label={`Delete tender ${tender.tenderNumber}`}
-                          onClick={() => openDeleteDialog(tender)}
-                          disabled={loading || Number(tender.allocatedValue || 0) > 0 || tender.status === "RFQ_CREATED"}
-                          sx={{
-                            color: "#b42318",
-                            bgcolor: "#fff1f0",
-                            "&:hover": { bgcolor: "#ffe3df" },
-                            "&.Mui-disabled": { bgcolor: "#f1f5f9" },
-                          }}
-                        >
-                          <DeleteRoundedIcon fontSize="small" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Panel>
-
-        <Panel title="Final RR List" eyebrow="Approved by Bursar">
-          <div className="space-y-4">
-            {finalRrs.length === 0 && <EmptyState text="No RRs have been approved by Bursar yet." />}
-            {finalRrsByTender.map(({ tender, rrs }) => (
-              <div key={tender.tenderId} className="rounded-[24px] border border-[#dce8ef] bg-[#fbfdff] p-5">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <Typography className="!text-lg !font-black !text-[#10283f]">{tender.title}</Typography>
-                    <Typography className="!mt-2 !text-sm !leading-7 !text-slate-600">
-                      {tender.tenderNumber} - Tender value {formatCurrency(tender.tenderValue)}
-                    </Typography>
-                  </div>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Chip label={`${rrs.length} approved RR${rrs.length === 1 ? "" : "s"}`} size="small" sx={{ bgcolor: "#eaf7f4", color: "#14745f", fontWeight: 700 }} />
-                    <Button
-                      variant="contained"
-                      startIcon={<SendRoundedIcon />}
-                      onClick={() => submitTenderToProcurement(tender)}
-                      disabled={loading || !rrs.some((rr) => rr.status === "BURSAR_APPROVED")}
-                      sx={primaryButtonSx}
-                    >
-                      {rrs.some((rr) => rr.status === "BURSAR_APPROVED") ? "Send to Procurement" : "Submitted"}
-                    </Button>
-                  </div>
-                </div>
-                <div className="mt-4 space-y-3">
-                  {rrs.map((rr) => (
-                    <FinalRrCard key={rr.rrId} rr={rr} />
-                  ))}
-                </div>
-              </div>
-            ))}
-            {finalRrsWithoutTender.length > 0 && (
-              <div className="rounded-[24px] border border-[#dce8ef] bg-[#fbfdff] p-5">
-                <Typography className="!text-lg !font-black !text-[#10283f]">No tender assigned</Typography>
-                <div className="mt-4 space-y-3">
-                  {finalRrsWithoutTender.map((rr) => (
-                    <FinalRrCard key={rr.rrId} rr={rr} />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </Panel>
-      </section>
-
       {loading && (
         <div className="fixed bottom-6 right-6 flex items-center gap-3 rounded-2xl bg-[#10283f] px-5 py-4 text-sm font-semibold text-white shadow-[0_18px_45px_rgba(15,41,64,0.22)]">
           <CircularProgress size={18} sx={{ color: "#fff" }} />
@@ -727,9 +611,9 @@ export default function BursarBudgetWorkspace() {
               <div className="rounded-[22px] border border-[#e0ebf1] bg-[#fbfdff] p-5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <Typography className="!text-xl !font-black !text-[#10283f]">{selectedRr.title}</Typography>
+                    <Typography className="!text-xl !font-black !text-[#10283f]">{requestDisplayName(selectedRr)}</Typography>
                     <Typography className="!mt-2 !text-sm !leading-7 !text-slate-600">
-                      {selectedRr.rrNumber} - {selectedRr.facultyName || "Faculty not set"} - {selectedRr.divisionName || "Division not set"}
+                      {requestContext(selectedRr) || `${selectedRr.facultyName || "Faculty not set"} - ${selectedRr.divisionName || "Division not set"}`}
                     </Typography>
                   </div>
                   <Chip label={selectedRr.status} size="small" sx={{ bgcolor: "#edf7fb", color: "#166e8c", fontWeight: 700 }} />
@@ -909,18 +793,6 @@ export default function BursarBudgetWorkspace() {
   );
 }
 
-function SummaryCard({ icon: Icon, label, value }) {
-  return (
-    <div className="rounded-[22px] bg-white/10 p-4 backdrop-blur">
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
-        <Icon />
-      </div>
-      <div className="mt-4 text-2xl font-black">{value}</div>
-      <div className="mt-1 text-sm text-slate-200">{label}</div>
-    </div>
-  );
-}
-
 function Panel({ title, eyebrow, children }) {
   return (
     <section className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
@@ -981,9 +853,9 @@ function FinalRrCard({ rr }) {
     <div className="rounded-2xl border border-[#e0ebf1] bg-white p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <Typography className="!text-base !font-bold !text-[#10283f]">{rr.title}</Typography>
+          <Typography className="!text-base !font-bold !text-[#10283f]">{requestDisplayName(rr)}</Typography>
           <Typography className="!mt-1 !text-sm !leading-7 !text-slate-600">
-            {rr.rrNumber} - {rr.facultyName || "Faculty not set"} - {rr.divisionName || "Division not set"}
+            {requestContext(rr) || `${rr.facultyName || "Faculty not set"} - ${rr.divisionName || "Division not set"}`}
           </Typography>
           <Typography className="!mt-1 !text-sm !leading-7 !text-slate-600">
             {rr.itemName || "Item not set"} - {formatCurrency(rr.estimatedTotalAmount)}

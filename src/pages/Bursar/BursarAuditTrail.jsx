@@ -13,6 +13,7 @@ import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { useAuth } from "../../contexts/AuthContext";
+import { requestDisplayName } from "../../utils/procurementDisplay";
 
 const formatDateTime = (value) => {
   if (!value) return "Not recorded";
@@ -35,14 +36,24 @@ const formatCurrency = (value) => {
 const getResponseMessage = (body, fallback) =>
   body?.message || body?.error || fallback || "Request failed";
 
-const bursarSubRoles = ["BURSAR", "ASSISTANT_BURSAR", "SENIOR_ASSISTANT_BURSAR"];
-
 const formatActionLabel = (entry) => {
   if (entry?.action === "BUDGET_CHECKED") return "APPROVED";
+  if (entry?.action === "SUBMITTED" && entry?.toStatus === "RFQ_CREATED") {
+    return "QUOTATION REQUEST CREATED AND SENT";
+  }
   if (entry?.action === "SUBMITTED" && entry?.toStatus === "READY_FOR_PROCUREMENT") {
     return "SUBMITTED TO PROCUREMENT OFFICER";
   }
   return entry?.action || "ACTION";
+};
+
+const isRfqCreatedEntry = (entry) => entry?.action === "SUBMITTED" && entry?.toStatus === "RFQ_CREATED";
+
+const formatSentVendors = (entry) => {
+  if (Array.isArray(entry?.sentVendorNames) && entry.sentVendorNames.length) {
+    return entry.sentVendorNames.join(", ");
+  }
+  return "";
 };
 
 export default function BursarAuditTrail() {
@@ -52,7 +63,7 @@ export default function BursarAuditTrail() {
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState(null);
   const [expandedIds, setExpandedIds] = useState(() => new Set());
-  const isBursar = user?.mainRole === "FINANCE" && bursarSubRoles.includes(user?.subRole);
+  const isFinanceUser = user?.mainRole === "FINANCE";
 
   const authHeaders = useMemo(
     () => ({
@@ -81,7 +92,7 @@ export default function BursarAuditTrail() {
     setLoading(true);
     setNotice(null);
     try {
-      const data = await requestJson("/api/bursar/audit-trail");
+      const data = await requestJson("/api/finance/audit-trail");
       setEntries(Array.isArray(data) ? data : []);
     } catch (error) {
       setNotice({ type: "error", message: error.message });
@@ -91,10 +102,10 @@ export default function BursarAuditTrail() {
   }, [requestJson]);
 
   useEffect(() => {
-    if (isBursar) {
+    if (isFinanceUser) {
       loadAllAuditEntries();
     }
-  }, [isBursar, loadAllAuditEntries]);
+  }, [isFinanceUser, loadAllAuditEntries]);
 
   const handleSearchByRequisition = async (event) => {
     event.preventDefault();
@@ -103,9 +114,9 @@ export default function BursarAuditTrail() {
     setLoading(true);
     setNotice(null);
     try {
-      const data = await requestJson(`/api/bursar/audit-trail/requisition/${rrId}`);
+      const data = await requestJson(`/api/finance/audit-trail/requisition/${rrId}`);
       setEntries(Array.isArray(data) ? data : []);
-      setNotice({ type: "success", message: `Showing audit trail for RR ID ${rrId}.` });
+      setNotice({ type: "success", message: `Showing audit trail for request ID ${rrId}.` });
     } catch (error) {
       setNotice({ type: "error", message: error.message });
     } finally {
@@ -125,12 +136,12 @@ export default function BursarAuditTrail() {
     });
   };
 
-  if (!isBursar) {
+  if (!isFinanceUser) {
     return (
       <section className="rounded-[30px] border border-[#dce8ef] bg-white p-8 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-        <Typography className="!text-2xl !font-bold !text-[#10283f]">Bursar Access Required</Typography>
+        <Typography className="!text-2xl !font-bold !text-[#10283f]">Finance Access Required</Typography>
         <Typography className="!mt-3 !text-sm !leading-7 !text-slate-600">
-          This audit trail is available only for FINANCE users with Bursar, Assistant Bursar, or Senior Assistant Bursar sub-role.
+          This audit trail is available only for finance users.
         </Typography>
       </section>
     );
@@ -142,9 +153,9 @@ export default function BursarAuditTrail() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-100">Audit Trail</div>
-            <h1 className="mt-3 text-3xl font-black md:text-4xl">Approval action history</h1>
+            <h1 className="mt-3 text-3xl font-black md:text-4xl">Finance action history</h1>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-100">
-              Review who performed each approval action, when it happened, the status transition, and the related comment.
+              Review finance approval actions, RFQs created for vendor categories, selected vendors, status transitions, and related comments.
             </p>
           </div>
           <Button
@@ -175,11 +186,11 @@ export default function BursarAuditTrail() {
         <form className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between" onSubmit={handleSearchByRequisition}>
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Filter</div>
-            <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Search by requisition ID</h2>
+            <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Search by internal request ID</h2>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <TextField
-              label="RR ID"
+              label="Request ID"
               type="number"
               size="small"
               value={rrId}
@@ -230,11 +241,16 @@ export default function BursarAuditTrail() {
                           <Chip label={entry.actionRole || "ROLE"} size="small" sx={{ bgcolor: "#edf7fb", color: "#166e8c", fontWeight: 700 }} />
                         </div>
                         <Typography className="!mt-2 !text-sm !leading-7 !text-slate-600">
-                          {entry.rrNumber || `RR ID ${entry.rrId}`} - {entry.requestTitle || "Requisition request"}
+                          {requestDisplayName(entry)}{entry.departmentName || entry.facultyName ? ` - ${entry.departmentName || entry.facultyName}` : ""}
                         </Typography>
                         <Typography className="!mt-1 !text-xs !font-semibold !uppercase !tracking-[0.16em] !text-slate-500">
                           Requester: {entry.requestedByName || "Not recorded"}
                         </Typography>
+                        {isRfqCreatedEntry(entry) && formatSentVendors(entry) && (
+                          <Typography className="!mt-2 !text-sm !font-bold !text-[#166e8c]">
+                            Sent Vendors: {formatSentVendors(entry)}
+                          </Typography>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-4 lg:justify-end lg:text-right">
@@ -275,6 +291,13 @@ export default function BursarAuditTrail() {
                       <DetailBlock label="Faculty" value={entry.facultyName || "Not recorded"} />
                       <DetailBlock label="Requester User Name" value={entry.requestedByName || "Not recorded"} />
                     </div>
+
+                    {isRfqCreatedEntry(entry) && (
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <DetailBlock label="Quotation Request" value={entry.rfqNumber || requestDisplayName(entry)} />
+                        <DetailBlock label="Sent Vendors" value={formatSentVendors(entry) || "No vendors recorded"} />
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-4 grid gap-3 md:grid-cols-2">

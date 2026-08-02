@@ -221,11 +221,10 @@ const buildPdfBlob = async (request) => {
   tableCell(formOps, 50, y - 150, 65, 150, "Funds", "", true);
   tableCell(formOps, 115, y - 32, 425, 32, "", `Funds GOSL ${rr.fundsGosl || "N/A"}    Project ${rr.project || "N/A"}    Vote ${rr.vote || "N/A"}`);
   tableCell(formOps, 115, y - 82, 215, 50, "Whether the item/items requested included in procurement plan", rr.includedInPlan || "Not provided");
-  tableCell(formOps, 330, y - 82, 210, 50, "* If No should get the Vice Chancellor's approval", "Approved");
-  tableCell(formOps, 115, y - 105, 215, 23, "Budgeted allocation Rs.", rr.budgetAllocation);
-  tableCell(formOps, 115, y - 128, 215, 23, "Used amount so far Rs.", rr.usedAmount);
-  tableCell(formOps, 115, y - 150, 215, 22, "Balance available Rs.", rr.balanceAvailable);
-  tableCell(formOps, 330, y - 150, 210, 68, "Vice Chancellor", "");
+  tableCell(formOps, 330, y - 82, 210, 50, "* If No should get the Vice Chancellor's approval", "");
+  tableCell(formOps, 115, y - 105, 425, 23, "Budgeted allocation Rs.", rr.budgetAllocation);
+  tableCell(formOps, 115, y - 128, 425, 23, "Used amount so far Rs.", rr.usedAmount);
+  tableCell(formOps, 115, y - 150, 425, 22, "Balance available Rs.", rr.balanceAvailable);
 
   y -= 150;
   tableCell(formOps, 50, y - 142, 65, 142, "Object", "", true);

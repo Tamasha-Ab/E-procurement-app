@@ -14,8 +14,16 @@ const statusTone = {
   CANCELLED: "bg-red-50 text-red-700",
 };
 
+const isTenderClosed = (tender) =>
+  Boolean(tender.closingDateTime) && new Date(tender.closingDateTime).getTime() < Date.now();
+
+const visibleTendersForUser = (tenders, user) =>
+  user?.mainRole === "FACULTY_STAFF"
+    ? tenders.filter((tender) => !isTenderClosed(tender))
+    : tenders;
+
 export default function TenderDirectory() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { tenderId } = useParams();
   const [tenders, setTenders] = useState([]);
   const [selectedId, setSelectedId] = useState(tenderId || "");
@@ -29,14 +37,19 @@ export default function TenderDirectory() {
     try {
       const data = await procurementApi.tenders.list(token);
       const list = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : [];
+      const visibleList = visibleTendersForUser(list, user);
       setTenders(list);
-      setSelectedId((current) => tenderId || current || String(list[0]?.tenderId || ""));
+      setSelectedId((current) => {
+        if (tenderId && visibleList.some((tender) => String(tender.tenderId) === String(tenderId))) return tenderId;
+        if (visibleList.some((tender) => String(tender.tenderId) === String(current))) return current;
+        return String(visibleList[0]?.tenderId || "");
+      });
     } catch (err) {
       setError(err.message || "Could not load tenders.");
     } finally {
       setLoading(false);
     }
-  }, [token, tenderId]);
+  }, [token, tenderId, user]);
 
   useEffect(() => {
     if (token) loadTenders();
@@ -48,14 +61,15 @@ export default function TenderDirectory() {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return tenders;
-    return tenders.filter((tender) =>
+    const visibleTenders = visibleTendersForUser(tenders, user);
+    if (!term) return visibleTenders;
+    return visibleTenders.filter((tender) =>
       [tender.tenderNumber, tender.title, tender.tenderType, tender.procurementMethod, tender.fundingSource]
         .some((value) => String(value || "").toLowerCase().includes(term))
     );
-  }, [search, tenders]);
+  }, [search, tenders, user]);
 
-  const selected = tenders.find((tender) => String(tender.tenderId) === String(selectedId)) || filtered[0] || null;
+  const selected = filtered.find((tender) => String(tender.tenderId) === String(selectedId)) || filtered[0] || null;
   const view = selected ? buildTenderViewModel(selected) : null;
 
   return (
@@ -67,7 +81,7 @@ export default function TenderDirectory() {
       >
         <div className="rounded-[24px] bg-white/10 p-5 text-right backdrop-blur">
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-100">Total</div>
-          <div className="mt-2 text-3xl font-black">{tenders.length}</div>
+          <div className="mt-2 text-3xl font-black">{filtered.length}</div>
         </div>
       </PageHero>
 
