@@ -55,147 +55,155 @@ import ProcurementRfqList from "./pages/Procurement/ProcurementRfqList.jsx";
 import NotificationsPage from "./pages/Notifications/NotificationsPage.jsx";
 import TenderDirectory from "./pages/Tenders/TenderDirectory.jsx";
 
-const roleCards = [
-  {
-    title: "Staff Requests",
-    text: "Create requisitions, attach item details, and track the approval journey from division to payment.",
-  },
-  {
-    title: "Approval Workflow",
-    text: "Move requests through Division Head, TEC, and Bursar with full traceability and audit visibility.",
-  },
-  {
-    title: "Procurement Control",
-    text: "Handle supplier quotations, purchase orders, GRN records, and payment readiness in one secure platform.",
-  },
+function LandingPage({ onOpenLogin, onOpenRegister }) {
+const featureCards = [
+  "Requisition Management",
+  "University Approval Flow",
+  "Supplier & Tender Control",
 ];
 
-function LandingPage({ onOpenLogin, onOpenRegister }) {
   return (
-    <Box className="relative overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(27,94,123,0.16),_transparent_42%),linear-gradient(180deg,#f8fcff_0%,#edf4f8_100%)]">
-      <Box className="absolute inset-x-0 top-0 h-64 bg-[linear-gradient(135deg,rgba(9,44,66,0.82),rgba(22,110,140,0.62))]" />
+    <Box className="relative h-screen overflow-hidden bg-[#f4f8fb] text-[#123047]">
+      <Box className="absolute right-[-180px] top-[-180px] h-[420px] w-[420px] rounded-full bg-[#f0b73f]/20 blur-3xl" />
+      <Box className="absolute left-[-220px] top-[220px] h-[420px] w-[420px] rounded-full bg-[#2d8fb3]/15 blur-3xl" />
 
-      <Container maxWidth="lg" className="relative z-10 px-6 py-8 md:py-10">
-        <Box className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <Box className="flex items-center gap-4">
-            <img
-              src="/Images/Logo/Astraea_Logo-removebg-preview.png"
-              alt="Astraea Logo"
-              className="object-contain h-16 md:h-20 drop-shadow-[0_12px_30px_rgba(9,44,66,0.3)]"
-            />
-            <Box>
-              <Typography className="!text-xs !font-semibold !tracking-[0.28em] !text-white/75">
-                ASTRAEA UNIVERSITY
-              </Typography>
-              <Typography className="!text-2xl !font-bold !text-white md:!text-3xl">
-                E-Procurement System
-              </Typography>
+      <Container maxWidth="xl" className="relative z-10 px-4 py-3 md:px-6">
+        <Box className="rounded-[26px] border border-[#d9e6ee] bg-white/95 shadow-[0_18px_55px_rgba(7,34,54,0.12)] backdrop-blur">
+          <Box className="flex flex-col gap-3 border-b border-[#d8e5ec] px-4 py-3 md:flex-row md:items-center md:justify-between md:px-6">
+            <Box className="flex items-center gap-4">
+              <Box className="flex items-center justify-center w-16 h-16 rounded-2xl">
+                <img
+                  src="/Images/uor Logo.png"
+                  alt="University of Ruhuna Logo"
+                  className="object-contain h-20 md:h-24"
+                />
+              </Box>
+
+              <Box>
+                <Typography className="!text-xs !font-bold !uppercase !tracking-[0.25em] !text-[#1c6f8d]">
+                  University of Ruhuna
+                </Typography>
+
+                <Typography className="!mt-1 !text-2xl !font-black !leading-tight !text-[#123047] md:!text-3xl">
+                  ASTRAEA E-Procurement System
+                </Typography>
+
+                <Typography className="!mt-1 !text-xs !font-medium !text-[#557083] md:!text-sm">
+                  Transparent purchasing workflow for academic and administrative operations
+                </Typography>
+              </Box>
+
+            <Box className="relative w-40 h-16">
+  <img
+    src="/Images/Logo/Astraea_Logo-removebg-preview.png"
+    alt="Astraea Logo"
+    className="absolute left-0 top-1/2 hidden h-28 -translate-y-1/2 object-contain drop-shadow-[0_18px_35px_rgba(28,111,141,0.25)] lg:block"
+  />
+</Box>
             </Box>
-          </Box>
 
-          <Box className="flex gap-3">
-            <Button
-              variant="outlined"
-              onClick={onOpenLogin}
-              sx={{
-                borderColor: "rgba(255,255,255,0.55)",
-                color: "#fff",
-                px: 3,
-                py: 1.2,
-                borderRadius: "999px",
-                textTransform: "none",
-                fontWeight: 700,
-              }}
-            >
-              Login
-            </Button>
-            <Button
-              variant="contained"
-              onClick={onOpenRegister}
-              sx={{
-                backgroundColor: "#f6c453",
-                color: "#0f2940",
-                px: 3,
-                py: 1.2,
-                borderRadius: "999px",
-                textTransform: "none",
-                fontWeight: 800,
-                boxShadow: "0 16px 30px rgba(15, 41, 64, 0.2)",
-                "&:hover": { backgroundColor: "#f0b93a" },
-              }}
-            >
-              Sign Up
-            </Button>
-          </Box>
-        </Box>
-
-        <Box className="grid items-center gap-10 pt-10 pb-10 md:grid-cols-[1.25fr_0.95fr] md:pt-14">
-          <Box className="max-w-3xl">
-            <Typography className="!mb-4 !text-sm !font-semibold !uppercase !tracking-[0.3em] !text-white/80">
-              Transparent. Accountable. Fast.
-            </Typography>
-            <Typography className="!mt-20 !text-4xl !font-black !leading-tight !text-[#166e8c] md:!mt-24 md:!text-6xl">
-              Procurement built for university approvals, budgets, and supplier trust.
-            </Typography>
-            <Typography className="!mt-6 !max-w-2xl !text-base !leading-8 !text-green-900 md:!text-lg">
-              Astraea connects requisition requests, institutional approvals, vendor quotations, purchase orders,
-              goods receiving, and payment readiness in one secure workflow.
-            </Typography>
-
-            <Box className="flex flex-col gap-4 mt-8 sm:flex-row">
+            <Box className="flex gap-3">
               <Button
-                variant="contained"
+                variant="outlined"
                 onClick={onOpenLogin}
                 sx={{
-                  backgroundColor: "#166e8c",
-                  px: 3.2,
-                  py: 1.5,
-                  borderRadius: "18px",
+                  borderColor: "#1c6f8d",
+                  color: "#1c6f8d",
+                  px: 3,
+                  py: 1,
+                  borderRadius: "14px",
                   textTransform: "none",
-                  fontWeight: 700,
-                  boxShadow: "0 18px 36px rgba(8, 54, 82, 0.28)",
-                  "&:hover": { backgroundColor: "#145f79" },
+                  fontWeight: 800,
                 }}
               >
-                Access Dashboard
+                Login
               </Button>
+
               <Button
-                variant="text"
+                variant="contained"
                 onClick={onOpenRegister}
                 sx={{
-                  color: "#f6c453",
-                  px: 1,
+                  backgroundColor: "#f0b73f",
+                  color: "#123047",
+                  px: 3,
+                  py: 1,
+                  borderRadius: "14px",
                   textTransform: "none",
-                  fontWeight: 700,
-                  justifyContent: "flex-start",
+                  fontWeight: 900,
+                  boxShadow: "0 12px 24px rgba(240, 183, 63, 0.28)",
+                  "&:hover": { backgroundColor: "#dca432" },
                 }}
               >
-                Create your account
+                Registration
               </Button>
             </Box>
           </Box>
 
-          <Box className="overflow-hidden rounded-[30px] bg-transparent shadow-[0_34px_80px_rgba(11,33,51,0.26)]">
-            <img
-              src="/Images/Design.png"
-              alt="Astraea procurement workflow design"
-              className="h-[520px] w-full rounded-[30px] object-cover object-center md:h-[620px]"
-            />
+          <Box className="grid gap-5 px-4 py-4 md:grid-cols-[1.02fr_0.98fr] md:px-6 md:py-5 lg:gap-7">
+            <Box className="flex flex-col justify-center">
+              <Typography className="!text-3xl !font-black !leading-[1.02] !tracking-[-0.04em] !text-[#123047] md:!text-5xl">
+                Modern Procurement System for University of Ruhuna
+              </Typography>
+
+              <Typography className="!mt-8 !max-w-2xl !text-sm !leading-6 !text-[#516b7d] md:!text-base">
+                A professional digital workspace for requisitions, approvals, vendor quotations, tenders, purchase
+                orders, goods receiving, and payment readiness across the university procurement lifecycle.
+              </Typography>
+
+  <Box className="grid gap-2 mt-16 sm:grid-cols-3">
+  {featureCards.map((title) => (
+    <Box
+      key={title}
+      className="rounded-2xl border border-[#d9e6ee] bg-white px-3 py-3 shadow-[0_10px_24px_rgba(7,34,54,0.05)]"
+    >
+      <Box className="mb-2 h-1 w-12 rounded-full bg-[linear-gradient(90deg,#1c6f8d,#f0b73f)]" />
+
+      <Typography className="!text-sm !font-black !leading-5 !text-[#123047]">
+        {title}
+      </Typography>
+    </Box>
+  ))}
+</Box>
+            </Box>
+
+            <Box className="relative flex items-center">
+              <Box className="w-full overflow-hidden rounded-[24px] shadow-[0_0_35px_rgba(28,111,141,0.30)] backdrop-blur-sm">
+                <img
+                  src="/Images/Design.png"
+                  alt="Astraea procurement system interface"
+                  className="h-[270px] w-full rounded-[18px] object-cover object-center md:h-[390px] lg:h-[420px]"
+                />
+              </Box>
+            </Box>
           </Box>
         </Box>
       </Container>
 
-      <Container maxWidth="lg" className="relative z-10 px-6 pb-16">
-        <Box className="grid gap-5 md:grid-cols-3">
-          {roleCards.map((card) => (
-            <Box
-              key={card.title}
-              className="rounded-[28px] border border-[#d9e6ee] bg-white/90 p-6 shadow-[0_16px_40px_rgba(15,41,64,0.08)]"
-            >
-              <Typography className="!text-xl !font-bold !text-[#10283f]">{card.title}</Typography>
-              <Typography className="!mt-3 !text-sm !leading-7 !text-slate-600">{card.text}</Typography>
+      <Container maxWidth="xl" className="relative z-10 px-4 pb-3 md:px-6">
+        <Box className="rounded-[20px] bg-[linear-gradient(135deg,#123047,#1c6f8d)] p-3 text-white shadow-[0_10px_28px_rgba(7,34,54,0.12)] md:p-4">
+          <Box className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <Box>
+              <Typography className="!text-xs !font-black !uppercase !tracking-[0.24em] !text-[#f0b73f]">
+                Contact
+              </Typography>
+
+              <Typography className="!mt-1 !text-sm !font-black !uppercase !text-white md:!text-base">
+                University of Ruhuna,
+              </Typography>
+
+              <Typography className="!mt-0.5 !text-xs !font-semibold !uppercase !leading-4 !text-white/80">
+                Wellamadama, Matara, Sri Lanka.
+              </Typography>
+
+              <Typography className="!mt-1 !text-sm !font-black !text-[#f0b73f]">
+                (+94) 41-2033250
+              </Typography>
             </Box>
-          ))}
+
+            <Typography className="!text-xs !font-semibold !text-white/75 md:!text-right">
+              © 2026 Department of Computer Engineering. All Rights Reserved.
+            </Typography>
+          </Box>
         </Box>
       </Container>
     </Box>
@@ -209,13 +217,17 @@ const App = () => {
   const [openRegister, setOpenRegister] = useState(false);
   const [registerDialogSize, setRegisterDialogSize] = useState("sm");
   const isResetPasswordPage = location.pathname === "/reset-password";
-  const dashboardElement = user?.mainRole === "ADMIN"
-    ? <AdminDashboard />
-    : user?.mainRole === "DPC"
-      ? <DpcDashboard />
-    : user?.mainRole === "VENDOR"
-      ? <VendorDashboard />
-      : <Dashboard />;
+
+  const dashboardElement =
+    user?.mainRole === "ADMIN" ? (
+      <AdminDashboard />
+    ) : user?.mainRole === "DPC" ? (
+      <DpcDashboard />
+    ) : user?.mainRole === "VENDOR" ? (
+      <VendorDashboard />
+    ) : (
+      <Dashboard />
+    );
 
   const landing = useMemo(
     () => (
