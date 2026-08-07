@@ -49,6 +49,8 @@ export const procurementApi = {
       apiRequest(`${procurementBase}/bids/${bidId}/evaluate`, { token, method: "PATCH", body: payload }),
   },
   quotations: {
+    aiReview: (token, quotationId) =>
+      apiRequest(`${procurementBase}/quotations/${quotationId}/ai-review`, { token, method: "POST" }),
     evaluate: (token, quotationId, payload) =>
       apiRequest(`${procurementBase}/quotations/${quotationId}/technical-evaluation`, { token, method: "PATCH", body: payload }),
     evaluateItem: (token, quotationItemId, payload) =>

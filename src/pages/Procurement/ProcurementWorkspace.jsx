@@ -10,6 +10,17 @@ import { requestDisplayName, rfqDisplayName, rfqContext } from "../../utils/proc
 const cardClass = "rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]";
 const inputClass = "w-full rounded-2xl border border-[#dce8ef] bg-white px-4 py-3 text-sm outline-none focus:border-[#166e8c]";
 const buttonClass = "rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79] disabled:opacity-60";
+const aiStatusTone = {
+  COMPLIANT: "bg-emerald-50 text-emerald-700",
+  PARTIALLY_COMPLIANT: "bg-amber-50 text-amber-700",
+  NON_COMPLIANT: "bg-red-50 text-red-700",
+  NOT_MENTIONED: "bg-slate-100 text-slate-700",
+};
+const aiConfidenceTone = {
+  HIGH: "bg-emerald-100 text-emerald-800",
+  MEDIUM: "bg-amber-100 text-amber-800",
+  LOW: "bg-slate-200 text-slate-700",
+};
 
 const initialRfq = {
   rrId: "",
@@ -77,6 +88,10 @@ function asLocalDateTime(value) {
 
 function toNumberOrNull(value) {
   return value === "" || value === null || value === undefined ? null : Number(value);
+}
+
+function formatAiStatus(value) {
+  return String(value || "NOT_MENTIONED").replaceAll("_", " ");
 }
 
 function getArray(data) {
@@ -636,6 +651,8 @@ function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false
   const [evaluation, setEvaluation] = useState(initialBidEvaluation);
   const [quotationEvaluation, setQuotationEvaluation] = useState({ quotationId: "", technicallyQualified: true, evaluationComment: "" });
   const [quotationItemDecisions, setQuotationItemDecisions] = useState({});
+  const [aiReviewByQuotation, setAiReviewByQuotation] = useState({});
+  const [aiLoadingQuotationId, setAiLoadingQuotationId] = useState("");
   const [offerLetterDraft, setOfferLetterDraft] = useState(null);
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [recommendation, setRecommendation] = useState({ rfqId: "", bidId: "" });
@@ -946,6 +963,25 @@ function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false
     }
   };
 
+  const loadQuotationAiReview = async (quotation) => {
+    if (!quotation?.quotationId) return;
+    setError("");
+    setMessage("");
+    setAiLoadingQuotationId(String(quotation.quotationId));
+    try {
+      const review = await procurementApi.quotations.aiReview(token, quotation.quotationId);
+      setAiReviewByQuotation((current) => ({
+        ...current,
+        [quotation.quotationId]: review,
+      }));
+      setMessage("AI quotation review generated. Please confirm each item manually before approving.");
+    } catch (err) {
+      setError(err.message || "Could not generate AI quotation review.");
+    } finally {
+      setAiLoadingQuotationId("");
+    }
+  };
+
   const buildOfferLetterContent = (item) => `Offer Letter
 
 RFQ: ${item.quotation?.rfqNumber || selectedRfq?.rfqNumber || selectedRfq?.rfqId || "Not set"}
@@ -1234,6 +1270,11 @@ This offer letter is issued for the selected quotation item listed above.`;
           )}
           {selectedQuotation ? (
             <div className="rounded-[28px] border border-[#dce8ef] bg-[#fbfdff] p-5">
+              {(() => {
+                const aiReview = aiReviewByQuotation[selectedQuotation.quotationId];
+                const aiItems = Object.fromEntries((aiReview?.items || []).map((item) => [String(item.quotationItemId), item]));
+                return (
+                  <>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Quotation Details</div>
@@ -1244,14 +1285,42 @@ This offer letter is issued for the selected quotation item listed above.`;
                     Delivery: {selectedQuotation.deliveryPeriodDays ?? "Not set"} days | Submitted: {formatDateTime(selectedQuotation.submittedAt)}
                   </div>
                 </div>
-                <StatusPill status={selectedQuotation.status} />
+                <div className="flex flex-wrap items-center gap-3">
+                  <StatusPill status={selectedQuotation.status} />
+                  <button
+                    className="rounded-2xl bg-[#166e8c] px-4 py-2 text-sm font-bold text-white hover:bg-[#145f79] disabled:opacity-60"
+                    type="button"
+                    onClick={() => loadQuotationAiReview(selectedQuotation)}
+                    disabled={aiLoadingQuotationId === String(selectedQuotation.quotationId)}
+                  >
+                    {aiLoadingQuotationId === String(selectedQuotation.quotationId) ? "Running AI Review..." : "Run AI Review"}
+                  </button>
+                </div>
               </div>
+
+              {aiReview && (
+                <div className="mt-5 rounded-[24px] border border-[#dce8ef] bg-white p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Gemini Suggestion</div>
+                      <div className="mt-2 text-lg font-black text-[#10283f]">{aiReview.summary || "AI review completed."}</div>
+                    </div>
+                    <div className={`rounded-full px-3 py-2 text-xs font-bold ${aiStatusTone[aiReview.overallStatus] || aiStatusTone.NOT_MENTIONED}`}>
+                      {formatAiStatus(aiReview.overallStatus)}
+                    </div>
+                  </div>
+                  <div className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Model {aiReview.model || "Gemini"} | Reviewed {formatDateTime(aiReview.reviewedAt)}
+                  </div>
+                </div>
+              )}
 
               <div className="mt-5 space-y-4">
                 {(selectedQuotation.items || []).map((item) => (
                   <div key={item.bidItemId || item.requisitionItemId} className="rounded-[24px] border border-[#e0ebf1] bg-white p-4">
                     {(() => {
                       const itemApproved = item.technicalStatus === "APPROVED" || item.technicallyCompliant;
+                      const aiSuggestion = aiItems[String(item.bidItemId)];
                       return (
                         <>
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1274,6 +1343,25 @@ This offer letter is issued for the selected quotation item listed above.`;
                         )}
                       </div>
                     </div>
+                    {aiSuggestion && (
+                      <div className="mt-4 rounded-2xl border border-[#dce8ef] bg-[#f8fcff] p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">AI Suggestion</div>
+                          <div className={`rounded-full px-3 py-1 text-xs font-bold ${aiStatusTone[aiSuggestion.suggestedStatus] || aiStatusTone.NOT_MENTIONED}`}>
+                            {formatAiStatus(aiSuggestion.suggestedStatus)}
+                          </div>
+                          <div className={`rounded-full px-3 py-1 text-xs font-bold ${aiConfidenceTone[aiSuggestion.confidence] || aiConfidenceTone.LOW}`}>
+                            {aiSuggestion.confidence || "LOW"} confidence
+                          </div>
+                        </div>
+                        <div className="mt-3 text-sm leading-7 text-slate-700">
+                          <span className="font-bold text-[#10283f]">Reason:</span> {aiSuggestion.reason || "No reason provided."}
+                        </div>
+                        <div className="mt-2 text-sm leading-7 text-slate-700">
+                          <span className="font-bold text-[#10283f]">Evidence:</span> {aiSuggestion.evidence || "No matching vendor evidence found."}
+                        </div>
+                      </div>
+                    )}
                     <div className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Qty {item.quantity ?? "Not set"} | Unit price {formatMoney(item.quotedUnitPrice)}
                     </div>
@@ -1337,6 +1425,9 @@ This offer letter is issued for the selected quotation item listed above.`;
                   Close Details
                 </button>
               </div>
+                  </>
+                );
+              })()}
             </div>
           ) : !quotationsAreSealed ? (
             <EmptyState text="Click View Details on a quotation to compare RR specifications with vendor specifications and approve or reject each item separately." />
