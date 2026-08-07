@@ -5,12 +5,14 @@ import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
+import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded";
 
 export const hodSidebarItems = [
   { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
   { label: "Division Head Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/approvals/hod" },
   { label: "Audit Trail", icon: HistoryRoundedIcon, path: "/approvals/hod/audit-trail" },
   { label: "Tenders", icon: StorefrontRoundedIcon, path: "/tenders" },
+  { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: "/role-requests" },
   { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
 ];
 
@@ -20,6 +22,7 @@ export const tecSidebarItems = [
   { label: "Audit Trail", icon: HistoryRoundedIcon, path: "/approvals/tec/audit-trail" },
   { label: "Tenders", icon: StorefrontRoundedIcon, path: "/tenders" },
   { label: "Tender Evaluation", icon: StorefrontRoundedIcon, path: "/procurement/tenders" },
+  { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: "/role-requests" },
   { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
 ];
 
@@ -28,6 +31,7 @@ export const deanSidebarItems = [
   { label: "Dean Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/approvals/dean" },
   { label: "Quotation Approval", icon: GavelRoundedIcon, path: "/approvals/quotation-authority" },
   { label: "Tenders", icon: StorefrontRoundedIcon, path: "/tenders" },
+  { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: "/role-requests" },
   { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
 ];
 
@@ -35,6 +39,7 @@ export const vcSidebarItems = [
   { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
   { label: "VC Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/approvals/vc" },
   { label: "Quotation Approval", icon: GavelRoundedIcon, path: "/approvals/quotation-authority" },
+  { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: "/role-requests" },
   { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
 ];
 

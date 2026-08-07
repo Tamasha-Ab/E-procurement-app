@@ -1,9 +1,8 @@
 const jsonHeaders = { "Content-Type": "application/json" };
 
 const readAuth = () => {
-  const raw =
-    localStorage.getItem("astraea_auth") ||
-    sessionStorage.getItem("astraea_auth");
+  localStorage.removeItem("astraea_auth");
+  const raw = sessionStorage.getItem("astraea_auth");
 
   if (!raw) return {};
 

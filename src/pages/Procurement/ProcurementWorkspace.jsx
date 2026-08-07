@@ -100,6 +100,23 @@ function getArray(data) {
   return [];
 }
 
+function parseVendorQuotationDocuments(value) {
+  if (!value) return [];
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    const documents = Array.isArray(parsed?.requiredDocuments) ? parsed.requiredDocuments : Array.isArray(parsed) ? parsed : [];
+    return documents
+      .filter((document) => document?.dataUrl)
+      .map((document) => ({
+        label: document.label || document.fileName || "Vendor document",
+        fileName: document.fileName || document.label || "Vendor document",
+        url: document.dataUrl,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 function parseVendorSpecificationRows(specificationText = "") {
   return String(specificationText || "")
     .split(/\r?\n/)
@@ -149,6 +166,58 @@ function VendorSpecificationTable({ specificationText }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function DepartureRequirementCell({ specificationText, fallback }) {
+  const rows = parseVendorSpecificationRows(specificationText);
+  if (!rows.length) {
+    return <div className="text-xs leading-6 text-slate-700">{fallback || "No RR specification linked."}</div>;
+  }
+
+  return (
+    <table className="w-full table-fixed border-collapse text-xs">
+      <thead className="bg-slate-100 text-[#10283f]">
+        <tr>
+          <th className="w-[42%] border border-[#d6e4ec] px-2 py-2 text-left">Description</th>
+          <th className="w-[58%] border border-[#d6e4ec] px-2 py-2 text-left">Required Specification</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, index) => (
+          <tr key={`requirement-${row.description}-${index}`}>
+            <td className="break-words border border-[#d6e4ec] px-2 py-2 align-top text-slate-700">{row.description || "Not provided"}</td>
+            <td className="break-words border border-[#d6e4ec] px-2 py-2 align-top text-slate-700">{row.requiredSpecification || fallback || "Not provided"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function DepartureOfferedCell({ specificationText }) {
+  const rows = parseVendorSpecificationRows(specificationText);
+  if (!rows.length) {
+    return <div className="text-xs leading-6 text-slate-700">No vendor specification submitted.</div>;
+  }
+
+  return (
+    <table className="w-full table-fixed border-collapse text-xs">
+      <thead className="bg-slate-100 text-[#10283f]">
+        <tr>
+          <th className="w-[30%] border border-[#d6e4ec] px-2 py-2 text-center">Conformity</th>
+          <th className="w-[70%] border border-[#d6e4ec] px-2 py-2 text-left">Bidder Response</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, index) => (
+          <tr key={`offered-${row.description}-${index}`}>
+            <td className="break-words border border-[#d6e4ec] px-2 py-2 text-center align-top font-bold text-[#10283f]">{row.conformity || "Not provided"}</td>
+            <td className="break-words border border-[#d6e4ec] px-2 py-2 align-top text-slate-700">{row.bidderResponse || "N/A"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -651,6 +720,8 @@ function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false
   const [evaluation, setEvaluation] = useState(initialBidEvaluation);
   const [quotationEvaluation, setQuotationEvaluation] = useState({ quotationId: "", technicallyQualified: true, evaluationComment: "" });
   const [quotationItemDecisions, setQuotationItemDecisions] = useState({});
+  const [quotationDocumentRequests, setQuotationDocumentRequests] = useState({});
+  const [quotationDocumentLoadingId, setQuotationDocumentLoadingId] = useState("");
   const [aiReviewByQuotation, setAiReviewByQuotation] = useState({});
   const [aiLoadingQuotationId, setAiLoadingQuotationId] = useState("");
   const [offerLetterDraft, setOfferLetterDraft] = useState(null);
@@ -931,15 +1002,96 @@ function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false
       [itemId]: {
         technicallyQualified: true,
         evaluationComment: "",
+        completenessOfQuotation: "YES",
+        substantialResponsiveness: "YES",
+        acceptedForDetailedEvaluation: "YES",
+        preliminaryRemark: "",
+        departureRemark: "",
+        rejectedAsNonresponsive: "NO",
+        loadingSuggested: "",
+        arithmeticErrors: "",
+        discounts: "",
+        additionsOmissions: "",
         ...(current[itemId] || {}),
         ...patch,
       },
     }));
   };
 
+  const buildAiRecommendationComment = (aiSuggestion) => {
+    if (!aiSuggestion) return "";
+    return [
+      `AI Recommendation: ${formatAiStatus(aiSuggestion.suggestedStatus)}`,
+      `Reason: ${aiSuggestion.reason || "No reason provided."}`,
+      `Evidence: ${aiSuggestion.evidence || "No matching vendor evidence found."}`,
+      `Confidence: ${aiSuggestion.confidence || "LOW"}`,
+    ].join("\n");
+  };
+
+  const buildBecEvaluationComment = (item, technicallyQualified) => {
+    const decision = quotationItemDecisions[item.bidItemId] || {};
+    const documentStatus = selectedQuotation?.documentReviewStatus || "NOT_REQUESTED";
+    const vendorDocuments = parseVendorQuotationDocuments(selectedQuotation?.vendorQuotationDocuments);
+    const vendorPackageSummary = vendorDocuments.length
+      ? `${vendorDocuments.length} reusable vendor quotation document(s) reviewed.`
+      : "No reusable vendor quotation document package found.";
+    const clarificationSummary = documentStatus === "NOT_REQUESTED"
+      ? "No clarification or additional document requested."
+      : `Document request status: ${documentStatus}. Requested document: ${selectedQuotation?.requestedDocumentName || "Not recorded"}. Remark: ${selectedQuotation?.documentRequestNote || "Not recorded"}.`;
+
+    return [
+      "BEC Bid Evaluation Checks",
+      "",
+      "5.2 Preliminary Examination of Bids",
+      `Completeness of Quotation Submission Form: ${decision.completenessOfQuotation || "YES"}`,
+      `Substantial Responsiveness: ${decision.substantialResponsiveness || "YES"}`,
+      `Accepted for detailed Evaluation: ${decision.acceptedForDetailedEvaluation || "YES"}`,
+      `Document package: ${vendorPackageSummary}`,
+      `Preliminary remark: ${decision.preliminaryRemark || "No preliminary remark."}`,
+      "",
+      "6.1 Clarifications sought from bidders",
+      clarificationSummary,
+      "",
+      "7.1 Departures from Technical Specifications",
+      `Item: ${item.requisitionItemName || item.requisitionItemId || "Quotation item"}`,
+      `Requirement: ${item.requiredSpecification || "No RR specification linked."}`,
+      `Offered: ${item.vendorSpecification || "No vendor specification submitted."}`,
+      `Bid rejected as nonresponsive: ${decision.rejectedAsNonresponsive || (technicallyQualified ? "NO" : "YES")}`,
+      `Loading suggested: ${decision.loadingSuggested || "None"}`,
+      `Departure remark: ${decision.departureRemark || "No departure recorded."}`,
+      "",
+      "8.1 Evaluation of Responsive Bids",
+      `Bid Price: ${formatMoney(item.quotedTotalPrice)}`,
+      `Arithmetical errors (+/-): ${decision.arithmeticErrors || "None"}`,
+      `Discounts: ${decision.discounts || "None"}`,
+      `Additions / omissions: ${decision.additionsOmissions || "None"}`,
+      `Quantity: ${item.quantity ?? "Not set"}`,
+      `Evaluated bid price: ${formatMoney(item.quotedTotalPrice)}`,
+      "",
+      "BEC Final Comment",
+      decision.evaluationComment || (technicallyQualified ? "Responsive item approved by BEC." : "Item rejected by BEC."),
+    ].join("\n");
+  };
+
   const evaluateQuotationItem = async (item, technicallyQualified) => {
     const itemId = item.bidItemId;
     const decision = quotationItemDecisions[itemId] || {};
+    const documentStatus = selectedQuotation?.documentReviewStatus || "NOT_REQUESTED";
+    if (technicallyQualified && (documentStatus === "REQUESTED" || documentStatus === "RESUBMITTED")) {
+      setError(documentStatus === "REQUESTED"
+        ? "Vendor has not submitted the requested document yet."
+        : "Accept the vendor's resubmitted document before approving this quotation item.");
+      return;
+    }
+    if (technicallyQualified && (
+      decision.completenessOfQuotation === "NO"
+      || decision.substantialResponsiveness === "NO"
+      || decision.acceptedForDetailedEvaluation === "NO"
+      || decision.rejectedAsNonresponsive === "YES"
+    )) {
+      setError("Preliminary/departure checks mark this bid as nonresponsive. Update the checks or reject the item with a comment.");
+      return;
+    }
     if (!technicallyQualified && !decision.evaluationComment?.trim()) {
       setError("Rejection comment is required for a quotation item.");
       return;
@@ -949,7 +1101,7 @@ function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false
     try {
       await procurementApi.quotations.evaluateItem(token, itemId, {
         technicallyQualified,
-        evaluationComment: decision.evaluationComment || "",
+        evaluationComment: buildBecEvaluationComment(item, technicallyQualified),
       });
       setMessage(technicallyQualified ? "Quotation item approved and added to its approved list." : "Quotation item rejected with comment.");
       setQuotationItemDecisions((current) => ({ ...current, [itemId]: { technicallyQualified: true, evaluationComment: "" } }));
@@ -960,6 +1112,67 @@ function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false
       loadRfqWork();
     } catch (err) {
       setError(err.message || "Could not evaluate quotation item.");
+    }
+  };
+
+  const updateQuotationDocumentRequest = (quotationId, field, value) => {
+    setQuotationDocumentRequests((current) => ({
+      ...current,
+      [quotationId]: {
+        requestedDocumentName: "",
+        note: "",
+        ...(current[quotationId] || {}),
+        [field]: value,
+      },
+    }));
+  };
+
+  const requestQuotationDocument = async () => {
+    if (!selectedQuotation?.quotationId) return;
+    const form = quotationDocumentRequests[selectedQuotation.quotationId] || {};
+    if (!form.requestedDocumentName?.trim()) {
+      setError("Enter the missing document name before sending the vendor request.");
+      return;
+    }
+
+    setError("");
+    setMessage("");
+    setQuotationDocumentLoadingId(String(selectedQuotation.quotationId));
+    try {
+      const updatedQuotation = await procurementApi.quotations.requestDocument(token, selectedQuotation.quotationId, {
+        requestedDocumentName: form.requestedDocumentName.trim(),
+        note: form.note?.trim() || "",
+      });
+      setSelectedQuotation(updatedQuotation);
+      setQuotations((current) => current.map((quotation) =>
+        String(quotation.quotationId) === String(updatedQuotation.quotationId) ? updatedQuotation : quotation
+      ));
+      setQuotationDocumentRequests((current) => ({ ...current, [selectedQuotation.quotationId]: { requestedDocumentName: "", note: "" } }));
+      setMessage("Document request sent to vendor.");
+    } catch (err) {
+      setError(err.message || "Could not send the document request to vendor.");
+    } finally {
+      setQuotationDocumentLoadingId("");
+    }
+  };
+
+  const acceptQuotationDocument = async () => {
+    if (!selectedQuotation?.quotationId) return;
+
+    setError("");
+    setMessage("");
+    setQuotationDocumentLoadingId(String(selectedQuotation.quotationId));
+    try {
+      const updatedQuotation = await procurementApi.quotations.acceptDocument(token, selectedQuotation.quotationId);
+      setSelectedQuotation(updatedQuotation);
+      setQuotations((current) => current.map((quotation) =>
+        String(quotation.quotationId) === String(updatedQuotation.quotationId) ? updatedQuotation : quotation
+      ));
+      setMessage("Vendor resubmitted document accepted.");
+    } catch (err) {
+      setError(err.message || "Could not accept the vendor document.");
+    } finally {
+      setQuotationDocumentLoadingId("");
     }
   };
 
@@ -974,6 +1187,29 @@ function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false
         ...current,
         [quotation.quotationId]: review,
       }));
+      setQuotationItemDecisions((current) => {
+        const next = { ...current };
+        (review?.items || []).forEach((itemReview) => {
+          const itemId = String(itemReview.quotationItemId);
+          const currentDecision = next[itemId] || {};
+          next[itemId] = {
+            technicallyQualified: true,
+            completenessOfQuotation: "YES",
+            substantialResponsiveness: "YES",
+            acceptedForDetailedEvaluation: "YES",
+            preliminaryRemark: "",
+            departureRemark: "",
+            rejectedAsNonresponsive: "NO",
+            loadingSuggested: "",
+            arithmeticErrors: "",
+            discounts: "",
+            additionsOmissions: "",
+            ...currentDecision,
+            evaluationComment: currentDecision.evaluationComment || buildAiRecommendationComment(itemReview),
+          };
+        });
+        return next;
+      });
       setMessage("AI quotation review generated. Please confirm each item manually before approving.");
     } catch (err) {
       setError(err.message || "Could not generate AI quotation review.");
@@ -1053,6 +1289,16 @@ This offer letter is issued for the selected quotation item listed above.`;
         [item.bidItemId]: {
           technicallyQualified: item.technicalStatus === "APPROVED" || Boolean(item.technicallyCompliant),
           evaluationComment: item.tecComment || "",
+          completenessOfQuotation: "YES",
+          substantialResponsiveness: "YES",
+          acceptedForDetailedEvaluation: "YES",
+          preliminaryRemark: "",
+          departureRemark: "",
+          rejectedAsNonresponsive: item.technicalStatus === "REJECTED" ? "YES" : "NO",
+          loadingSuggested: "",
+          arithmeticErrors: "",
+          discounts: "",
+          additionsOmissions: "",
         },
       }), {})
     );
@@ -1252,6 +1498,7 @@ This offer letter is issued for the selected quotation item listed above.`;
               { key: "quotedAmount", label: "Amount", render: (row) => (row.sealed ? "Sealed" : formatMoney(row.quotedAmount)) },
               { key: "deliveryPeriodDays", label: "Delivery Days", render: (row) => (row.sealed ? "Sealed" : row.deliveryPeriodDays ?? "Not set") },
               { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
+              { key: "documentReviewStatus", label: "Docs", render: (row) => (row.sealed ? "Locked" : <StatusPill status={row.documentReviewStatus || "NOT_REQUESTED"} />) },
               { key: "openingDateTime", label: "Closing Time", render: (row) => formatDateTime(row.openingDateTime || selectedOpeningTime) },
               { key: "technicallyQualified", label: "Qualified", render: (row) => (row.sealed ? "Locked" : row.technicallyQualified ? "Yes" : "No") },
               {
@@ -1273,6 +1520,14 @@ This offer letter is issued for the selected quotation item listed above.`;
               {(() => {
                 const aiReview = aiReviewByQuotation[selectedQuotation.quotationId];
                 const aiItems = Object.fromEntries((aiReview?.items || []).map((item) => [String(item.quotationItemId), item]));
+                const documentStatus = selectedQuotation.documentReviewStatus || "NOT_REQUESTED";
+                const documentRequestForm = quotationDocumentRequests[selectedQuotation.quotationId] || {};
+                const documentActionLoading = quotationDocumentLoadingId === String(selectedQuotation.quotationId);
+                const vendorQuotationDocuments = parseVendorQuotationDocuments(selectedQuotation.vendorQuotationDocuments);
+                const selectedItems = selectedQuotation.items || [];
+                const responsiveBidRows = [...quotations]
+                  .filter((quotation) => !quotation.sealed)
+                  .sort((a, b) => Number(a.quotedAmount || Infinity) - Number(b.quotedAmount || Infinity));
                 return (
                   <>
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1295,6 +1550,288 @@ This offer letter is issued for the selected quotation item listed above.`;
                   >
                     {aiLoadingQuotationId === String(selectedQuotation.quotationId) ? "Running AI Review..." : "Run AI Review"}
                   </button>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-[24px] border border-[#dce8ef] bg-white p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Vendor Submitted Documents</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <StatusPill status={documentStatus} />
+                      {selectedQuotation.documentRequestedAt ? (
+                        <span className="text-xs font-semibold text-slate-500">Requested {formatDateTime(selectedQuotation.documentRequestedAt)}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  {selectedQuotation.attachmentUrl ? (
+                    <a className="rounded-2xl bg-[#edf7fb] px-4 py-2 text-sm font-bold text-[#166e8c] hover:bg-[#d9edf5]" href={selectedQuotation.attachmentUrl} target="_blank" rel="noreferrer">
+                      Open quotation document
+                    </a>
+                  ) : (
+                    <span className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-500">No main document</span>
+                  )}
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {vendorQuotationDocuments.map((document) => (
+                    <div key={`${document.label}-${document.fileName}`} className="rounded-2xl bg-[#f8fcff] p-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Vendor Required Document</div>
+                      <div className="mt-2 text-sm font-black text-[#10283f]">{document.label}</div>
+                      <a className="mt-2 inline-block text-sm font-bold text-[#166e8c]" href={document.url} target="_blank" rel="noreferrer">
+                        Open {document.fileName}
+                      </a>
+                    </div>
+                  ))}
+                  {(selectedQuotation.items || []).map((item) => (
+                    <div key={`doc-${item.bidItemId || item.requisitionItemId}`} className="rounded-2xl bg-[#f8fcff] p-4">
+                      <div className="text-sm font-black text-[#10283f]">{item.requisitionItemName || `Item ${item.requisitionItemId}`}</div>
+                      {item.specificationDocumentUrl ? (
+                        <a className="mt-2 inline-block text-sm font-bold text-[#166e8c]" href={item.specificationDocumentUrl} target="_blank" rel="noreferrer">
+                          Open vendor spec document
+                        </a>
+                      ) : (
+                        <div className="mt-2 text-sm font-semibold text-slate-500">No vendor spec document submitted</div>
+                      )}
+                    </div>
+                  ))}
+                  {!vendorQuotationDocuments.length && !(selectedQuotation.items || []).some((item) => item.specificationDocumentUrl) ? (
+                    <div className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-500">
+                      No vendor document package or item documents are available.
+                    </div>
+                  ) : null}
+                </div>
+
+                {documentStatus === "REQUESTED" ? (
+                  <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+                    Waiting for vendor to resubmit: {selectedQuotation.requestedDocumentName || "requested document"}
+                    {selectedQuotation.documentRequestNote ? <div className="mt-2 font-normal">{selectedQuotation.documentRequestNote}</div> : null}
+                  </div>
+                ) : null}
+
+                {(documentStatus === "RESUBMITTED" || documentStatus === "ACCEPTED") ? (
+                  <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800">
+                    <div className="font-black text-[#10283f]">{selectedQuotation.requestedDocumentFileName || selectedQuotation.requestedDocumentName || "Resubmitted document"}</div>
+                    <div className="mt-1">Submitted {formatDateTime(selectedQuotation.documentSubmittedAt)}</div>
+                    {selectedQuotation.requestedDocumentUrl ? (
+                      <a className="mt-3 inline-block font-black text-[#166e8c]" href={selectedQuotation.requestedDocumentUrl} target="_blank" rel="noreferrer">
+                        Open resubmitted document
+                      </a>
+                    ) : null}
+                    {documentStatus === "RESUBMITTED" ? (
+                      <button
+                        type="button"
+                        onClick={acceptQuotationDocument}
+                        disabled={documentActionLoading}
+                        className="mt-3 block rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+                      >
+                        {documentActionLoading ? "Accepting..." : "Accept Resubmitted Document"}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+
+              </div>
+
+              <div className="mt-5 rounded-[24px] border border-[#dce8ef] bg-white p-5">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Preliminary Examination of Bids</div>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-[#dce8ef] text-left text-sm">
+                    <thead className="bg-[#edf7fb] text-xs font-black uppercase tracking-[0.12em] text-[#166e8c]">
+                      <tr>
+                        <th className="px-3 py-3">Bidder No</th>
+                        <th className="px-3 py-3">Name</th>
+                        <th className="px-3 py-3">Completeness of Quotation Submission form</th>
+                        <th className="px-3 py-3">Substantial Responsiveness</th>
+                        <th className="px-3 py-3">Accepted for detailed Evaluation</th>
+                        <th className="px-3 py-3">Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#e8f0f5]">
+                      {selectedItems.map((item, index) => {
+                        const decision = quotationItemDecisions[item.bidItemId] || {};
+                        return (
+                          <tr key={`preliminary-${item.bidItemId || item.requisitionItemId}`} className="bg-white">
+                            <td className="px-3 py-3 font-bold text-[#10283f]">{String(index + 1).padStart(2, "0")}</td>
+                            <td className="px-3 py-3 font-bold text-[#10283f]">{selectedQuotation.vendorName || "Vendor"}</td>
+                            <td className="px-3 py-3">
+                              <select className={inputClass} value={decision.completenessOfQuotation || "YES"} onChange={(e) => updateQuotationItemDecision(item.bidItemId, { completenessOfQuotation: e.target.value })}>
+                                <option value="YES">YES</option>
+                                <option value="NO">NO</option>
+                              </select>
+                            </td>
+                            <td className="px-3 py-3">
+                              <select className={inputClass} value={decision.substantialResponsiveness || "YES"} onChange={(e) => updateQuotationItemDecision(item.bidItemId, { substantialResponsiveness: e.target.value })}>
+                                <option value="YES">YES</option>
+                                <option value="NO">NO</option>
+                              </select>
+                            </td>
+                            <td className="px-3 py-3">
+                              <select className={inputClass} value={decision.acceptedForDetailedEvaluation || "YES"} onChange={(e) => updateQuotationItemDecision(item.bidItemId, { acceptedForDetailedEvaluation: e.target.value })}>
+                                <option value="YES">YES</option>
+                                <option value="NO">NO</option>
+                              </select>
+                            </td>
+                            <td className="min-w-[260px] px-3 py-3">
+                              <input className={inputClass} value={decision.preliminaryRemark || ""} onChange={(e) => updateQuotationItemDecision(item.bidItemId, { preliminaryRemark: e.target.value })} placeholder="Preliminary remark" />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-[24px] border border-[#dce8ef] bg-white p-5">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Clarifications sought from bidders</div>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-[#dce8ef] text-left text-sm">
+                    <thead className="bg-[#edf7fb] text-xs font-black uppercase tracking-[0.12em] text-[#166e8c]">
+                      <tr>
+                        <th className="px-3 py-3">Bidder</th>
+                        <th className="px-3 py-3">Nature of Clarification</th>
+                        <th className="px-3 py-3">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#e8f0f5]">
+                      <tr className="bg-white">
+                        <td className="px-3 py-3 font-bold text-[#10283f]">{selectedQuotation.vendorName || "Vendor"}</td>
+                        <td className="min-w-[420px] px-3 py-3">
+                          {documentStatus === "REQUESTED" ? (
+                            <div className="rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+                              Waiting for vendor: {selectedQuotation.requestedDocumentName || "requested document"}
+                              {selectedQuotation.documentRequestNote ? <div className="mt-1 font-normal">{selectedQuotation.documentRequestNote}</div> : null}
+                            </div>
+                          ) : (
+                            <div className="grid gap-2 md:grid-cols-2">
+                              <input className={inputClass} value={documentRequestForm.requestedDocumentName || ""} onChange={(event) => updateQuotationDocumentRequest(selectedQuotation.quotationId, "requestedDocumentName", event.target.value)} placeholder="Missing document name" />
+                              <input className={inputClass} value={documentRequestForm.note || ""} onChange={(event) => updateQuotationDocumentRequest(selectedQuotation.quotationId, "note", event.target.value)} placeholder="Remark to vendor" />
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          {documentStatus === "RESUBMITTED" ? (
+                            <button type="button" onClick={acceptQuotationDocument} disabled={documentActionLoading} className="rounded-2xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60">
+                              {documentActionLoading ? "Accepting..." : "Accept Document"}
+                            </button>
+                          ) : documentStatus === "REQUESTED" ? (
+                            <StatusPill status="REQUESTED" />
+                          ) : (
+                            <button type="button" onClick={requestQuotationDocument} disabled={documentActionLoading} className="rounded-2xl bg-[#10283f] px-4 py-2 text-xs font-bold text-white hover:bg-[#1c405f] disabled:opacity-60">
+                              {documentActionLoading ? "Sending..." : "Send Request"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-[24px] border border-[#dce8ef] bg-white p-5">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Departures from Technical Specifications</div>
+                <div className="mt-3 overflow-hidden rounded-2xl border border-[#bfd5e1]">
+                  <table className="w-full table-fixed border-collapse text-left text-sm">
+                    <thead className="bg-[#edf7fb] text-xs font-black uppercase tracking-[0.12em] text-[#166e8c]">
+                      <tr>
+                        <th className="w-[7%] border border-[#bfd5e1] px-3 py-3">Bidder No</th>
+                        <th className="w-[11%] border border-[#bfd5e1] px-3 py-3">Name</th>
+                        <th className="w-[13%] border border-[#bfd5e1] px-3 py-3">Item Descriptions</th>
+                        <th className="w-[27%] border border-[#bfd5e1] px-3 py-3">Requirement</th>
+                        <th className="w-[24%] border border-[#bfd5e1] px-3 py-3">Offered</th>
+                        <th className="w-[9%] border border-[#bfd5e1] px-3 py-3 text-center">Rejected?</th>
+                        <th className="w-[9%] border border-[#bfd5e1] px-3 py-3 text-center">Loading</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedItems.map((item, index) => {
+                        const decision = quotationItemDecisions[item.bidItemId] || {};
+                        return (
+                          <tr key={`departures-${item.bidItemId || item.requisitionItemId}`} className="bg-white">
+                            <td className="break-words border border-[#d6e4ec] px-3 py-3 align-top font-bold text-[#10283f]">{String(index + 1).padStart(2, "0")}</td>
+                            <td className="break-words border border-[#d6e4ec] px-3 py-3 align-top font-bold text-[#10283f]">{selectedQuotation.vendorName || "Vendor"}</td>
+                            <td className="break-words border border-[#d6e4ec] px-3 py-3 align-top text-slate-700">{item.requisitionItemName || `Item ${item.requisitionItemId}`}</td>
+                            <td className="border border-[#d6e4ec] px-3 py-3 align-top text-slate-700">
+                              <DepartureRequirementCell specificationText={item.vendorSpecification} fallback={item.requiredSpecification} />
+                            </td>
+                            <td className="border border-[#d6e4ec] px-3 py-3 align-top text-slate-700">
+                              <DepartureOfferedCell specificationText={item.vendorSpecification} />
+                              <textarea className={`${inputClass} mt-2 min-h-[72px] text-xs`} value={decision.departureRemark || ""} onChange={(e) => updateQuotationItemDecision(item.bidItemId, { departureRemark: e.target.value })} placeholder="Departure remark" />
+                            </td>
+                            <td className="border border-[#d6e4ec] px-3 py-3 align-top">
+                              <div className="flex min-h-[92px] flex-col items-stretch justify-start gap-2">
+                                <span className="text-center text-[11px] font-black uppercase tracking-[0.08em] text-slate-500">Yes / No</span>
+                                <select className={`${inputClass} px-2 text-center text-xs font-black`} value={decision.rejectedAsNonresponsive || "NO"} onChange={(e) => updateQuotationItemDecision(item.bidItemId, { rejectedAsNonresponsive: e.target.value })}>
+                                  <option value="NO">NO</option>
+                                  <option value="YES">YES</option>
+                                </select>
+                              </div>
+                            </td>
+                            <td className="border border-[#d6e4ec] px-3 py-3 align-top">
+                              <div className="flex min-h-[92px] flex-col items-stretch justify-start gap-2">
+                                <span className="text-center text-[11px] font-black uppercase tracking-[0.08em] text-slate-500">Suggested</span>
+                                <textarea className={`${inputClass} min-h-[58px] resize-none px-2 text-xs`} value={decision.loadingSuggested || ""} onChange={(e) => updateQuotationItemDecision(item.bidItemId, { loadingSuggested: e.target.value })} placeholder="None" />
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-[24px] border border-[#dce8ef] bg-white p-5">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Evaluation of Responsive Bids</div>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-[#dce8ef] text-left text-sm">
+                    <thead className="bg-[#edf7fb] text-xs font-black uppercase tracking-[0.12em] text-[#166e8c]">
+                      <tr>
+                        <th className="px-3 py-3">Bidder No</th>
+                        <th className="px-3 py-3">Name</th>
+                        <th className="px-3 py-3 text-right">Bid Price</th>
+                        <th className="px-3 py-3">Arithmetical errors (+/-)</th>
+                        <th className="px-3 py-3">Discounts</th>
+                        <th className="px-3 py-3">Additions / omissions</th>
+                        <th className="px-3 py-3 text-center">Qty</th>
+                        <th className="px-3 py-3 text-right">Evaluated Price</th>
+                        <th className="px-3 py-3 text-center">Rank</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#e8f0f5]">
+                      {responsiveBidRows.map((quotation, index) => {
+                        const isSelectedResponsiveBid = String(quotation.quotationId) === String(selectedQuotation.quotationId);
+                        const firstItem = selectedItems[0];
+                        const decision = quotationItemDecisions[firstItem?.bidItemId] || {};
+                        return (
+                          <tr key={`responsive-${quotation.quotationId}`} className={isSelectedResponsiveBid ? "bg-emerald-50" : "bg-white"}>
+                            <td className="px-3 py-3 font-bold text-[#10283f]">{String(index + 1).padStart(2, "0")}</td>
+                            <td className="px-3 py-3 font-bold text-[#10283f]">{quotation.vendorName || "Vendor"}</td>
+                            <td className="px-3 py-3 text-right font-semibold text-slate-700">{formatMoney(quotation.quotedAmount)}</td>
+                            <td className="min-w-[170px] px-3 py-3">
+                              {isSelectedResponsiveBid && firstItem ? (
+                                <input className={inputClass} value={decision.arithmeticErrors || ""} onChange={(e) => updateQuotationItemDecision(firstItem.bidItemId, { arithmeticErrors: e.target.value })} placeholder="None" />
+                              ) : "-"}
+                            </td>
+                            <td className="min-w-[150px] px-3 py-3">
+                              {isSelectedResponsiveBid && firstItem ? (
+                                <input className={inputClass} value={decision.discounts || ""} onChange={(e) => updateQuotationItemDecision(firstItem.bidItemId, { discounts: e.target.value })} placeholder="None" />
+                              ) : "-"}
+                            </td>
+                            <td className="min-w-[170px] px-3 py-3">
+                              {isSelectedResponsiveBid && firstItem ? (
+                                <input className={inputClass} value={decision.additionsOmissions || ""} onChange={(e) => updateQuotationItemDecision(firstItem.bidItemId, { additionsOmissions: e.target.value })} placeholder="None" />
+                              ) : "-"}
+                            </td>
+                            <td className="px-3 py-3 text-center font-semibold text-slate-700">{isSelectedResponsiveBid ? selectedItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0) || "-" : "-"}</td>
+                            <td className="px-3 py-3 text-right font-black text-[#10283f]">{formatMoney(quotation.quotedAmount)}</td>
+                            <td className="px-3 py-3 text-center font-black text-[#166e8c]">{index + 1}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
@@ -1360,6 +1897,13 @@ This offer letter is issued for the selected quotation item listed above.`;
                         <div className="mt-2 text-sm leading-7 text-slate-700">
                           <span className="font-bold text-[#10283f]">Evidence:</span> {aiSuggestion.evidence || "No matching vendor evidence found."}
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => updateQuotationItemDecision(item.bidItemId, { evaluationComment: buildAiRecommendationComment(aiSuggestion) })}
+                          className="mt-3 rounded-2xl bg-[#10283f] px-4 py-2 text-xs font-bold text-white hover:bg-[#1c405f]"
+                        >
+                          Use AI recommendation in comment
+                        </button>
                       </div>
                     )}
                     <div className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -1388,10 +1932,10 @@ This offer letter is issued for the selected quotation item listed above.`;
                           <Field label="Item Comment">
                             <textarea
                               className={inputClass}
-                              rows={2}
+                              rows={5}
                               value={quotationItemDecisions[item.bidItemId]?.evaluationComment || ""}
                               onChange={(e) => updateQuotationItemDecision(item.bidItemId, { evaluationComment: e.target.value })}
-                              placeholder="Required when rejecting this item"
+                              placeholder="Add the vendor-facing rejection note. AI recommendation can be inserted and edited here."
                             />
                           </Field>
                           <div className="mt-3 flex flex-wrap gap-3">

@@ -4,10 +4,12 @@ import AccountBalanceRoundedIcon from "@mui/icons-material/AccountBalanceRounded
 import BusinessRoundedIcon from "@mui/icons-material/BusinessRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
+import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded";
 
 export const adminSidebarItems = [
   { label: "Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
   { label: "Users", icon: PeopleAltRoundedIcon, path: "/admin/users" },
+  { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: "/admin/role-requests" },
   { label: "Faculties", icon: AccountBalanceRoundedIcon, path: "/admin/faculties" },
   { label: "Divisions", icon: BusinessRoundedIcon, path: "/admin/divisions" },
   { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },

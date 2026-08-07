@@ -46,10 +46,36 @@ const initialForm = {
   designation: "",
   address: "",
   isActive: true,
+  roles: [],
 };
 
 const getFullName = (user) =>
   [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || "Unnamed user";
+
+const roleKey = (role) => `${role.mainRole || ""}:${role.subRole || ""}`;
+
+const buildRole = (mainRole, subRole) => ({
+  mainRole,
+  subRole: subRole || null,
+});
+
+const normalizeRoles = (mainRole, subRole, roles = []) => {
+  const nextSubRoles = subRolesByMainRole[mainRole] || [];
+  const activeRole = buildRole(mainRole, nextSubRoles.length ? subRole : null);
+  const byKey = new Map([[roleKey(activeRole), activeRole]]);
+
+  roles
+    .filter((role) => role?.mainRole && role.mainRole !== "VENDOR")
+    .forEach((role) => {
+      const allowedSubRoles = subRolesByMainRole[role.mainRole] || [];
+      const normalizedRole = buildRole(role.mainRole, allowedSubRoles.length ? role.subRole : null);
+      if (!allowedSubRoles.length || normalizedRole.subRole) {
+        byKey.set(roleKey(normalizedRole), normalizedRole);
+      }
+    });
+
+  return [...byKey.values()];
+};
 
 export default function AdminUsers() {
   const location = useLocation();
@@ -135,6 +161,7 @@ export default function AdminUsers() {
       facultyId: user.facultyId || "",
       divisionId: user.divisionId || "",
       subRole: user.subRole || "",
+      roles: normalizeRoles(user.mainRole, user.subRole, user.roles || []),
     });
     setDialogOpen(true);
   };
@@ -147,6 +174,34 @@ export default function AdminUsers() {
       subRole: nextSubRoles.length === 1 ? nextSubRoles[0] : "",
       facultyId: mainRole === "UNIVERSITY_EXECUTIVE" ? "" : current.facultyId,
       divisionId: mainRole === "UNIVERSITY_EXECUTIVE" ? "" : current.divisionId,
+      roles: normalizeRoles(mainRole, nextSubRoles.length === 1 ? nextSubRoles[0] : "", current.roles),
+    }));
+  };
+
+  const addAssignedRole = () => {
+    setForm((current) => ({
+      ...current,
+      roles: [...(current.roles || []), buildRole("FACULTY_STAFF", "STAFF_MEMBER")],
+    }));
+  };
+
+  const updateAssignedRole = (index, field, value) => {
+    setForm((current) => {
+      const roles = [...(current.roles || [])];
+      const nextRole = { ...roles[index], [field]: value };
+      if (field === "mainRole") {
+        const allowedSubRoles = subRolesByMainRole[value] || [];
+        nextRole.subRole = allowedSubRoles.length === 1 ? allowedSubRoles[0] : "";
+      }
+      roles[index] = nextRole;
+      return { ...current, roles };
+    });
+  };
+
+  const removeAssignedRole = (index) => {
+    setForm((current) => ({
+      ...current,
+      roles: (current.roles || []).filter((_, roleIndex) => roleIndex !== index),
     }));
   };
 
@@ -160,6 +215,7 @@ export default function AdminUsers() {
       facultyId: isUniversityExecutive ? null : form.facultyId ? Number(form.facultyId) : null,
       divisionId: isUniversityExecutive ? null : form.divisionId ? Number(form.divisionId) : null,
       vendorId: form.vendorId ? Number(form.vendorId) : null,
+      roles: normalizeRoles(form.mainRole, form.subRole, form.roles),
     };
 
     try {
@@ -247,6 +303,11 @@ export default function AdminUsers() {
                   <td className="px-5 py-4">
                     <div className="font-semibold text-slate-700">{user.mainRole}</div>
                     <div className="mt-1 text-slate-500">{user.subRole || "No sub role"}</div>
+                    {(user.roles || []).length > 1 ? (
+                      <div className="mt-2 text-xs font-semibold text-[#166e8c]">
+                        {(user.roles || []).length} assigned roles
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-5 py-4 text-slate-600">
                     {[user.facultyName, user.divisionName].filter(Boolean).join(" / ") || "Not assigned"}
@@ -293,6 +354,50 @@ export default function AdminUsers() {
               <MenuItem value="">None</MenuItem>
               {subRoleOptions.map((role) => <MenuItem key={role} value={role}>{role}</MenuItem>)}
             </TextField>
+            <div className="md:col-span-2">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-bold text-[#10283f]">Assigned roles</div>
+                  <div className="text-xs text-slate-500">Vendor role is not included in role switching.</div>
+                </div>
+                <Button size="small" startIcon={<AddRoundedIcon />} onClick={addAssignedRole} sx={{ textTransform: "none" }}>
+                  Add Role
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {(form.roles || []).map((role, index) => {
+                  const assignedSubRoleOptions = subRolesByMainRole[role.mainRole] || [];
+                  const isActiveRole = roleKey(role) === roleKey(buildRole(form.mainRole, form.subRole));
+
+                  return (
+                    <div key={`${roleKey(role)}-${index}`} className="grid gap-3 rounded-2xl border border-slate-200 p-3 md:grid-cols-[1fr_1fr_auto]">
+                      <TextField select label="Main role" value={role.mainRole || ""} onChange={(e) => updateAssignedRole(index, "mainRole", e.target.value)} size="small">
+                        {mainRoles.map((mainRole) => <MenuItem key={mainRole} value={mainRole}>{mainRole}</MenuItem>)}
+                      </TextField>
+                      <TextField
+                        select
+                        label="Sub role"
+                        value={role.subRole || ""}
+                        onChange={(e) => updateAssignedRole(index, "subRole", e.target.value)}
+                        size="small"
+                        disabled={!assignedSubRoleOptions.length}
+                      >
+                        <MenuItem value="">None</MenuItem>
+                        {assignedSubRoleOptions.map((subRole) => <MenuItem key={subRole} value={subRole}>{subRole}</MenuItem>)}
+                      </TextField>
+                      <Button
+                        onClick={() => removeAssignedRole(index)}
+                        disabled={isActiveRole}
+                        startIcon={<CloseRoundedIcon />}
+                        sx={{ textTransform: "none", justifySelf: "start" }}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
             <TextField select label="Faculty" value={form.facultyId} onChange={(e) => setForm({ ...form, facultyId: e.target.value })} disabled={isUniversityExecutive}>
               <MenuItem value="">None</MenuItem>
               {faculties.map((faculty) => <MenuItem key={faculty.id} value={faculty.id}>{faculty.facultyName}</MenuItem>)}

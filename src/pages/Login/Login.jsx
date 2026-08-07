@@ -24,7 +24,6 @@ function Login({ onClose, openRegister }) {
     defaultValues: {
       email: "",
       password: "",
-      rememberMe: true,
     },
   });
   const { login, googleLogin, forgotPassword } = useAuth();
@@ -155,7 +154,7 @@ function Login({ onClose, openRegister }) {
   const onSubmit = async (data) => {
     setLoginError("");
     try {
-      const creds = { email: data.email, password: data.password, rememberMe: data.rememberMe };
+      const creds = { email: data.email, password: data.password };
       const result = await login(creds);
       navigateByRole(result?.user);
     } catch (error) {
@@ -282,16 +281,7 @@ function Login({ onClose, openRegister }) {
             )}
           </div>
 
-          <div className="flex items-center justify-between text-sm">
-            <label className="flex items-center text-gray-600 cursor-pointer">
-              <input
-                type="checkbox"
-                {...register("rememberMe")}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                disabled={isSubmitting}
-              />
-              <span className="ml-2">Remember me</span>
-            </label>
+          <div className="flex items-center justify-end text-sm">
             <button
               type="button"
               onClick={() => {

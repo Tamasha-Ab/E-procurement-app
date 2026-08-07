@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, TextField } from "@mui/material";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
+import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
+import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -97,6 +99,8 @@ function createItemForms(rfq) {
 export default function VendorQuotationSubmission() {
   const navigate = useNavigate();
   const location = useLocation();
+  const documentInputRefs = useRef({});
+  const itemInputRefs = useRef({});
   const [searchParams] = useSearchParams();
   const isItemPage = location.pathname.endsWith("/items");
   const isSelectionPage = location.pathname.endsWith("/rfq-selection");
@@ -159,6 +163,15 @@ export default function VendorQuotationSubmission() {
     )));
   };
 
+  const clearDocumentFile = (index) => {
+    setDocuments((current) => current.map((document, documentIndex) => (
+      documentIndex === index ? { ...document, fileName: "", dataUrl: "" } : document
+    )));
+    if (documentInputRefs.current[index]) {
+      documentInputRefs.current[index].value = "";
+    }
+  };
+
   const saveDocuments = async () => {
     setError("");
     setNotice("");
@@ -206,6 +219,15 @@ export default function VendorQuotationSubmission() {
     setItemForms((current) => current.map((item, itemIndex) => (
       itemIndex === index ? { ...item, specificationDocumentName: file?.name || "", specificationDocumentUrl: dataUrl } : item
     )));
+  };
+
+  const clearItemFile = (index) => {
+    setItemForms((current) => current.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, specificationDocumentName: "", specificationDocumentUrl: "" } : item
+    )));
+    if (itemInputRefs.current[index]) {
+      itemInputRefs.current[index].value = "";
+    }
   };
 
   const submit = async (event) => {
@@ -296,18 +318,44 @@ export default function VendorQuotationSubmission() {
             </div>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               {documents.map((document, index) => (
-                <label key={document.label} className="rounded-[18px] border border-[#dce8ef] bg-slate-50 p-4">
+                <div key={document.label} className="rounded-[18px] border border-[#dce8ef] bg-slate-50 p-4">
                   <span className="block text-sm font-black text-[#10283f]">{document.label}</span>
                   <input
+                    ref={(element) => { documentInputRefs.current[index] = element; }}
                     type="file"
                     accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
                     onChange={(event) => setDocumentFile(index, event.target.files?.[0] || null)}
-                    className="mt-3 block w-full text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-[#edf7fb] file:px-4 file:py-2 file:text-sm file:font-bold file:text-[#166e8c]"
+                    className="sr-only"
                   />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={document.dataUrl ? <EditRoundedIcon /> : <SaveRoundedIcon />}
+                      onClick={() => documentInputRefs.current[index]?.click()}
+                      sx={{ textTransform: "none", borderColor: "#166e8c", color: "#166e8c", borderRadius: "12px", fontWeight: 800 }}
+                    >
+                      {document.dataUrl ? "Edit Document" : "Upload Document"}
+                    </Button>
+                    <Button
+                      size="small"
+                      startIcon={<DeleteRoundedIcon />}
+                      onClick={() => clearDocumentFile(index)}
+                      disabled={!document.dataUrl}
+                      sx={{ textTransform: "none", color: "#b42318", borderRadius: "12px", fontWeight: 800 }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                   <span className={`mt-2 block text-xs font-semibold ${document.dataUrl ? "text-emerald-700" : "text-red-600"}`}>
                     {document.fileName || (document.dataUrl ? "Saved document" : "Required")}
                   </span>
-                </label>
+                  {document.dataUrl ? (
+                    <a href={document.dataUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-bold text-[#166e8c] hover:underline">
+                      Open current document
+                    </a>
+                  ) : null}
+                </div>
               ))}
             </div>
             <div className="mt-6 flex justify-end">
@@ -401,11 +449,20 @@ export default function VendorQuotationSubmission() {
                             </tbody>
                           </table>
                         </div>
-                        <label className="md:col-span-2 rounded-[18px] border border-[#dce8ef] bg-white p-4">
+                        <div className="md:col-span-2 rounded-[18px] border border-[#dce8ef] bg-white p-4">
                           <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Specification document</span>
-                          <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" onChange={(event) => setItemFile(index, event.target.files?.[0] || null)} className="mt-3 block w-full text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-[#edf7fb] file:px-4 file:py-2 file:text-sm file:font-bold file:text-[#166e8c]" required={!item.specificationDocumentUrl} />
+                          <input ref={(element) => { itemInputRefs.current[index] = element; }} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" onChange={(event) => setItemFile(index, event.target.files?.[0] || null)} className="sr-only" />
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button size="small" variant="outlined" startIcon={item.specificationDocumentUrl ? <EditRoundedIcon /> : <SaveRoundedIcon />} onClick={() => itemInputRefs.current[index]?.click()} sx={{ textTransform: "none", borderColor: "#166e8c", color: "#166e8c", borderRadius: "12px", fontWeight: 800 }}>
+                              {item.specificationDocumentUrl ? "Edit Document" : "Upload Document"}
+                            </Button>
+                            <Button size="small" startIcon={<DeleteRoundedIcon />} onClick={() => clearItemFile(index)} disabled={!item.specificationDocumentUrl} sx={{ textTransform: "none", color: "#b42318", borderRadius: "12px", fontWeight: 800 }}>
+                              Delete
+                            </Button>
+                          </div>
                           {item.specificationDocumentName && <span className="mt-2 block text-xs font-semibold text-slate-500">{item.specificationDocumentName}</span>}
-                        </label>
+                          {item.specificationDocumentUrl ? <a href={item.specificationDocumentUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-bold text-[#166e8c] hover:underline">Open current document</a> : null}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -500,11 +557,20 @@ export default function VendorQuotationSubmission() {
                         </tbody>
                       </table>
                     </div>
-                    <label className="md:col-span-2 rounded-[18px] border border-[#dce8ef] bg-white p-4">
+                    <div className="md:col-span-2 rounded-[18px] border border-[#dce8ef] bg-white p-4">
                       <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Specification document</span>
-                      <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" onChange={(event) => setItemFile(index, event.target.files?.[0] || null)} className="mt-3 block w-full text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-[#edf7fb] file:px-4 file:py-2 file:text-sm file:font-bold file:text-[#166e8c]" required={!item.specificationDocumentUrl} />
+                      <input ref={(element) => { itemInputRefs.current[index] = element; }} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" onChange={(event) => setItemFile(index, event.target.files?.[0] || null)} className="sr-only" />
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button size="small" variant="outlined" startIcon={item.specificationDocumentUrl ? <EditRoundedIcon /> : <SaveRoundedIcon />} onClick={() => itemInputRefs.current[index]?.click()} sx={{ textTransform: "none", borderColor: "#166e8c", color: "#166e8c", borderRadius: "12px", fontWeight: 800 }}>
+                          {item.specificationDocumentUrl ? "Edit Document" : "Upload Document"}
+                        </Button>
+                        <Button size="small" startIcon={<DeleteRoundedIcon />} onClick={() => clearItemFile(index)} disabled={!item.specificationDocumentUrl} sx={{ textTransform: "none", color: "#b42318", borderRadius: "12px", fontWeight: 800 }}>
+                          Delete
+                        </Button>
+                      </div>
                       {item.specificationDocumentName && <span className="mt-2 block text-xs font-semibold text-slate-500">{item.specificationDocumentName}</span>}
-                    </label>
+                      {item.specificationDocumentUrl ? <a href={item.specificationDocumentUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-bold text-[#166e8c] hover:underline">Open current document</a> : null}
+                    </div>
                   </div>
                 </div>
               ))}

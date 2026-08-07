@@ -49,6 +49,8 @@ export default function BecVendorReview() {
   const [selectedItemKey, setSelectedItemKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [submittingItemId, setSubmittingItemId] = useState("");
+  const [submittingDocumentId, setSubmittingDocumentId] = useState("");
+  const [documentRequests, setDocumentRequests] = useState({});
   const [sentApprovalItemIds, setSentApprovalItemIds] = useState(() => new Set());
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -212,6 +214,69 @@ Lowest quoted technically approved vendor sent to approval.`;
     }
   };
 
+  const updateDocumentRequest = (quotationId, field, value) => {
+    setDocumentRequests((current) => ({
+      ...current,
+      [quotationId]: {
+        requestedDocumentName: "",
+        note: "",
+        ...(current[quotationId] || {}),
+        [field]: value,
+      },
+    }));
+  };
+
+  const requestDocument = async (row) => {
+    const quotationId = row?.quotation?.quotationId;
+    const form = documentRequests[quotationId] || {};
+    if (!quotationId) {
+      setError("Quotation ID is missing.");
+      return;
+    }
+    if (!form.requestedDocumentName?.trim()) {
+      setError("Enter the document name BEC needs from the vendor.");
+      return;
+    }
+
+    setError("");
+    setMessage("");
+    setSubmittingDocumentId(String(quotationId));
+    try {
+      await procurementApi.quotations.requestDocument(token, quotationId, {
+        requestedDocumentName: form.requestedDocumentName.trim(),
+        note: form.note?.trim() || "",
+      });
+      setMessage("Document request sent to vendor.");
+      setDocumentRequests((current) => ({ ...current, [quotationId]: { requestedDocumentName: "", note: "" } }));
+      await load();
+    } catch (requestError) {
+      setError(requestError.message || "Could not request this document from the vendor.");
+    } finally {
+      setSubmittingDocumentId("");
+    }
+  };
+
+  const acceptDocument = async (row) => {
+    const quotationId = row?.quotation?.quotationId;
+    if (!quotationId) {
+      setError("Quotation ID is missing.");
+      return;
+    }
+
+    setError("");
+    setMessage("");
+    setSubmittingDocumentId(String(quotationId));
+    try {
+      await procurementApi.quotations.acceptDocument(token, quotationId);
+      setMessage("Vendor document accepted.");
+      await load();
+    } catch (acceptError) {
+      setError(acceptError.message || "Could not accept this document.");
+    } finally {
+      setSubmittingDocumentId("");
+    }
+  };
+
   if (!isBecUser) {
     return (
       <section className={cardClass}>
@@ -333,6 +398,7 @@ Lowest quoted technically approved vendor sent to approval.`;
                             <th className="px-4 py-3 text-right">Total Price</th>
                             <th className="px-4 py-3">Submitted</th>
                             <th className="px-4 py-3">Status</th>
+                            <th className="px-4 py-3">Documents</th>
                             <th className="px-4 py-3 text-right">Action</th>
                           </tr>
                         </thead>
@@ -342,7 +408,10 @@ Lowest quoted technically approved vendor sent to approval.`;
                             const rowKey = `${quotation.quotationId}-${item.bidItemId || item.requisitionItemId}`;
                             const isLowest = rowKey === lowestBidRowKey;
                             const isSubmitting = submittingItemId === String(item.bidItemId);
+                            const isDocumentSubmitting = submittingDocumentId === String(quotation.quotationId);
                             const isSent = item.vendorSelected || sentApprovalItemIds.has(String(item.bidItemId));
+                            const documentStatus = quotation.documentReviewStatus || "NOT_REQUESTED";
+                            const requestForm = documentRequests[quotation.quotationId] || {};
                             return (
                               <tr key={rowKey} className={isLowest ? "bg-emerald-50/90 ring-1 ring-inset ring-emerald-200" : "bg-white"}>
                                 <td className="px-4 py-4 align-top">
@@ -360,6 +429,73 @@ Lowest quoted technically approved vendor sent to approval.`;
                                 <td className="px-4 py-4 text-right align-top text-base font-black text-[#10283f]">{formatMoney(item.quotedTotalPrice)}</td>
                                 <td className="px-4 py-4 align-top text-slate-600">{formatDateTime(quotation.submittedAt)}</td>
                                 <td className="px-4 py-4 align-top"><StatusPill status={item.technicalStatus || quotation.status || "APPROVED"} /></td>
+                                <td className="min-w-[280px] px-4 py-4 align-top">
+                                  <div className="space-y-3 text-left">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <StatusPill status={documentStatus} />
+                                      {quotation.attachmentUrl ? (
+                                        <a className="text-xs font-black text-[#166e8c]" href={quotation.attachmentUrl} target="_blank" rel="noreferrer">
+                                          Open quotation document
+                                        </a>
+                                      ) : null}
+                                      {item.specificationDocumentUrl ? (
+                                        <a className="text-xs font-black text-[#166e8c]" href={item.specificationDocumentUrl} target="_blank" rel="noreferrer">
+                                          Open item spec
+                                        </a>
+                                      ) : null}
+                                    </div>
+
+                                    {documentStatus === "RESUBMITTED" || documentStatus === "ACCEPTED" ? (
+                                      <div className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-600">
+                                        <div className="font-black text-[#10283f]">{quotation.requestedDocumentName || "Requested document"}</div>
+                                        <div className="mt-1">Submitted {formatDateTime(quotation.documentSubmittedAt)}</div>
+                                        {quotation.requestedDocumentUrl ? (
+                                          <a className="mt-2 inline-block font-black text-[#166e8c]" href={quotation.requestedDocumentUrl} target="_blank" rel="noreferrer">
+                                            Open vendor submission
+                                          </a>
+                                        ) : null}
+                                        {documentStatus === "RESUBMITTED" ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => acceptDocument(row)}
+                                            disabled={isDocumentSubmitting}
+                                            className="mt-2 block rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                                          >
+                                            {isDocumentSubmitting ? "Saving..." : "Accept Document"}
+                                          </button>
+                                        ) : null}
+                                      </div>
+                                    ) : documentStatus === "REQUESTED" ? (
+                                      <div className="rounded-2xl bg-amber-50 p-3 text-xs leading-6 text-amber-800">
+                                        Waiting for vendor: <span className="font-black">{quotation.requestedDocumentName || "Requested document"}</span>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        <input
+                                          value={requestForm.requestedDocumentName || ""}
+                                          onChange={(event) => updateDocumentRequest(quotation.quotationId, "requestedDocumentName", event.target.value)}
+                                          placeholder="Document name"
+                                          className="w-full rounded-xl border border-[#dce8ef] px-3 py-2 text-xs font-semibold text-[#10283f] outline-none focus:border-[#166e8c]"
+                                        />
+                                        <textarea
+                                          value={requestForm.note || ""}
+                                          onChange={(event) => updateDocumentRequest(quotation.quotationId, "note", event.target.value)}
+                                          placeholder="Issue note for vendor"
+                                          rows={2}
+                                          className="w-full resize-none rounded-xl border border-[#dce8ef] px-3 py-2 text-xs font-semibold text-[#10283f] outline-none focus:border-[#166e8c]"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => requestDocument(row)}
+                                          disabled={isDocumentSubmitting}
+                                          className="rounded-xl bg-[#10283f] px-3 py-2 text-xs font-black text-white hover:bg-[#1c405f] disabled:cursor-not-allowed disabled:bg-slate-300"
+                                        >
+                                          {isDocumentSubmitting ? "Sending..." : "Request Document"}
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
                                 <td className="px-4 py-4 text-right align-top">
                                   {isLowest ? (
                                     <button

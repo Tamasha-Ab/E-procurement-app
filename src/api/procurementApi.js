@@ -57,6 +57,10 @@ export const procurementApi = {
       apiRequest(`${procurementBase}/quotation-items/${quotationItemId}/technical-evaluation`, { token, method: "PATCH", body: payload }),
     selectItemVendor: (token, quotationItemId, payload) =>
       apiRequest(`${procurementBase}/quotation-items/${quotationItemId}/vendor-selection`, { token, method: "PATCH", body: payload }),
+    requestDocument: (token, quotationId, payload) =>
+      apiRequest(`${procurementBase}/quotations/${quotationId}/document-request`, { token, method: "PATCH", body: payload }),
+    acceptDocument: (token, quotationId) =>
+      apiRequest(`${procurementBase}/quotations/${quotationId}/document-review/accept`, { token, method: "PATCH" }),
   },
   objections: {
     resolve: (token, objectionId, payload) =>
@@ -119,6 +123,8 @@ export const vendorProcurementApi = {
   },
   quotations: {
     list: (token) => apiRequest(`${vendorBase}/quotations`, { token }),
+    submitRequestedDocument: (token, quotationId, payload) =>
+      apiRequest(`${vendorBase}/quotations/${quotationId}/requested-document`, { token, method: "PATCH", body: payload }),
   },
   reports: {
     list: (token) => apiRequest(`${vendorBase}/vendor-reports`, { token }),

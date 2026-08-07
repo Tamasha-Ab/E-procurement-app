@@ -20,6 +20,13 @@ const formatDate = (value) => {
 };
 
 const safeList = (value) => (Array.isArray(value) ? value : []);
+const fileToDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 
 function EmptyState({ text }) {
   return <div className="rounded-[24px] bg-slate-50 p-5 text-sm leading-7 text-slate-600">{text}</div>;
@@ -38,7 +45,10 @@ export default function VendorQuotations() {
   const [quotations, setQuotations] = useState([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [documentForms, setDocumentForms] = useState({});
+  const [submittingDocumentId, setSubmittingDocumentId] = useState("");
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   const selectedQuotation = useMemo(
     () => quotations.find((quotation) => String(quotation.quotationId) === String(selectedId)) || quotations[0] || null,
@@ -64,6 +74,47 @@ export default function VendorQuotations() {
     load();
   }, []);
 
+  const updateDocumentForm = (quotationId, field, value) => {
+    setDocumentForms((current) => ({
+      ...current,
+      [quotationId]: {
+        file: null,
+        note: "",
+        ...(current[quotationId] || {}),
+        [field]: value,
+      },
+    }));
+  };
+
+  const submitRequestedDocument = async () => {
+    if (!selectedQuotation?.quotationId) return;
+    const form = documentForms[selectedQuotation.quotationId] || {};
+    if (!form.file) {
+      setError("Please choose the requested document before submitting.");
+      return;
+    }
+
+    setError("");
+    setMessage("");
+    setSubmittingDocumentId(String(selectedQuotation.quotationId));
+    try {
+      const documentUrl = await fileToDataUrl(form.file);
+      await vendorApi.quotations.submitRequestedDocument(selectedQuotation.quotationId, {
+        documentUrl,
+        fileName: form.file.name,
+        note: form.note?.trim() || "",
+      });
+      setDocumentForms((current) => ({ ...current, [selectedQuotation.quotationId]: { file: null, note: "" } }));
+      await load();
+      setSelectedId(String(selectedQuotation.quotationId));
+      setMessage("Requested document submitted to BEC.");
+    } catch (submitError) {
+      setError(submitError.message || "Could not submit the requested document.");
+    } finally {
+      setSubmittingDocumentId("");
+    }
+  };
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -73,6 +124,7 @@ export default function VendorQuotations() {
       />
 
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
+      {message ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">{message}</div> : null}
 
       <div className="grid gap-6 xl:grid-cols-[0.9fr_1.35fr]">
         <section className={cardClass}>
@@ -109,6 +161,9 @@ export default function VendorQuotations() {
                     {rfqDisplayName(quotation, "Submitted quotation")}
                   </h3>
                   <StatusPill status={quotation.status || "SUBMITTED"} />
+                  {quotation.documentReviewStatus && quotation.documentReviewStatus !== "NOT_REQUESTED" ? (
+                    <StatusPill status={quotation.documentReviewStatus} />
+                  ) : null}
                 </div>
                 <div className="mt-2 text-sm leading-7 text-slate-600">
                   {money(quotation.quotedAmount)} | Submitted {formatDate(quotation.submittedAt)}
@@ -158,6 +213,55 @@ export default function VendorQuotations() {
                 <div className="rounded-[24px] bg-[#fff9ec] p-5 text-sm leading-7 text-[#7a5300]">
                   <div className="text-xs font-semibold uppercase tracking-[0.2em]">TEC Evaluation Comment</div>
                   <p className="mt-2">{selectedQuotation.evaluationComment}</p>
+                </div>
+              ) : null}
+
+              {selectedQuotation.documentReviewStatus && selectedQuotation.documentReviewStatus !== "NOT_REQUESTED" ? (
+                <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-5">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800">BEC Document Review</div>
+                    <StatusPill status={selectedQuotation.documentReviewStatus} />
+                  </div>
+                  <div className="mt-3 text-sm leading-7 text-amber-900">
+                    <div className="font-black text-[#10283f]">{selectedQuotation.requestedDocumentName || "Requested document"}</div>
+                    <p>{selectedQuotation.documentRequestNote || "BEC requested an additional document for this quotation."}</p>
+                    {selectedQuotation.documentRequestedAt ? <p>Requested {formatDate(selectedQuotation.documentRequestedAt)}</p> : null}
+                  </div>
+
+                  {selectedQuotation.documentReviewStatus === "REQUESTED" ? (
+                    <div className="mt-4 space-y-3">
+                      <input
+                        type="file"
+                        onChange={(event) => updateDocumentForm(selectedQuotation.quotationId, "file", event.target.files?.[0] || null)}
+                        className="block w-full rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm font-semibold text-[#10283f] file:mr-4 file:rounded-xl file:border-0 file:bg-[#166e8c] file:px-4 file:py-2 file:text-sm file:font-black file:text-white"
+                      />
+                      <textarea
+                        value={documentForms[selectedQuotation.quotationId]?.note || ""}
+                        onChange={(event) => updateDocumentForm(selectedQuotation.quotationId, "note", event.target.value)}
+                        placeholder="Optional note to BEC"
+                        rows={3}
+                        className="w-full resize-none rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm font-semibold text-[#10283f] outline-none focus:border-[#166e8c]"
+                      />
+                      <button
+                        type="button"
+                        onClick={submitRequestedDocument}
+                        disabled={submittingDocumentId === String(selectedQuotation.quotationId)}
+                        className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-black text-white hover:bg-[#145f79] disabled:cursor-not-allowed disabled:bg-slate-300"
+                      >
+                        {submittingDocumentId === String(selectedQuotation.quotationId) ? "Submitting..." : "Submit Requested Document"}
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {selectedQuotation.requestedDocumentUrl ? (
+                    <div className="mt-4 rounded-2xl bg-white p-4 text-sm text-slate-700">
+                      <div className="font-black text-[#10283f]">{selectedQuotation.requestedDocumentFileName || selectedQuotation.requestedDocumentName || "Submitted document"}</div>
+                      <div className="mt-1">Submitted {formatDate(selectedQuotation.documentSubmittedAt)}</div>
+                      <a className="mt-3 inline-block font-black text-[#166e8c]" href={selectedQuotation.requestedDocumentUrl} target="_blank" rel="noreferrer">
+                        Open submitted document
+                      </a>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 

@@ -1,9 +1,8 @@
 const jsonHeaders = { "Content-Type": "application/json" };
 
 const readAuth = () => {
-  const raw =
-    localStorage.getItem("astraea_auth") ||
-    sessionStorage.getItem("astraea_auth");
+  localStorage.removeItem("astraea_auth");
+  const raw = sessionStorage.getItem("astraea_auth");
 
   if (!raw) return {};
 
@@ -78,6 +77,8 @@ export const vendorApi = {
   },
   quotations: {
     list: () => vendorRequest(`${basePath}/quotations`),
+    submitRequestedDocument: (quotationId, payload) =>
+      vendorRequest(`${basePath}/quotations/${quotationId}/requested-document`, { method: "PATCH", body: payload }),
   },
   reports: {
     list: () => vendorRequest(`${basePath}/vendor-reports`),

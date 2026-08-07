@@ -54,6 +54,7 @@ import ProcurementWorkspace from "./pages/Procurement/ProcurementWorkspace.jsx";
 import ProcurementRfqList from "./pages/Procurement/ProcurementRfqList.jsx";
 import NotificationsPage from "./pages/Notifications/NotificationsPage.jsx";
 import TenderDirectory from "./pages/Tenders/TenderDirectory.jsx";
+import RoleRequests from "./pages/RoleRequests/RoleRequests.jsx";
 
 const roleCards = [
   {
@@ -270,6 +271,7 @@ const App = () => {
             <Route path="/dpc/quotation-approvals" element={<QuotationAuthorityApprovals />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/notifications/:notificationId" element={<NotificationsPage />} />
+            <Route path="/role-requests" element={<RoleRequests />} />
             <Route path="/tenders" element={<TenderDirectory />} />
             <Route path="/tenders/:tenderId" element={<TenderDirectory />} />
             <Route path="/procurement/tenders" element={<ProcurementWorkspace />} />
@@ -283,6 +285,7 @@ const App = () => {
             <Route path="/vendor/rfqs/:rfqId/document" element={<VendorRfqDocument />} />
             <Route path="/vendor/purchase-orders/:poId" element={<VendorPurchaseOrderDetails />} />
             <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/role-requests" element={<RoleRequests />} />
             <Route path="/admin/faculties" element={<AdminFaculties />} />
             <Route path="/admin/departments" element={<AdminDepartments />} />
             <Route path="/admin/divisions" element={<AdminDepartments />} />
