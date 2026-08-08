@@ -44,6 +44,9 @@ import VcApprovals from "./pages/Approvals/VcApprovals.jsx";
 import BecApprovals from "./pages/Approvals/BecApprovals.jsx";
 import BecCategoryList from "./pages/Approvals/BecCategoryList.jsx";
 import BecVendorReview from "./pages/Approvals/BecVendorReview.jsx";
+import BecCategoryAssignment from "./pages/Approvals/BecCategoryAssignment.jsx";
+import BecAssignedQuotations from "./pages/Approvals/BecAssignedQuotations.jsx";
+import BecFinalVendorList from "./pages/Approvals/BecFinalVendorList.jsx";
 import BecSelectedVendors from "./pages/Approvals/BecSelectedVendors.jsx";
 import QuotationAuthorityApprovals from "./pages/Approvals/QuotationAuthorityApprovals.jsx";
 import BecAuditTrail from "./pages/Approvals/BecAuditTrail.jsx";
@@ -260,7 +263,10 @@ const App = () => {
             <Route path="/approvals/bec" element={<BecApprovals />} />
             <Route path="/approvals/bec/:rrId" element={<BecApprovals />} />
             <Route path="/approvals/bec/quotations" element={<ProcurementWorkspace />} />
+            <Route path="/approvals/bec/category-assignment" element={<BecCategoryAssignment />} />
+            <Route path="/approvals/bec/assigned-quotations" element={<BecAssignedQuotations />} />
             <Route path="/approvals/bec/vendor-review" element={<BecVendorReview />} />
+            <Route path="/approvals/bec/vendor-final-list" element={<BecFinalVendorList />} />
             <Route path="/approvals/bec/selected-vendors" element={<BecSelectedVendors />} />
             <Route path="/approvals/bec-category-list" element={<BecCategoryList />} />
             <Route path="/approvals/bec-category-list/:rrId" element={<BecCategoryList />} />

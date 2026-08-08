@@ -27,6 +27,7 @@ const subRolesByMainRole = {
     "ASSISTANT_BURSAR",
     "BURSAR",
     "BEC",
+    "BEC_HEAD",
   ],
 };
 const statuses = ["PENDING", "APPROVED", "REJECTED"];
@@ -92,6 +93,8 @@ export default function AdminUsers() {
     };
   });
   const [form, setForm] = useState(initialForm);
+  const [becApprovalUser, setBecApprovalUser] = useState(null);
+  const [becApprovalSubRole, setBecApprovalSubRole] = useState("BEC");
   const [editing, setEditing] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -233,7 +236,7 @@ export default function AdminUsers() {
     }
   };
 
-  const approve = async (user, approved) => {
+  const approve = async (user, approved, subRoleOverride = null) => {
     setError("");
 
     try {
@@ -241,11 +244,58 @@ export default function AdminUsers() {
         status: approved ? "APPROVED" : "REJECTED",
         rejectionReason: approved ? "" : "Rejected by administrator",
         mainRole: user.mainRole || null,
-        subRole: user.subRole || null,
+        subRole: subRoleOverride || user.subRole || null,
       });
+      setBecApprovalUser(null);
       await load();
     } catch (approvalError) {
       setError(approvalError.message);
+    }
+  };
+
+  const openBecApproval = (user) => {
+    setBecApprovalUser(user);
+    setBecApprovalSubRole(user.subRole === "BEC_HEAD" ? "BEC_HEAD" : "BEC");
+  };
+
+  const confirmBecApproval = () => {
+    if (!becApprovalUser) return;
+    approve(becApprovalUser, true, becApprovalSubRole);
+  };
+
+  const promoteBecHead = async (user) => {
+    setError("");
+    try {
+      await adminApi.users.update(user.userId, {
+        ...user,
+        mainRole: "FINANCE",
+        subRole: "BEC_HEAD",
+        facultyId: user.facultyId || null,
+        divisionId: user.divisionId || null,
+        vendorId: user.vendorId || null,
+        roles: normalizeRoles("FINANCE", "BEC_HEAD", user.roles || []),
+      });
+      await load();
+    } catch (promotionError) {
+      setError(promotionError.message || "Could not assign BEC Head role.");
+    }
+  };
+
+  const removeBecHead = async (user) => {
+    setError("");
+    try {
+      await adminApi.users.update(user.userId, {
+        ...user,
+        mainRole: "FINANCE",
+        subRole: "BEC",
+        facultyId: user.facultyId || null,
+        divisionId: user.divisionId || null,
+        vendorId: user.vendorId || null,
+        roles: normalizeRoles("FINANCE", "BEC", user.roles || []),
+      });
+      await load();
+    } catch (removeError) {
+      setError(removeError.message || "Could not remove BEC Head role.");
     }
   };
 
@@ -297,7 +347,12 @@ export default function AdminUsers() {
               {users.map((user) => (
                 <tr key={user.userId} className="align-top">
                   <td className="px-5 py-4">
-                    <div className="font-semibold text-[#10283f]">{getFullName(user)}</div>
+                    <div className="flex flex-wrap items-center gap-2 font-semibold text-[#10283f]">
+                      <span>{getFullName(user)}</span>
+                      {user.subRole === "BEC_HEAD" ? (
+                        <span className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">Head</span>
+                      ) : null}
+                    </div>
                     <div className="mt-1 text-slate-500">{user.email}</div>
                   </td>
                   <td className="px-5 py-4">
@@ -321,9 +376,15 @@ export default function AdminUsers() {
                       <Button size="small" startIcon={<EditRoundedIcon />} onClick={() => openEdit(user)} sx={{ textTransform: "none" }}>Edit</Button>
                       {user.userStatus === "PENDING" ? (
                         <>
-                          <Button size="small" startIcon={<CheckRoundedIcon />} onClick={() => approve(user, true)} sx={{ textTransform: "none", color: "#166e8c" }}>Approve</Button>
+                          <Button size="small" startIcon={<CheckRoundedIcon />} onClick={() => user.mainRole === "FINANCE" && user.subRole === "BEC" ? openBecApproval(user) : approve(user, true)} sx={{ textTransform: "none", color: "#166e8c" }}>Approve</Button>
                           <Button size="small" startIcon={<CloseRoundedIcon />} onClick={() => approve(user, false)} sx={{ textTransform: "none", color: "#b42318" }}>Reject</Button>
                         </>
+                      ) : null}
+                      {user.userStatus === "APPROVED" && user.mainRole === "FINANCE" && user.subRole === "BEC" ? (
+                        <Button size="small" startIcon={<CheckRoundedIcon />} onClick={() => promoteBecHead(user)} sx={{ textTransform: "none", color: "#b47a00" }}>Make Head</Button>
+                      ) : null}
+                      {user.userStatus === "APPROVED" && user.mainRole === "FINANCE" && user.subRole === "BEC_HEAD" ? (
+                        <Button size="small" startIcon={<CloseRoundedIcon />} onClick={() => removeBecHead(user)} sx={{ textTransform: "none", color: "#b42318" }}>Remove Head</Button>
                       ) : null}
                       <Button size="small" startIcon={<PowerSettingsNewRoundedIcon />} onClick={() => toggle(user)} sx={{ textTransform: "none" }}>Toggle</Button>
                     </div>
@@ -417,6 +478,29 @@ export default function AdminUsers() {
             <Button type="submit" variant="contained" sx={{ textTransform: "none", bgcolor: "#166e8c" }}>Save</Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      <Dialog open={Boolean(becApprovalUser)} onClose={() => setBecApprovalUser(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Approve BEC User</DialogTitle>
+        <DialogContent className="space-y-4">
+          <div className="text-sm leading-6 text-slate-600">
+            Select whether {becApprovalUser ? getFullName(becApprovalUser) : "this user"} should be approved as a normal BEC member or BEC Head.
+          </div>
+          <TextField
+            select
+            label="BEC role"
+            value={becApprovalSubRole}
+            onChange={(event) => setBecApprovalSubRole(event.target.value)}
+            fullWidth
+          >
+            <MenuItem value="BEC">BEC member</MenuItem>
+            <MenuItem value="BEC_HEAD">BEC Head</MenuItem>
+          </TextField>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={() => setBecApprovalUser(null)} sx={{ textTransform: "none" }}>Cancel</Button>
+          <Button variant="contained" onClick={confirmBecApproval} sx={{ textTransform: "none", bgcolor: "#166e8c" }}>Approve</Button>
+        </DialogActions>
       </Dialog>
     </div>
   );

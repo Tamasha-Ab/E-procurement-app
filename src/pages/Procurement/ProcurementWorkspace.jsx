@@ -21,6 +21,7 @@ const aiConfidenceTone = {
   MEDIUM: "bg-amber-100 text-amber-800",
   LOW: "bg-slate-200 text-slate-700",
 };
+const becCategoryAssignmentKey = "bec_category_assignments";
 
 const initialRfq = {
   rrId: "",
@@ -291,6 +292,18 @@ function RfqList({ rfqs, onSelect, selectedId }) {
 
 function DataTable({ rows, columns, empty }) {
   if (!rows.length) return <EmptyState text={empty} />;
+  const rowKey = (row, index) => [
+    row.quotationId,
+    row.bidItemId,
+    row.id,
+    row.rfqId,
+    row.bidId,
+    row.objectionId,
+    row.reportId,
+    row.offerLetterId,
+    row.purchaseOrderId,
+    index,
+  ].filter((value) => value !== undefined && value !== null && value !== "").join("-");
 
   return (
     <div className="overflow-x-auto rounded-[24px] border border-[#dce8ef]">
@@ -304,7 +317,7 @@ function DataTable({ rows, columns, empty }) {
         </thead>
         <tbody className="divide-y divide-[#edf3f6]">
           {rows.map((row, index) => (
-            <tr key={row.id || row.rfqId || row.bidId || row.offerLetterId || row.purchaseOrderId || index}>
+            <tr key={rowKey(row, index)}>
               {columns.map((column) => (
                 <td key={column.key} className="px-4 py-4 text-slate-700">
                   {column.render ? column.render(row) : row[column.key] ?? "Not set"}
@@ -322,8 +335,8 @@ function SelectField({ value, onChange, options, placeholder = "Select an option
   return (
     <select className={inputClass} value={value} onChange={onChange} required={required} disabled={disabled}>
       <option value="">{placeholder}</option>
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
+      {options.map((option, index) => (
+        <option key={`${option.value}-${index}`} value={option.value}>
           {option.label}
         </option>
       ))}
@@ -1309,6 +1322,47 @@ This offer letter is issued for the selected quotation item listed above.`;
     });
   };
 
+  const sendQuotationToRelevantBec = async (quotation) => {
+    const items = quotation.items || [];
+    if (!items.length) {
+      setError("This quotation has no items to assign.");
+      return;
+    }
+    let assignments = {};
+    try {
+      assignments = JSON.parse(localStorage.getItem(becCategoryAssignmentKey) || "{}");
+    } catch {
+      assignments = {};
+    }
+    const missingCategories = [];
+    const payloads = items.map((item) => {
+      const category = item.itemCategory || quotation.rfqVendorCategory || quotation.vendorCategory || rfqContext(selectedRfq) || "General";
+      const assignment = assignments[category];
+      if (!assignment?.becUserId) {
+        missingCategories.push(category);
+        return null;
+      }
+      return { item, category, becUserId: assignment.becUserId };
+    }).filter(Boolean);
+
+    if (missingCategories.length) {
+      setError(`No BEC member assigned for category: ${[...new Set(missingCategories)].join(", ")}. Use BEC Category Assignment first.`);
+      return;
+    }
+
+    setError("");
+    setMessage("");
+    try {
+      await Promise.all(payloads.map(({ item, category, becUserId }) =>
+        procurementApi.quotations.assignToBec(token, item.bidItemId, { becUserId, category })
+      ));
+      await loadRfqWork();
+      setMessage("Quotation sent to the relevant BEC member for assigned category review.");
+    } catch (err) {
+      setError(err.message || "Could not send quotation to relevant BEC member.");
+    }
+  };
+
   const recommendBid = async (event) => {
     event.preventDefault();
     setError("");
@@ -1505,8 +1559,8 @@ This offer letter is issued for the selected quotation item listed above.`;
                 key: "actions",
                 label: "Details",
                 render: (row) => row.sealed ? "Locked" : (
-                  <button className="rounded-xl bg-[#edf7fb] px-3 py-2 text-xs font-bold text-[#166e8c] hover:bg-[#d9edf5]" type="button" onClick={() => openQuotationDetails(row)}>
-                    View Details
+                  <button className="rounded-xl bg-[#edf7fb] px-3 py-2 text-xs font-bold text-[#166e8c] hover:bg-[#d9edf5]" type="button" onClick={() => quotationReviewOnly ? sendQuotationToRelevantBec(row) : openQuotationDetails(row)}>
+                    {quotationReviewOnly ? "Send to relevant BEC" : "View Details"}
                   </button>
                 ),
               },
@@ -1974,7 +2028,7 @@ This offer letter is issued for the selected quotation item listed above.`;
               })()}
             </div>
           ) : !quotationsAreSealed ? (
-            <EmptyState text="Click View Details on a quotation to compare RR specifications with vendor specifications and approve or reject each item separately." />
+            <EmptyState text={quotationReviewOnly ? "Click Send to relevant BEC to route quotation items to assigned BEC members for category review." : "Click View Details on a quotation to compare RR specifications with vendor specifications and approve or reject each item separately."} />
           ) : null}
 
           {!quotationReviewOnly && <div className="rounded-[28px] border border-[#dce8ef] bg-white p-5">
@@ -2618,7 +2672,7 @@ export default function ProcurementWorkspace() {
   const role = useMemo(() => {
     if (user?.mainRole === "VENDOR") return "VENDOR";
     if (user?.mainRole === "FINANCE" && user?.subRole === "PROCUREMENT_OFFICER") return "PROCUREMENT_OFFICER";
-    if (user?.mainRole === "FINANCE" && user?.subRole === "BEC") return "BEC";
+    if (user?.mainRole === "FINANCE" && user?.subRole === "BEC_HEAD") return "BEC_HEAD";
     if (user?.mainRole === "FACULTY_STAFF" && user?.subRole === "TEC") return "TEC";
     return "UNSUPPORTED";
   }, [user]);
@@ -2634,10 +2688,10 @@ export default function ProcurementWorkspace() {
       title: "Bid Evaluation Workspace",
       description: "Manage specifications, optional pre-bid meetings, sealed bid evaluation, objections, recommendations, and offer letters.",
     },
-    BEC: {
+    BEC_HEAD: {
       eyebrow: "Bid Evaluation Committee",
-      title: "Quotation Specification Review",
-      description: "Review vendor quotations after the bid closing time and compare vendor specifications with RR specifications.",
+      title: "Quotation Category Routing",
+      description: "Send vendor quotation items to the BEC member assigned for each category after the bid closing time.",
     },
     VENDOR: {
       eyebrow: "Vendor Portal",
@@ -2664,7 +2718,7 @@ export default function ProcurementWorkspace() {
 
       {role === "PROCUREMENT_OFFICER" && <ProcurementOfficerWorkspace token={token} setError={setError} setMessage={setMessage} />}
       {role === "TEC" && <TecWorkspace token={token} setError={setError} setMessage={setMessage} />}
-      {role === "BEC" && <TecWorkspace token={token} setError={setError} setMessage={setMessage} quotationReviewOnly />}
+      {role === "BEC_HEAD" && <TecWorkspace token={token} setError={setError} setMessage={setMessage} quotationReviewOnly />}
       {role === "VENDOR" && (
         <VendorWorkspace
           token={token}
@@ -2674,7 +2728,7 @@ export default function ProcurementWorkspace() {
           initialRfqId={initialRfqId}
         />
       )}
-      {role === "UNSUPPORTED" && <EmptyState text="Please login using PROCUREMENT_OFFICER, BEC, TEC, or VENDOR role to use this module." />}
+      {role === "UNSUPPORTED" && <EmptyState text="Please login using PROCUREMENT_OFFICER, BEC_HEAD, TEC, or VENDOR role to use this module." />}
     </div>
   );
 }

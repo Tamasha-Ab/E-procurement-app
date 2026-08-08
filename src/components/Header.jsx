@@ -16,6 +16,7 @@ const Header = () => {
 
   const roleLabel = (role) => {
     if (role.mainRole === "FINANCE" && role.subRole === "BEC") return "BEC member";
+    if (role.mainRole === "FINANCE" && role.subRole === "BEC_HEAD") return "BEC Head";
     if (role.mainRole === "DPC") return "DPC member";
     if (role.mainRole === "FACULTY_STAFF" && role.subRole === "STAFF_MEMBER") return "Staff member";
     if (role.mainRole === "FACULTY_STAFF" && role.subRole === "DIVISION_HEAD") return "Division head";

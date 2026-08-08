@@ -34,6 +34,12 @@ export const approverDashboardConfig = {
     title: "BEC approval queue",
     nextAction: "Review Dean or VC approved RRs and submit approved requests to Bursar.",
   },
+  BEC_HEAD: {
+    pendingUrl: "/api/approvals/bec/pending?page=0&size=1",
+    queuePath: "/approvals/bec",
+    title: "BEC Head workspace",
+    nextAction: "Assign category quotation reviews and finalize evaluated vendors.",
+  },
   TEC: {
     pendingUrl: "/api/approvals/tec/pending?page=0&size=1",
     queuePath: "/approvals/tec",

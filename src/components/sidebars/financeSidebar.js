@@ -24,10 +24,11 @@ export const financeSidebarItems = [
   { label: "Audit Trail", icon: ReceiptLongRoundedIcon, path: "/finance/audit-trail" },
 ];
 
-export const becSidebarItems = [
+export const becHeadSidebarItems = [
   { label: "BEC Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
   { label: "BEC Approvals", icon: RuleFolderRoundedIcon, path: "/approvals/bec" },
   { label: "Category Lists", icon: ReceiptLongRoundedIcon, path: "/approvals/bec-category-list" },
+  { label: "BEC Category Assignment", icon: ManageAccountsRoundedIcon, path: "/approvals/bec/category-assignment" },
   { label: "Quotation Review", icon: PlaylistAddCheckRoundedIcon, path: "/approvals/bec/quotations" },
   { label: "Vendor Review", icon: RuleFolderRoundedIcon, path: "/approvals/bec/vendor-review" },
   { label: "Selected Vendors", icon: PlaylistAddCheckRoundedIcon, path: "/approvals/bec/selected-vendors" },
@@ -35,6 +36,12 @@ export const becSidebarItems = [
   { label: "Audit Trail", icon: ReceiptLongRoundedIcon, path: "/finance/audit-trail" },
   { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
   { label: "Tenders", icon: StorefrontRoundedIcon, path: "/tenders" },
+];
+
+export const becSidebarItems = [
+  { label: "BEC Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
+  { label: "Assigned Quotations", icon: PlaylistAddCheckRoundedIcon, path: "/approvals/bec/assigned-quotations" },
+  { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
 ];
 
 export const procurementOfficerSidebarItems = [

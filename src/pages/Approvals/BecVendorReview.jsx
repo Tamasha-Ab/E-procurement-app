@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
@@ -10,6 +11,7 @@ import { rfqDisplayName, rfqContext } from "../../utils/procurementDisplay";
 const cardClass = "rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]";
 const selectedButtonClass = "border-[#166e8c] bg-[#e9f7fb] text-[#10283f] shadow-[0_14px_30px_rgba(22,110,140,0.12)]";
 const idleButtonClass = "border-[#dce8ef] bg-white text-[#10283f] hover:border-[#9bcddd] hover:bg-[#f8fcff]";
+const finalListStorageKey = "bec_final_vendor_list";
 
 const getArray = (data) => {
   if (Array.isArray(data)) return data;
@@ -30,6 +32,19 @@ const splitCategories = (value) => {
 };
 const itemKeyFor = (item) => String(item.requisitionItemId || clean(item.requisitionItemName) || item.bidItemId || "unknown-item");
 const itemNameFor = (item) => clean(item.requisitionItemName) || `Item ${item.requisitionItemId || item.bidItemId || "not recorded"}`;
+const finalSelectionKeyFor = (row) => `${row.category}::${row.itemKey}`;
+const readFinalList = () => {
+  try {
+    const value = window.sessionStorage.getItem(finalListStorageKey);
+    const parsed = value ? JSON.parse(value) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+const writeFinalList = (items) => {
+  window.sessionStorage.setItem(finalListStorageKey, JSON.stringify(items));
+};
 const itemCategoriesFor = (rfq, quotation, item) => {
   const itemCategories = splitCategories(item?.itemCategory);
   if (itemCategories.length) return itemCategories;
@@ -44,17 +59,20 @@ const itemCategoriesFor = (rfq, quotation, item) => {
 
 export default function BecVendorReview() {
   const { token, user } = useAuth();
+  const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedItemKey, setSelectedItemKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [submittingItemId, setSubmittingItemId] = useState("");
+  const [addingFinalListKey, setAddingFinalListKey] = useState("");
   const [submittingDocumentId, setSubmittingDocumentId] = useState("");
   const [documentRequests, setDocumentRequests] = useState({});
+  const [finalList, setFinalList] = useState(() => readFinalList());
   const [sentApprovalItemIds, setSentApprovalItemIds] = useState(() => new Set());
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const isBecUser = user?.mainRole === "FINANCE" && user?.subRole === "BEC";
+  const isBecUser = user?.mainRole === "FINANCE" && user?.subRole === "BEC_HEAD";
 
   const load = useCallback(async () => {
     if (!token || !isBecUser) return;
@@ -64,6 +82,12 @@ export default function BecVendorReview() {
     try {
       const rfqData = await procurementApi.rfqs.publishedForBec(token);
       const rfqs = getArray(rfqData);
+      const offerData = await procurementApi.offers.selectedVendors(token).catch(() => []);
+      const rejectedQuotationItemIds = new Set(
+        getArray(offerData)
+          .filter((offer) => offer.status === "REJECTED_BY_VENDOR" && offer.quotationItemId)
+          .map((offer) => String(offer.quotationItemId))
+      );
       const quotationGroups = await Promise.all(
         rfqs.map((rfq) =>
           procurementApi.rfqs.quotations(token, rfq.rfqId)
@@ -78,6 +102,7 @@ export default function BecVendorReview() {
           .flatMap((quotation) =>
             (quotation.items || [])
               .filter((item) => item.technicalStatus === "APPROVED" || item.technicallyCompliant)
+              .filter((item) => !rejectedQuotationItemIds.has(String(item.bidItemId || item.requisitionItemId || "")))
               .flatMap((item) =>
                 itemCategoriesFor(rfq, quotation, item).map((category) => ({
                   rfq,
@@ -120,6 +145,12 @@ export default function BecVendorReview() {
     vendors: new Set(rows.map((row) => row.quotation.vendorId).filter(Boolean)).size,
     totalValue: rows.reduce((sum, row) => sum + Number(row.item.quotedTotalPrice || 0), 0),
   }), [rows]);
+
+  const finalListSummary = useMemo(() => ({
+    count: finalList.length,
+    categories: new Set(finalList.map((item) => item.category).filter(Boolean)).size,
+    totalValue: finalList.reduce((sum, item) => sum + Number(item.quotedTotalPrice || 0), 0),
+  }), [finalList]);
 
   const categories = useMemo(() => {
     const grouped = new Map();
@@ -173,6 +204,59 @@ export default function BecVendorReview() {
   const lowestBidRowKey = sortedVendorRows.length
     ? `${sortedVendorRows[0].quotation.quotationId}-${sortedVendorRows[0].item.bidItemId || sortedVendorRows[0].item.requisitionItemId}`
     : "";
+
+  const addToFinalList = (row) => {
+    const selectionKey = finalSelectionKeyFor(row);
+    setError("");
+    setMessage("");
+    setAddingFinalListKey(selectionKey);
+    const entry = {
+      selectionKey,
+      addedAt: new Date().toISOString(),
+      category: row.category,
+      itemKey: row.itemKey,
+      itemName: row.itemName,
+      rfqId: row.rfq.rfqId,
+      tenderId: row.rfq.tenderId || row.rfq.requisitionRequests?.[0]?.tenderId || "",
+      tenderNumber: row.rfq.tenderNumber || row.rfq.requisitionRequests?.[0]?.tenderNumber || "",
+      tenderTitle: row.rfq.tenderTitle || row.rfq.requisitionRequests?.[0]?.tenderTitle || "",
+      rfqName: rfqDisplayName(row.rfq),
+      rfqContext: rfqContext(row.rfq),
+      quotationId: row.quotation.quotationId,
+      quotationItemId: row.item.bidItemId,
+      vendorId: row.quotation.vendorId,
+      vendorName: row.quotation.vendorName || "Vendor not recorded",
+      quantity: row.item.quantity,
+      quotedUnitPrice: row.item.quotedUnitPrice,
+      quotedTotalPrice: row.item.quotedTotalPrice,
+      submittedAt: row.quotation.submittedAt,
+      status: row.item.technicalStatus || row.quotation.status || "APPROVED",
+      bidderDetails: sortedVendorRows.map((bidRow, index) => ({
+        bidderNo: String(index + 1).padStart(2, "0"),
+        vendorId: bidRow.quotation.vendorId,
+        vendorName: bidRow.quotation.vendorName || "Vendor not recorded",
+        quotationId: bidRow.quotation.quotationId,
+        quotationItemId: bidRow.item.bidItemId,
+        quantity: bidRow.item.quantity,
+        quotedUnitPrice: bidRow.item.quotedUnitPrice,
+        quotedTotalPrice: bidRow.item.quotedTotalPrice,
+        submittedAt: bidRow.quotation.submittedAt,
+        technicalStatus: bidRow.item.technicalStatus || bidRow.quotation.status || "APPROVED",
+        conformity: bidRow.item.conformity || bidRow.item.technicalConformity || "",
+        bidderResponse: bidRow.item.bidderResponse || bidRow.item.vendorSpecification || bidRow.item.offeredSpecification || "",
+        requiredSpecification: bidRow.item.requiredSpecification || "",
+        specificationDescription: bidRow.item.specificationDescription || bidRow.item.requisitionItemName || "",
+        comment: bidRow.item.becComment || bidRow.item.evaluationComment || "",
+      })),
+    };
+    setFinalList((current) => {
+      const next = [entry, ...current.filter((item) => item.selectionKey !== selectionKey)];
+      writeFinalList(next);
+      return next;
+    });
+    setMessage(`${entry.vendorName} added to the final list for ${entry.category}.`);
+    window.setTimeout(() => setAddingFinalListKey(""), 200);
+  };
 
   const buildApprovalContent = ({ rfq, quotation, item }) => `Offer Letter
 
@@ -281,7 +365,7 @@ Lowest quoted technically approved vendor sent to approval.`;
     return (
       <section className={cardClass}>
         <h1 className="text-2xl font-black text-[#10283f]">BEC Access Required</h1>
-        <p className="mt-3 text-sm leading-7 text-slate-600">This vendor review list is available only for BEC users.</p>
+        <p className="mt-3 text-sm leading-7 text-slate-600">This vendor review list is available only for BEC Head users.</p>
       </section>
     );
   }
@@ -301,6 +385,25 @@ Lowest quoted technically approved vendor sent to approval.`;
 
       {error && <div className="rounded-[24px] bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
       {message && <div className="rounded-[24px] bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">{message}</div>}
+
+      <section className={cardClass}>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Final Vendor List</div>
+            <h2 className="mt-2 text-2xl font-black text-[#10283f]">Category-wise lowest vendor list</h2>
+            <div className="mt-2 text-sm leading-7 text-slate-600">
+              {finalListSummary.count} selected vendor{finalListSummary.count === 1 ? "" : "s"} across {finalListSummary.categories} categor{finalListSummary.categories === 1 ? "y" : "ies"} | Total {formatMoney(finalListSummary.totalValue)}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/approvals/bec/vendor-final-list")}
+            className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-black text-white hover:bg-[#145f79]"
+          >
+            View Final List
+          </button>
+        </div>
+      </section>
 
       <section className={cardClass}>
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -398,7 +501,6 @@ Lowest quoted technically approved vendor sent to approval.`;
                             <th className="px-4 py-3 text-right">Total Price</th>
                             <th className="px-4 py-3">Submitted</th>
                             <th className="px-4 py-3">Status</th>
-                            <th className="px-4 py-3">Documents</th>
                             <th className="px-4 py-3 text-right">Action</th>
                           </tr>
                         </thead>
@@ -407,11 +509,8 @@ Lowest quoted technically approved vendor sent to approval.`;
                             const { rfq, quotation, item } = row;
                             const rowKey = `${quotation.quotationId}-${item.bidItemId || item.requisitionItemId}`;
                             const isLowest = rowKey === lowestBidRowKey;
-                            const isSubmitting = submittingItemId === String(item.bidItemId);
-                            const isDocumentSubmitting = submittingDocumentId === String(quotation.quotationId);
-                            const isSent = item.vendorSelected || sentApprovalItemIds.has(String(item.bidItemId));
-                            const documentStatus = quotation.documentReviewStatus || "NOT_REQUESTED";
-                            const requestForm = documentRequests[quotation.quotationId] || {};
+                            const isAdding = addingFinalListKey === finalSelectionKeyFor(row);
+                            const isAddedToFinalList = finalList.some((entry) => entry.selectionKey === finalSelectionKeyFor(row) && String(entry.quotationItemId) === String(item.bidItemId));
                             return (
                               <tr key={rowKey} className={isLowest ? "bg-emerald-50/90 ring-1 ring-inset ring-emerald-200" : "bg-white"}>
                                 <td className="px-4 py-4 align-top">
@@ -429,85 +528,18 @@ Lowest quoted technically approved vendor sent to approval.`;
                                 <td className="px-4 py-4 text-right align-top text-base font-black text-[#10283f]">{formatMoney(item.quotedTotalPrice)}</td>
                                 <td className="px-4 py-4 align-top text-slate-600">{formatDateTime(quotation.submittedAt)}</td>
                                 <td className="px-4 py-4 align-top"><StatusPill status={item.technicalStatus || quotation.status || "APPROVED"} /></td>
-                                <td className="min-w-[280px] px-4 py-4 align-top">
-                                  <div className="space-y-3 text-left">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <StatusPill status={documentStatus} />
-                                      {quotation.attachmentUrl ? (
-                                        <a className="text-xs font-black text-[#166e8c]" href={quotation.attachmentUrl} target="_blank" rel="noreferrer">
-                                          Open quotation document
-                                        </a>
-                                      ) : null}
-                                      {item.specificationDocumentUrl ? (
-                                        <a className="text-xs font-black text-[#166e8c]" href={item.specificationDocumentUrl} target="_blank" rel="noreferrer">
-                                          Open item spec
-                                        </a>
-                                      ) : null}
-                                    </div>
-
-                                    {documentStatus === "RESUBMITTED" || documentStatus === "ACCEPTED" ? (
-                                      <div className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-600">
-                                        <div className="font-black text-[#10283f]">{quotation.requestedDocumentName || "Requested document"}</div>
-                                        <div className="mt-1">Submitted {formatDateTime(quotation.documentSubmittedAt)}</div>
-                                        {quotation.requestedDocumentUrl ? (
-                                          <a className="mt-2 inline-block font-black text-[#166e8c]" href={quotation.requestedDocumentUrl} target="_blank" rel="noreferrer">
-                                            Open vendor submission
-                                          </a>
-                                        ) : null}
-                                        {documentStatus === "RESUBMITTED" ? (
-                                          <button
-                                            type="button"
-                                            onClick={() => acceptDocument(row)}
-                                            disabled={isDocumentSubmitting}
-                                            className="mt-2 block rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                                          >
-                                            {isDocumentSubmitting ? "Saving..." : "Accept Document"}
-                                          </button>
-                                        ) : null}
-                                      </div>
-                                    ) : documentStatus === "REQUESTED" ? (
-                                      <div className="rounded-2xl bg-amber-50 p-3 text-xs leading-6 text-amber-800">
-                                        Waiting for vendor: <span className="font-black">{quotation.requestedDocumentName || "Requested document"}</span>
-                                      </div>
-                                    ) : (
-                                      <div className="space-y-2">
-                                        <input
-                                          value={requestForm.requestedDocumentName || ""}
-                                          onChange={(event) => updateDocumentRequest(quotation.quotationId, "requestedDocumentName", event.target.value)}
-                                          placeholder="Document name"
-                                          className="w-full rounded-xl border border-[#dce8ef] px-3 py-2 text-xs font-semibold text-[#10283f] outline-none focus:border-[#166e8c]"
-                                        />
-                                        <textarea
-                                          value={requestForm.note || ""}
-                                          onChange={(event) => updateDocumentRequest(quotation.quotationId, "note", event.target.value)}
-                                          placeholder="Issue note for vendor"
-                                          rows={2}
-                                          className="w-full resize-none rounded-xl border border-[#dce8ef] px-3 py-2 text-xs font-semibold text-[#10283f] outline-none focus:border-[#166e8c]"
-                                        />
-                                        <button
-                                          type="button"
-                                          onClick={() => requestDocument(row)}
-                                          disabled={isDocumentSubmitting}
-                                          className="rounded-xl bg-[#10283f] px-3 py-2 text-xs font-black text-white hover:bg-[#1c405f] disabled:cursor-not-allowed disabled:bg-slate-300"
-                                        >
-                                          {isDocumentSubmitting ? "Sending..." : "Request Document"}
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </td>
                                 <td className="px-4 py-4 text-right align-top">
                                   {isLowest ? (
                                     <button
                                       type="button"
-                                      onClick={() => sendToApproval(row)}
-                                      disabled={isSubmitting || isSent}
+                                      onClick={() => addToFinalList(row)}
+                                      disabled={isAdding}
                                       className="rounded-2xl bg-[#166e8c] px-4 py-2 text-xs font-black text-white hover:bg-[#145f79] disabled:cursor-not-allowed disabled:bg-slate-300"
                                     >
-                                      {isSent ? "Sent" : isSubmitting ? "Sending..." : "Send to Approval"}
+                                      {isAdding ? "Adding..." : isAddedToFinalList ? "Added" : "Add to list"}
                                     </button>
                                   ) : (
-                                    <span className="text-xs font-semibold text-slate-400">-</span>
+                                    <span className="text-xs font-semibold text-slate-400">Only lowest price</span>
                                   )}
                                 </td>
                               </tr>

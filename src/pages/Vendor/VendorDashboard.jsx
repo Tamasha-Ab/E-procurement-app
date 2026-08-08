@@ -45,6 +45,24 @@ const emptyResubmitForm = {
   cidaDocument: "",
 };
 
+const isPdfDataUrl = (value) => typeof value === "string" && value.startsWith("data:application/pdf");
+
+const offerPdfFileName = (offerLetter) =>
+  `Offer-Letter-${offerLetter.letterNumber || offerLetter.offerLetterId || "vendor"}.pdf`.replace(/[^a-z0-9._-]+/gi, "-");
+
+const viewOfferPdf = (offerLetter) => {
+  if (!isPdfDataUrl(offerLetter.letterContent)) return;
+  window.open(offerLetter.letterContent, "_blank", "noopener,noreferrer");
+};
+
+const downloadOfferPdf = (offerLetter) => {
+  if (!isPdfDataUrl(offerLetter.letterContent)) return;
+  const link = document.createElement("a");
+  link.href = offerLetter.letterContent;
+  link.download = offerPdfFileName(offerLetter);
+  link.click();
+};
+
 const fileToDataUrl = (file) =>
   new Promise((resolve, reject) => {
     if (!file) {
@@ -441,9 +459,20 @@ export default function VendorDashboard() {
                   </Button>
                   )}
                 </div>
-                <pre className="mt-4 whitespace-pre-wrap rounded-2xl bg-white p-4 text-sm leading-7 text-slate-700">
-                  {offerLetter.letterContent || "No letter content available."}
-                </pre>
+                {isPdfDataUrl(offerLetter.letterContent) ? (
+                  <div className="mt-4 flex flex-wrap gap-3 rounded-2xl bg-white p-4">
+                    <Button size="small" onClick={() => viewOfferPdf(offerLetter)} sx={{ textTransform: "none", color: "#166e8c", fontWeight: 800 }}>
+                      View Offer Letter PDF
+                    </Button>
+                    <Button size="small" onClick={() => downloadOfferPdf(offerLetter)} sx={{ textTransform: "none", color: "#166e8c", fontWeight: 800 }}>
+                      Download Offer Letter
+                    </Button>
+                  </div>
+                ) : (
+                  <pre className="mt-4 whitespace-pre-wrap rounded-2xl bg-white p-4 text-sm leading-7 text-slate-700">
+                    {offerLetter.letterContent || "No letter content available."}
+                  </pre>
+                )}
               </div>
             ))
           )}

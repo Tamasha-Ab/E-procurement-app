@@ -55,6 +55,12 @@ export const procurementApi = {
       apiRequest(`${procurementBase}/quotations/${quotationId}/technical-evaluation`, { token, method: "PATCH", body: payload }),
     evaluateItem: (token, quotationItemId, payload) =>
       apiRequest(`${procurementBase}/quotation-items/${quotationItemId}/technical-evaluation`, { token, method: "PATCH", body: payload }),
+    assignToBec: (token, quotationItemId, payload) =>
+      apiRequest(`${procurementBase}/quotation-items/${quotationItemId}/bec-assignment`, { token, method: "PATCH", body: payload }),
+    reviewAssignedBecItem: (token, quotationItemId, payload) =>
+      apiRequest(`${procurementBase}/quotation-items/${quotationItemId}/bec-review`, { token, method: "PATCH", body: payload }),
+    myAssignedBecQuotations: (token) =>
+      apiRequest(`${procurementBase}/bec/my-assigned-quotations`, { token }),
     selectItemVendor: (token, quotationItemId, payload) =>
       apiRequest(`${procurementBase}/quotation-items/${quotationItemId}/vendor-selection`, { token, method: "PATCH", body: payload }),
     requestDocument: (token, quotationId, payload) =>
@@ -73,8 +79,8 @@ export const procurementApi = {
     decideAuthority: (token, offerLetterId, payload) =>
       apiRequest(`${procurementBase}/offer-letters/${offerLetterId}/authority-decision`, { token, method: "PATCH", body: payload }),
     selectedVendors: (token) => apiRequest(`${procurementBase}/offer-letters/selected-vendors`, { token }),
-    sendToVendor: (token, offerLetterId) =>
-      apiRequest(`${procurementBase}/offer-letters/${offerLetterId}/send-to-vendor`, { token, method: "PATCH" }),
+    sendToVendor: (token, offerLetterId, payload = null) =>
+      apiRequest(`${procurementBase}/offer-letters/${offerLetterId}/send-to-vendor`, { token, method: "PATCH", ...(payload ? { body: payload } : {}) }),
   },
   purchaseOrders: {
     acceptedOffers: (token) => apiRequest(`${procurementBase}/accepted-offer-letters`, { token }),
