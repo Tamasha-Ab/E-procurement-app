@@ -5,9 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      // Every request starting with /api will be forwarded to Spring Boot
+      // Forward API requests to the Spring Boot server.
       '/api': {
-        target: 'http://localhost:8081',   // ← your Spring Boot port
+        target: 'http://localhost:8081',
         changeOrigin: true,
         secure: false,
       },

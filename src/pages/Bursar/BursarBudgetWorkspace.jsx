@@ -477,12 +477,12 @@ export default function BursarBudgetWorkspace() {
 
   return (
     <div className="space-y-7">
-      <section className="rounded-[32px] bg-[linear-gradient(135deg,#0f2940,#166e8c)] p-7 text-white shadow-[0_24px_60px_rgba(15,41,64,0.18)]">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+      <section className="rounded-2xl border border-[#2c7895] bg-[linear-gradient(110deg,#123047_0%,#175a75_52%,#6fb8cf_100%)] px-6 py-5 text-white shadow-[0_12px_30px_rgba(15,41,64,0.18)]">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-100">Bursar Workspace</div>
-            <h1 className="mt-3 text-3xl font-black md:text-4xl">Tender creation</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-100">
+            <h1 className="mt-2 text-2xl font-bold tracking-[-0.02em] md:text-3xl">Tender creation</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-100">
               Create tender value pools and notify staff members, division heads, and TEC officers as soon as the tender is saved.
             </p>
           </div>

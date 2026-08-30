@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { getDashboardPath } from "../../utils/roleRoutes";
 
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
@@ -69,7 +70,7 @@ function Login({ onClose, openRegister }) {
       return;
     }
 
-    navigate("/dashboard");
+    navigate(getDashboardPath(user));
     onClose?.();
   };
 

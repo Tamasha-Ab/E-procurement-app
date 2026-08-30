@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import PageHero from "../../components/PageHero";
 import { procurementApi } from "../../api/procurementApi";
 import { useAuth } from "../../contexts/AuthContext";
+import { getSeniorAssistantBursarPath } from "../../utils/roleRoutes";
 import { apiRequest, formatDateTime, formatMoney } from "../../services/apiClient";
 import { requestDisplayName } from "../../utils/procurementDisplay";
 
@@ -389,7 +390,7 @@ export default function BursarTenderWorkspace() {
       setSelectedVendorIds([]);
       setVendorSearch("");
       setReceivedRrs((current) => current.filter((rr) => String(rr.rrId) !== String(createdRrId)));
-      navigate("/finance/audit-trail", { replace: true });
+      navigate(getSeniorAssistantBursarPath(user, "audit-trail", "/finance/audit-trail"), { replace: true });
     } catch (submitError) {
       setError(submitError.message || "Could not send RFQ.");
     } finally {

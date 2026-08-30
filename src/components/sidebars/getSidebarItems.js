@@ -1,6 +1,6 @@
 import { adminSidebarItems } from "./adminSidebar";
 import { approverSidebarItemsByRole } from "./approverSidebar";
-import { becHeadSidebarItems, becSidebarItems, bursarSidebarItems, financeSidebarItems, procurementOfficerSidebarItems } from "./financeSidebar";
+import { becHeadSidebarItems, becSidebarItems, bursarSidebarItems, financeSidebarItems, procurementOfficerSidebarItems, seniorAssistantBursarSidebarItems } from "./financeSidebar";
 import { dpcSidebarItems } from "./dpcSidebar";
 import { staffSidebarItems } from "./staffSidebar";
 import { vendorSidebarItems } from "./vendorSidebar";
@@ -17,6 +17,7 @@ export const getSidebarItems = (user) => {
   if (mainRole === "UNIVERSITY_EXECUTIVE") return approverSidebarItemsByRole[subRole] || staffSidebarItems;
 
   if (mainRole === "FINANCE") {
+    if (subRole === "SENIOR_ASSISTANT_BURSAR") return seniorAssistantBursarSidebarItems;
     if (bursarSubRoles.includes(subRole)) return bursarSidebarItems;
     if (subRole === "BEC_HEAD") return becHeadSidebarItems;
     if (subRole === "BEC") return becSidebarItems;

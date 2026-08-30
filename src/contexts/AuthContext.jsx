@@ -196,6 +196,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => persistAuth(null, null);
+  const updateSession = (nextUser, nextToken = token) => persistAuth(nextUser, nextToken);
 
   return (
     <AuthContext.Provider value={{
@@ -211,6 +212,7 @@ export const AuthProvider = ({ children }) => {
       registerUser,
       forgotPassword,
       resetPassword,
+      updateSession,
       logout
     }}>
       {children}

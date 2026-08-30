@@ -8,6 +8,7 @@ import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney } from "../../services/apiClient";
 import { requestDisplayName, requestContext } from "../../utils/procurementDisplay";
+import { getSeniorAssistantBursarPath } from "../../utils/roleRoutes";
 
 const categoryLabel = (rr) => {
   if (Array.isArray(rr.vendorCategories) && rr.vendorCategories.length) {
@@ -37,7 +38,7 @@ const getCreatedRfqRrIds = () => {
 };
 
 export default function ReceivedRrLists() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   const [rrs, setRrs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -78,9 +79,9 @@ export default function ReceivedRrLists() {
         title="Received RR Lists"
         description="Review category-wise requisition request lists submitted by BEC to the finance department."
       >
-        <div className="rounded-[24px] bg-white/10 p-5 text-right backdrop-blur">
+        <div className="rounded-xl bg-white/10 px-4 py-2.5 text-right backdrop-blur">
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-100">Received</div>
-          <div className="mt-2 text-3xl font-black">{rrs.length}</div>
+          <div className="mt-0.5 text-xl font-black">{rrs.length}</div>
         </div>
       </PageHero>
 
@@ -138,7 +139,7 @@ export default function ReceivedRrLists() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => navigate(`/finance/category-rr/${rr.rrId}`)}
+                        onClick={() => navigate(`${getSeniorAssistantBursarPath(user, "received-rr", "/finance/category-rr")}/${rr.rrId}`)}
                         className="inline-flex items-center gap-2 rounded-2xl bg-[#166e8c] px-4 py-2 text-sm font-bold text-white hover:bg-[#145f79]"
                       >
                         <VisibilityRoundedIcon fontSize="small" />
@@ -146,7 +147,7 @@ export default function ReceivedRrLists() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate(`/bursar/create-rfq?rrId=${rr.rrId}&category=${encodeURIComponent(categoryLabel(rr))}`)}
+                        onClick={() => navigate(`${getSeniorAssistantBursarPath(user, "rfq-creation", "/bursar/create-rfq")}?rrId=${rr.rrId}&category=${encodeURIComponent(categoryLabel(rr))}`)}
                         className="inline-flex items-center gap-2 rounded-2xl border border-[#166e8c] bg-white px-4 py-2 text-sm font-bold text-[#166e8c] hover:bg-[#edf7fb]"
                       >
                         Create and send RFQ

@@ -6,6 +6,7 @@ import VerifiedRoundedIcon from "@mui/icons-material/VerifiedRounded";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, statusLabel } from "../../services/apiClient";
 import { bursarFeatureCards } from "./dashboardConfig";
+import { getSeniorAssistantBursarPath } from "../../utils/roleRoutes";
 
 const bursarWorkspaceRoles = ["BURSAR", "ASSISTANT_BURSAR", "SENIOR_ASSISTANT_BURSAR"];
 
@@ -59,36 +60,45 @@ export default function FinanceDashboard() {
     ? { label: "Open Tender Workspace", path: "/procurement/tenders", icon: StorefrontRoundedIcon }
     : null;
   const PrimaryActionIcon = primaryAction?.icon;
+  const rolePath = (page, fallback) => getSeniorAssistantBursarPath(user, page, fallback);
+  const featureCardPath = (path) => {
+    if (path.startsWith("/bursar/budgets")) {
+      const query = path.includes("?") ? path.slice(path.indexOf("?")) : "";
+      return `${rolePath("tender-creation", "/bursar/budgets")}${query}`;
+    }
+    if (path === "/bursar/audit-trail") return rolePath("audit-trail", path);
+    return path;
+  };
 
   return (
     <div className="space-y-8">
-      <section className="overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,#0f2940,#166e8c)] p-8 text-white shadow-[0_28px_70px_rgba(15,41,64,0.22)]">
-        <div className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-100">Finance Dashboard</div>
-        <h1 className="mt-4 text-4xl font-black leading-tight">Welcome back, {displayName}.</h1>
-        <p className="mt-4 max-w-2xl text-base leading-8 text-slate-100/90">
-          You are signed in as {statusLabel(displayRole)}. Your workspace shows the finance actions connected to your role.
-        </p>
-
-        {primaryAction && (
-          <button
-            type="button"
-            onClick={() => navigate(primaryAction.path)}
-            className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-[#f6c453] px-5 py-3 text-sm font-extrabold text-[#0f2940] shadow-[0_14px_30px_rgba(0,0,0,0.12)] transition hover:bg-[#efb93c]"
-          >
-            <PrimaryActionIcon fontSize="small" />
-            {primaryAction.label}
-          </button>
-        )}
+      <section className="relative overflow-hidden rounded-2xl border border-[#2c7895] bg-[linear-gradient(110deg,#123047_0%,#175a75_52%,#6fb8cf_100%)] px-6 py-5 text-white shadow-[0_12px_30px_rgba(15,41,64,0.18)]">
+        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-100">Finance dashboard</div>
+            <h1 className="mt-2 text-2xl font-bold tracking-[-0.02em] text-white">Welcome back, {displayName}</h1>
+            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-100/90">
+              Review finance activity, requisition lists and tender work assigned to your account.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 md:justify-end">
+            {primaryAction && (
+              <button type="button" onClick={() => navigate(primaryAction.path)} className="inline-flex items-center gap-2 rounded-xl bg-[#166e8c] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#125d77]">
+                <PrimaryActionIcon fontSize="small" />{primaryAction.label}
+              </button>
+            )}
+          </div>
+        </div>
 
         {isProcurementOfficer && (
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <div className="mt-5 grid gap-3 border-t border-slate-100 pt-5 md:grid-cols-3">
             {metrics.map((metric) => {
               const Icon = metric.icon;
               return (
-                <div key={metric.label} className="rounded-[24px] bg-white/10 p-4 backdrop-blur">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15"><Icon /></div>
-                  <div className="mt-5 text-3xl font-black">{metric.value}</div>
-                  <div className="mt-1 text-sm text-slate-200">{metric.label}</div>
+                <div key={metric.label} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-[#166e8c] shadow-sm"><Icon /></div>
+                  <div className="mt-3 text-xl font-bold text-[#10283f]">{metric.value}</div>
+                  <div className="mt-1 text-sm text-slate-500">{metric.label}</div>
                 </div>
               );
             })}
@@ -112,19 +122,19 @@ export default function FinanceDashboard() {
               label="Received RR Lists"
               value={summary.pendingRrs}
               helper="BEC submitted category-wise RRs"
-              onClick={() => navigate("/finance/received-rr-lists")}
+              onClick={() => navigate(rolePath("received-rr-lists", "/finance/received-rr-lists"))}
             />
             <SummaryTile
               label="Final RR List"
               value={summary.finalRrs}
               helper="Approved or procurement-ready RRs"
-              onClick={() => navigate("/bursar/budgets")}
+              onClick={() => navigate(rolePath("tender-creation", "/bursar/budgets"))}
             />
             <SummaryTile
               label="Notifications"
               value={summary.unreadNotifications}
               helper="Unread workspace notices"
-              onClick={() => navigate("/notifications")}
+              onClick={() => navigate(rolePath("notifications", "/notifications"))}
             />
           </div>
         </section>
@@ -147,7 +157,7 @@ export default function FinanceDashboard() {
                 <button
                   key={card.title}
                   type="button"
-                  onClick={() => navigate(card.path)}
+                  onClick={() => navigate(featureCardPath(card.path))}
                   className="min-h-[210px] rounded-[24px] border border-[#e0ebf1] bg-[#fbfdff] p-5 text-left transition hover:-translate-y-1 hover:border-[#166e8c] hover:shadow-[0_18px_45px_rgba(15,41,64,0.10)]"
                 >
                   <span className={`flex h-12 w-12 items-center justify-center rounded-xl ${card.tone}`}><Icon fontSize="small" /></span>

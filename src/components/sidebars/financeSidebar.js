@@ -6,6 +6,8 @@ import RuleFolderRoundedIcon from "@mui/icons-material/RuleFolderRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import PlaylistAddCheckRoundedIcon from "@mui/icons-material/PlaylistAddCheckRounded";
 import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded";
+import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
+import { seniorAssistantBursarPath } from "../../utils/roleRoutes";
 
 export const bursarSidebarItems = [
   { label: "Finance Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
@@ -15,6 +17,21 @@ export const bursarSidebarItems = [
   { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: "/role-requests" },
   { label: "Audit Trail", icon: ReceiptLongRoundedIcon, path: "/finance/audit-trail" },
   { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
+];
+
+export const seniorAssistantBursarSidebarItems = [
+  { label: "Finance Dashboard", icon: DashboardRoundedIcon, path: seniorAssistantBursarPath("dashboard") },
+  { label: "Tender creation", icon: AccountBalanceWalletRoundedIcon, path: seniorAssistantBursarPath("tender-creation") },
+  { label: "Tender Records", icon: StorefrontRoundedIcon, path: seniorAssistantBursarPath("tender-records") },
+  {
+    label: "Received RR Lists",
+    icon: PlaylistAddCheckRoundedIcon,
+    path: seniorAssistantBursarPath("received-rr-lists"),
+    activePaths: [seniorAssistantBursarPath("received-rr")],
+  },
+  { label: "Audit Trail", icon: ReceiptLongRoundedIcon, path: seniorAssistantBursarPath("audit-trail") },
+  { label: "Notification", icon: NotificationsRoundedIcon, path: seniorAssistantBursarPath("notifications") },
+  { label: "Settings", icon: SettingsRoundedIcon, path: seniorAssistantBursarPath("settings") },
 ];
 
 export const financeSidebarItems = [

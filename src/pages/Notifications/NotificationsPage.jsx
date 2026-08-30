@@ -6,6 +6,7 @@ import PageHero from "../../components/PageHero";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
 import { procurementApi } from "../../api/procurementApi";
+import { getSeniorAssistantBursarPath } from "../../utils/roleRoutes";
 
 export default function NotificationsPage() {
   const { token, user } = useAuth();
@@ -19,6 +20,7 @@ export default function NotificationsPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const isVendor = user?.mainRole === "VENDOR";
+  const rolePath = (page, fallback) => getSeniorAssistantBursarPath(user, page, fallback);
   const unreadCount = notifications.filter((notification) => !notification.read).length;
   const selectedTenderId = useMemo(() => {
     const match = selected?.actionUrl?.match(/^\/tenders\/(\d+)/);
@@ -46,7 +48,7 @@ export default function NotificationsPage() {
         const routedNotification = notificationId
           ? list.find((item) => String(item.notificationId) === String(notificationId))
           : null;
-        setSelected((current) => routedNotification || (current ? list.find((item) => item.notificationId === current.notificationId) || list[0] || null : list[0] || null));
+        setSelected((current) => routedNotification || (current ? list.find((item) => item.notificationId === current.notificationId) || null : null));
       })
       .catch((err) => setError(err.message || "Could not load notifications."))
       .finally(() => setIsLoading(false));
@@ -64,12 +66,10 @@ export default function NotificationsPage() {
 
   const openNotification = async (notification, options = {}) => {
     if (!options.skipNavigate) {
-      navigate(`/notifications/${notification.notificationId}`);
+      navigate(`${rolePath("notifications", "/notifications")}/${notification.notificationId}`);
     }
     setSelected(notification);
-    if (isVendor) {
-      setIsDetailModalOpen(true);
-    }
+    setIsDetailModalOpen(true);
     if (notification.read) return;
 
     try {
@@ -81,18 +81,22 @@ export default function NotificationsPage() {
         item.notificationId === notification.notificationId ? updated : item
       )));
       setSelected(updated);
-      if (isVendor) {
-        setIsDetailModalOpen(true);
-      }
+      setIsDetailModalOpen(true);
       window.dispatchEvent(new Event("notifications:changed"));
     } catch (err) {
       setError(err.message || "Could not mark notification as read.");
     }
   };
 
+  const closeNotificationDetails = () => {
+    setIsDetailModalOpen(false);
+    setSelected(null);
+    navigate(rolePath("notifications", "/notifications"), { replace: true });
+  };
+
   const scheduleMeetingFromNotification = () => {
     if (isBecCategoryListNotification) {
-      navigate(`/finance/category-rr/${selected.rrId}`);
+      navigate(`${rolePath("received-rr", "/finance/category-rr")}/${selected.rrId}`);
       return;
     }
     if (selectedVendorRfqId) {
@@ -148,7 +152,7 @@ export default function NotificationsPage() {
         {showActions && tenderDetailId && (
           <button
             type="button"
-            onClick={() => navigate(`/tenders/${tenderDetailId}`)}
+            onClick={() => navigate(`${rolePath("tender-records", "/tenders")}/${tenderDetailId}`)}
             className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
           >
             View Full Details
@@ -224,15 +228,15 @@ export default function NotificationsPage() {
         title="Tender Notifications"
         description="Review tender creation notices from the Bursar and related internal procurement updates."
       >
-        <div className="rounded-[24px] bg-white/10 p-5 text-right backdrop-blur">
+        <div className="rounded-xl bg-white/10 px-4 py-2.5 text-right backdrop-blur">
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-100">New</div>
-          <div className="mt-2 text-3xl font-black">{unreadCount}</div>
+          <div className="mt-0.5 text-xl font-black">{unreadCount}</div>
         </div>
       </PageHero>
 
       {error && <div className="rounded-[24px] bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
-      <section className={isVendor ? "grid gap-6" : "grid gap-6 xl:grid-cols-[0.85fr_1.15fr]"}>
+      <section className={`grid items-start gap-6 ${!isVendor && isDetailModalOpen && selected ? "xl:grid-cols-[0.9fr_1.1fr]" : ""}`}>
         <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -280,11 +284,24 @@ export default function NotificationsPage() {
           </div>
         </div>
 
-        {!isVendor && (
-        <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Notification Details</div>
-          {renderNotificationDetails()}
-        </div>
+        {!isVendor && isDetailModalOpen && selected && (
+          <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Notification Details</div>
+                <h2 className="mt-2 text-2xl font-black text-[#10283f]">{selected.title}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={closeNotificationDetails}
+                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                aria-label="Close notification details"
+              >
+                <CloseRoundedIcon fontSize="small" />
+              </button>
+            </div>
+            {renderNotificationDetails({ showTitle: false, showActions: true })}
+          </div>
         )}
       </section>
 
@@ -298,7 +315,7 @@ export default function NotificationsPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsDetailModalOpen(false)}
+                onClick={closeNotificationDetails}
                 className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                 aria-label="Close notification details"
               >

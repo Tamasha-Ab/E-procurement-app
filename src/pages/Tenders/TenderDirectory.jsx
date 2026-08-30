@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import PageHero from "../../components/PageHero";
@@ -30,6 +30,7 @@ export default function TenderDirectory() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const detailsRef = useRef(null);
 
   const loadTenders = useCallback(async () => {
     setLoading(true);
@@ -72,6 +73,13 @@ export default function TenderDirectory() {
   const selected = filtered.find((tender) => String(tender.tenderId) === String(selectedId)) || filtered[0] || null;
   const view = selected ? buildTenderViewModel(selected) : null;
 
+  const selectTender = (id) => {
+    setSelectedId(String(id));
+    window.requestAnimationFrame(() => {
+      detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -79,15 +87,15 @@ export default function TenderDirectory() {
         title="Tenders"
         description="View tender creation details shared through the procurement workflow and download the filled tender form as a PDF."
       >
-        <div className="rounded-[24px] bg-white/10 p-5 text-right backdrop-blur">
+        <div className="rounded-xl bg-white/10 px-4 py-2.5 text-right backdrop-blur">
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-100">Total</div>
-          <div className="mt-2 text-3xl font-black">{filtered.length}</div>
+          <div className="mt-0.5 text-xl font-black">{filtered.length}</div>
         </div>
       </PageHero>
 
       {error && <div className="rounded-[24px] bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
-      <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+      <section className="space-y-6">
         <div className="rounded-[30px] border border-[#dce8ef] bg-white p-5 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
           <input
             type="search"
@@ -103,7 +111,7 @@ export default function TenderDirectory() {
               <button
                 key={tender.tenderId}
                 type="button"
-                onClick={() => setSelectedId(String(tender.tenderId))}
+                onClick={() => selectTender(tender.tenderId)}
                 className={`w-full rounded-[22px] border p-4 text-left transition ${String(selected?.tenderId) === String(tender.tenderId) ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#edf3f7] bg-white hover:bg-slate-50"}`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -121,7 +129,7 @@ export default function TenderDirectory() {
           </div>
         </div>
 
-        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
+        <div ref={detailsRef} className="scroll-mt-24 rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
           {!selected || !view ? (
             <div className="rounded-[22px] bg-slate-50 p-5 text-sm text-slate-600">Select a tender to view details.</div>
           ) : (

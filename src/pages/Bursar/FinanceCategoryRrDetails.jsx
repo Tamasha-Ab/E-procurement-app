@@ -5,6 +5,7 @@ import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
 import { requestDisplayName } from "../../utils/procurementDisplay";
+import { getSeniorAssistantBursarPath } from "../../utils/roleRoutes";
 
 const financeSubRoles = ["BURSAR", "ASSISTANT_BURSAR", "SENIOR_ASSISTANT_BURSAR"];
 
@@ -116,7 +117,7 @@ export default function FinanceCategoryRrDetails() {
         title={selected ? `Submitted RR Details - ${requestDisplayName(selected)}` : "Submitted RR Details"}
         description="View the submitted RR details and submitted specifications from the BEC category list."
       >
-        <div className="rounded-[24px] bg-white/10 p-5 text-right backdrop-blur">
+        <div className="rounded-xl bg-white/10 px-4 py-2.5 text-right backdrop-blur">
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-100">Category</div>
           <div className="mt-2 max-w-xs text-xl font-black">{selected?.vendorCategories || (loading ? "Loading..." : "Not recorded")}</div>
         </div>
@@ -128,7 +129,7 @@ export default function FinanceCategoryRrDetails() {
       {!loading && !selected && (
         <div className="space-y-4 rounded-[24px] bg-white p-5">
           <div className="text-sm text-slate-600">This RR is not available in the Finance Department list anymore.</div>
-          <button type="button" onClick={() => navigate("/finance/received-rr-lists")} className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]">
+          <button type="button" onClick={() => navigate(getSeniorAssistantBursarPath(user, "received-rr-lists", "/finance/received-rr-lists"))} className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]">
             Back to Received RR Lists
           </button>
         </div>
@@ -146,7 +147,7 @@ export default function FinanceCategoryRrDetails() {
                 {selected.divisionName || selected.facultyName || "Not assigned"} | {formatDateTime(selected.submittedAt)}
               </div>
             </div>
-            <button type="button" onClick={() => navigate("/finance/received-rr-lists")} className="rounded-2xl border border-[#dce8ef] px-5 py-3 text-sm font-bold text-[#10283f] hover:bg-slate-50">
+            <button type="button" onClick={() => navigate(getSeniorAssistantBursarPath(user, "received-rr-lists", "/finance/received-rr-lists"))} className="rounded-2xl border border-[#dce8ef] px-5 py-3 text-sm font-bold text-[#10283f] hover:bg-slate-50">
               Back
             </button>
           </div>
@@ -245,7 +246,7 @@ export default function FinanceCategoryRrDetails() {
           <div className="mt-6 flex justify-end">
             <button
               type="button"
-              onClick={() => navigate(`/bursar/create-rfq?rrId=${selected.rrId}&category=${encodeURIComponent(selected.vendorCategories || "")}`)}
+              onClick={() => navigate(`${getSeniorAssistantBursarPath(user, "rfq-creation", "/bursar/create-rfq")}?rrId=${selected.rrId}&category=${encodeURIComponent(selected.vendorCategories || "")}`)}
               className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
             >
               Create and send RFQ

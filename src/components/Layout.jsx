@@ -2,6 +2,7 @@ import { Box } from "@mui/material";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import VendorDecisionPopup from "./VendorDecisionPopup";
+import Footer from "./Footer";
 
 const Layout = ({ children }) => {
   return (
@@ -9,10 +10,11 @@ const Layout = ({ children }) => {
       <Header />
       <Box className="flex">
         <Sidebar />
-        <Box component="main" className="min-h-screen flex-1 px-6 py-24 md:px-8">
+        <Box component="main" className="min-h-screen min-w-0 flex-1 px-6 pb-10 pt-[78px] md:px-8">
           {children}
         </Box>
       </Box>
+      <Footer />
       <VendorDecisionPopup />
     </Box>
   );
