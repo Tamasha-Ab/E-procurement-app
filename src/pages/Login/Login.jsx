@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { getDashboardPath } from "../../utils/roleRoutes";
 
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
@@ -13,6 +14,7 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 
 function Login({ onClose, openRegister }) {
   const googleButtonRef = useRef(null);
+  const googleInitializedRef = useRef(false);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const {
     register,
@@ -23,7 +25,6 @@ function Login({ onClose, openRegister }) {
     defaultValues: {
       email: "",
       password: "",
-      rememberMe: true,
     },
   });
   const { login, googleLogin, forgotPassword } = useAuth();
@@ -69,7 +70,7 @@ function Login({ onClose, openRegister }) {
       return;
     }
 
-    navigate("/dashboard");
+    navigate(getDashboardPath(user));
     onClose?.();
   };
 
@@ -85,9 +86,10 @@ function Login({ onClose, openRegister }) {
         return;
       }
 
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: async (response) => {
+      if (!googleInitializedRef.current) {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: async (response) => {
           setLoginError("");
           setIsGoogleLoading(true);
 
@@ -105,7 +107,9 @@ function Login({ onClose, openRegister }) {
             setIsGoogleLoading(false);
           }
         },
-      });
+        });
+        googleInitializedRef.current = true;
+      }
 
       googleButtonRef.current.innerHTML = "";
       window.google.accounts.id.renderButton(googleButtonRef.current, {
@@ -113,7 +117,7 @@ function Login({ onClose, openRegister }) {
         size: "large",
         shape: "pill",
         text: "signin_with",
-        width: "100%",
+        width: 320,
       });
 
       setIsGoogleReady(true);
@@ -151,7 +155,7 @@ function Login({ onClose, openRegister }) {
   const onSubmit = async (data) => {
     setLoginError("");
     try {
-      const creds = { email: data.email, password: data.password, rememberMe: data.rememberMe };
+      const creds = { email: data.email, password: data.password };
       const result = await login(creds);
       navigateByRole(result?.user);
     } catch (error) {
@@ -278,16 +282,7 @@ function Login({ onClose, openRegister }) {
             )}
           </div>
 
-          <div className="flex items-center justify-between text-sm">
-            <label className="flex items-center text-gray-600 cursor-pointer">
-              <input
-                type="checkbox"
-                {...register("rememberMe")}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                disabled={isSubmitting}
-              />
-              <span className="ml-2">Remember me</span>
-            </label>
+          <div className="flex items-center justify-end text-sm">
             <button
               type="button"
               onClick={() => {

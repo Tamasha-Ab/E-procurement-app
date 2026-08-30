@@ -1,9 +1,8 @@
 const jsonHeaders = { "Content-Type": "application/json" };
 
 const readAuth = () => {
-  const raw =
-    localStorage.getItem("astraea_auth") ||
-    sessionStorage.getItem("astraea_auth");
+  localStorage.removeItem("astraea_auth");
+  const raw = sessionStorage.getItem("astraea_auth");
 
   if (!raw) return {};
 
@@ -30,7 +29,10 @@ const unwrap = async (response) => {
   }
 
   if (!response.ok) {
-    throw new Error(body?.message || body?.error || text || response.statusText || "Request failed");
+    const fieldErrors = body?.errors && typeof body.errors === "object"
+      ? Object.values(body.errors).filter(Boolean).join(", ")
+      : "";
+    throw new Error(fieldErrors || body?.message || body?.error || text || response.statusText || "Request failed");
   }
 
   return body?.data ?? body;
@@ -99,10 +101,18 @@ export const adminApi = {
     update: (id, payload) => adminRequest(`/api/admin/departments/${id}`, { method: "PUT", body: payload }),
     toggle: (id) => adminRequest(`/api/admin/departments/${id}/toggle-status`, { method: "PATCH" }),
   },
-  budgets: {
-    list: (year) => adminRequest(`/api/admin/department-budgets${year ? `?year=${year}` : ""}`),
-    create: (payload) => adminRequest("/api/admin/department-budgets", { method: "POST", body: payload }),
-    update: (id, payload) => adminRequest(`/api/admin/department-budgets/${id}`, { method: "PUT", body: payload }),
-    toggle: (id) => adminRequest(`/api/admin/department-budgets/${id}/toggle-status`, { method: "PATCH" }),
+  divisions: {
+    list: () => adminRequest("/api/divisions/all").then(toPage),
+    all: () => adminRequest("/api/divisions/all"),
+    create: (payload) => adminRequest("/api/divisions", { method: "POST", body: payload }),
+    update: (id, payload) => adminRequest(`/api/divisions/${id}`, { method: "PUT", body: payload }),
+    toggle: (division) => adminRequest(`/api/divisions/${division.divisionId || division.id}`, {
+      method: "PUT",
+      body: {
+        divisionName: division.divisionName,
+        description: division.description,
+        active: !division.active,
+      },
+    }),
   },
 };

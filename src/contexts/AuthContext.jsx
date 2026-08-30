@@ -5,13 +5,9 @@ const AUTH_STORAGE_KEY = "astraea_auth";
 
 const readStoredAuth = () => {
   try {
-    const persistedRaw = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (persistedRaw) {
-      return { ...JSON.parse(persistedRaw), persistence: "local" };
-    }
-
+    localStorage.removeItem(AUTH_STORAGE_KEY);
     const sessionRaw = sessionStorage.getItem(AUTH_STORAGE_KEY);
-    return sessionRaw ? { ...JSON.parse(sessionRaw), persistence: "session" } : null;
+    return sessionRaw ? JSON.parse(sessionRaw) : null;
   } catch (error) {
     console.warn("[AuthContext] failed to read stored auth", error);
     return null;
@@ -22,19 +18,18 @@ export const AuthProvider = ({ children }) => {
   const storedAuth = readStoredAuth();
   const [user, setUser] = useState(storedAuth?.user || null);
   const [token, setToken] = useState(storedAuth?.token || null);
-  const [rememberMe, setRememberMe] = useState(storedAuth?.persistence !== "session");
+  const [rememberMe, setRememberMe] = useState(false);
 
-  const persistAuth = (nextUser, nextToken, shouldRemember = true) => {
+  const persistAuth = (nextUser, nextToken) => {
     setUser(nextUser);
     setToken(nextToken);
-    setRememberMe(shouldRemember);
+    setRememberMe(false);
 
     localStorage.removeItem(AUTH_STORAGE_KEY);
     sessionStorage.removeItem(AUTH_STORAGE_KEY);
 
     if (nextUser && nextToken) {
-      const storage = shouldRemember ? localStorage : sessionStorage;
-      storage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+      sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
         user: nextUser,
         token: nextToken,
       }));
@@ -57,7 +52,7 @@ export const AuthProvider = ({ children }) => {
       throw new Error(message);
     }
 
-    const userDto = (body && (body.user || body.userResponse || body.data)) || null;
+    const userDto = (body && (body.user || body.userResponse || body.data || (body.email && body.mainRole ? body : null))) || null;
     const authToken = (body && (body.token || body.accessToken)) || null;
     return { body, userDto, token: authToken };
   };
@@ -81,7 +76,7 @@ export const AuthProvider = ({ children }) => {
     console.debug("[AuthContext] login response body:", body);
 
     if (userDto && authToken) {
-      persistAuth(userDto, authToken, credentials.rememberMe !== false);
+      persistAuth(userDto, authToken);
     }
 
     return { user: userDto, token: authToken, message: (body && body.message) || null };
@@ -97,7 +92,7 @@ export const AuthProvider = ({ children }) => {
     const { body, userDto, token: authToken } = await parseResponse(res);
 
     if (userDto && authToken) {
-      persistAuth(userDto, authToken, true);
+      persistAuth(userDto, authToken);
     }
 
     return { user: userDto, token: authToken, message: (body && body.message) || null };
@@ -117,6 +112,42 @@ export const AuthProvider = ({ children }) => {
     }
 
     return { user: userDto, token: authToken, message: (body && body.message) || null };
+  };
+
+  const switchRole = async (role) => {
+    const res = await fetch("/api/auth/switch-role", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(role),
+    });
+
+    const { body, userDto, token: authToken } = await parseResponse(res);
+
+    if (userDto && authToken) {
+      persistAuth(userDto, authToken);
+    }
+
+    return { user: userDto, token: authToken, message: (body && body.message) || null };
+  };
+
+  const refreshCurrentUser = async () => {
+    if (!token) {
+      return null;
+    }
+
+    const res = await fetch("/api/auth/current-user", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const { userDto } = await parseResponse(res);
+
+    if (userDto) {
+      persistAuth(userDto, token);
+    }
+
+    return userDto;
   };
 
   // Register against backend /api/auth/register
@@ -164,7 +195,8 @@ export const AuthProvider = ({ children }) => {
     return { message: body?.message || "Password reset successful" };
   };
 
-  const logout = () => persistAuth(null, null, true);
+  const logout = () => persistAuth(null, null);
+  const updateSession = (nextUser, nextToken = token) => persistAuth(nextUser, nextToken);
 
   return (
     <AuthContext.Provider value={{
@@ -175,9 +207,12 @@ export const AuthProvider = ({ children }) => {
       login,
       googleLogin,
       googleRegister,
+      switchRole,
+      refreshCurrentUser,
       registerUser,
       forgotPassword,
       resetPassword,
+      updateSession,
       logout
     }}>
       {children}

@@ -9,9 +9,6 @@ const initialForm = {
   facultyCode: "",
   facultyName: "",
   description: "",
-  deanName: "",
-  deanEmail: "",
-  deanPhone: "",
   building: "",
   floor: "",
   active: true,
@@ -78,7 +75,7 @@ export default function AdminFaculties() {
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Admin</div>
           <h1 className="mt-2 text-3xl font-black text-[#10283f]">Faculties</h1>
-          <p className="mt-2 text-sm text-slate-600">Create and maintain university faculties used by departments and staff users.</p>
+          <p className="mt-2 text-sm text-slate-600">Create and maintain university faculties used by divisions and staff users.</p>
         </div>
         <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate} sx={{ textTransform: "none", borderRadius: "14px", bgcolor: "#166e8c" }}>
           Add Faculty
@@ -102,8 +99,7 @@ export default function AdminFaculties() {
               </span>
             </div>
             <div className="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-2">
-              <div><span className="font-semibold text-[#10283f]">Dean:</span> {faculty.deanName || "Not assigned"}</div>
-              <div><span className="font-semibold text-[#10283f]">Departments:</span> {faculty.departmentCount || 0}</div>
+              <div><span className="font-semibold text-[#10283f]">Divisions:</span> {faculty.divisionCount || faculty.departmentCount || 0}</div>
               <div><span className="font-semibold text-[#10283f]">Building:</span> {faculty.building || "Not set"}</div>
               <div><span className="font-semibold text-[#10283f]">Users:</span> {faculty.userCount || 0}</div>
             </div>
@@ -122,9 +118,6 @@ export default function AdminFaculties() {
           <DialogContent className="grid gap-4 md:grid-cols-2">
             <TextField label="Faculty code" value={form.facultyCode} onChange={(e) => setForm({ ...form, facultyCode: e.target.value })} required />
             <TextField label="Faculty name" value={form.facultyName} onChange={(e) => setForm({ ...form, facultyName: e.target.value })} required />
-            <TextField label="Dean name" value={form.deanName || ""} onChange={(e) => setForm({ ...form, deanName: e.target.value })} />
-            <TextField label="Dean email" type="email" value={form.deanEmail || ""} onChange={(e) => setForm({ ...form, deanEmail: e.target.value })} />
-            <TextField label="Dean phone" value={form.deanPhone || ""} onChange={(e) => setForm({ ...form, deanPhone: e.target.value })} />
             <TextField label="Building" value={form.building || ""} onChange={(e) => setForm({ ...form, building: e.target.value })} />
             <TextField label="Floor" value={form.floor || ""} onChange={(e) => setForm({ ...form, floor: e.target.value })} />
             <TextField className="md:col-span-2" label="Description" multiline minRows={3} value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })} />

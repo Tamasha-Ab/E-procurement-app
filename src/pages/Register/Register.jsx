@@ -11,63 +11,12 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
-import WorkIcon from "@mui/icons-material/Work";
 import SchoolIcon from "@mui/icons-material/School";
-import SecurityIcon from "@mui/icons-material/Security";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import BadgeIcon from "@mui/icons-material/Badge";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import GoogleIcon from "@mui/icons-material/Google";
-
-const ROLE_CONFIG = {
-  FACULTY_STAFF: {
-    label: "Faculty Staff",
-    subRoles: [
-      { value: "LECTURER", label: "Lecturer" },
-      { value: "HOD", label: "Head of Department (HOD)" },
-      { value: "DEAN", label: "Dean" },
-      { value: "TEC", label: "Technical Evaluation Committee (TEC)" },
-      { value: "VC", label: "Vice Chancellor (VC)" },
-    ],
-    requiresSubRole: true,
-    icon: SchoolIcon,
-    iconColor: "text-emerald-600",
-    bgColor: "bg-emerald-50",
-    desc: "Academic & research staff",
-  },
-  FINANCE: {
-    label: "Finance / Procurement",
-    subRoles: [
-      { value: "FINANCE_OFFICER", label: "Finance Officer" },
-      { value: "PROCUREMENT_OFFICER", label: "Procurement Officer" },
-      { value: "BURSAR", label: "Bursar" },
-    ],
-    requiresSubRole: true,
-    icon: WorkIcon,
-    iconColor: "text-blue-600",
-    bgColor: "bg-blue-50",
-    desc: "Finance & procurement",
-  },
-  VENDOR: {
-    label: "Vendor",
-    subRoles: [],
-    requiresSubRole: false,
-    icon: LocalShippingIcon,
-    iconColor: "text-amber-600",
-    bgColor: "bg-amber-50",
-    desc: "External supplier",
-  },
-  ADMIN: {
-    label: "Admin",
-    subRoles: [],
-    requiresSubRole: false,
-    icon: SecurityIcon,
-    iconColor: "text-purple-600",
-    bgColor: "bg-purple-50",
-    desc: "System administrator",
-  },
-};
 
 function getStrength(password) {
   if (!password) return 0;
@@ -79,6 +28,18 @@ function getStrength(password) {
   );
 }
 
+const fileToDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    if (!file) {
+      resolve(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+
 const STRENGTH_CONFIG = [
   { color: "bg-red-400", label: "Weak", textColor: "text-red-500" },
   { color: "bg-orange-400", label: "Fair", textColor: "text-orange-500" },
@@ -86,8 +47,109 @@ const STRENGTH_CONFIG = [
   { color: "bg-emerald-500", label: "Strong", textColor: "text-emerald-600" },
 ];
 
-export default function Register({ openLogin }) {
+const STAFF_ROLE_OPTIONS = [
+  { value: "DIVISION_HEAD", label: "Division Head" },
+  { value: "STAFF_MEMBER", label: "Staff Member" },
+];
+
+const ADMINISTRATIVE_ROLE_OPTIONS = [
+  { value: "DEAN", label: "Dean" },
+  { value: "STAFF_MEMBER", label: "Staff Member" },
+];
+
+const FINANCE_ROLE_OPTIONS = [
+  { value: "SENIOR_ASSISTANT_BURSAR", label: "Senior Assistant Bursar" },
+  { value: "ASSISTANT_BURSAR", label: "Assistant Bursar" },
+  { value: "BURSAR", label: "Bursar" },
+  { value: "BEC", label: "BEC (Bid Evaluation Committee)" },
+];
+
+const ACCOUNT_TYPE_OPTIONS = [
+  { value: "university_staff", label: "University Staff", icon: SchoolIcon },
+  { value: "external_vendor", label: "External Vendor", icon: LocalShippingIcon },
+  { value: "procurement_entity", label: "Procurement Entity", icon: BadgeIcon },
+  { value: "dpc", label: "DPC", icon: CheckCircleIcon },
+];
+
+const VENDOR_CATEGORY_OPTIONS = [
+  "Air Conditioners & Accessories",
+  "Animal Feed & Veterinary Drugs",
+  "Audio & Visual Systems",
+  "Book Binding & Paper Finishing Materials",
+  "Books & Publications",
+  "Building & Construction Materials",
+  "Cameras & Photography Equipment",
+  "Cell Culture & Biological Materials",
+  "Cement & Precast Products",
+  "CIDA EM1-EM3 Contractors",
+  "CIDA Registered Contractors (Bridge)",
+  "CIDA Registered Contractors (Building)",
+  "CIDA Registered Contractors (Highway)",
+  "CIDA Registered Contractors (Water Supply & Drainage)",
+  "Computer Hardware & Software",
+  "Construction & Maintenance",
+  "Curtain Materials & Accessories",
+  "Electrical & Electronic Appliances",
+  "Electrical Wiring & Fittings",
+  "Fertilizers & Agro Chemicals",
+  "Fibre Glass & Plastic Products",
+  "Fire Safety Equipment",
+  "General Hardware & Tools",
+  "General Laboratory Chemicals",
+  "Kitchen Utensils & Cutlery",
+  "Laboratory Chemicals (Specialized)",
+  "Laboratory Equipment",
+  "Laboratory Glassware & Plasticware",
+  "Landscaping",
+  "Machinery & Industrial Equipment",
+  "Maintenance of Air Conditioners",
+  "Medical & Dental Consumables",
+  "Medical Equipment",
+  "Motor Spare Parts",
+  "Office Equipment",
+  "Pest Control Service",
+  "Photography & Videography",
+  "Printing & Binding of Books",
+  "Printing & Supply of ID Cards",
+  "Rebuilding & Retreading of Tyres",
+  "Repair & Maintenance of Computers & Networks",
+  "Repair of Electrical Appliances",
+  "Repair of Gas Systems",
+  "Repair of Laboratory Equipment",
+  "Repair of Motor Vehicle",
+  "Repair of Motor Cycles",
+  "Repair of Office Equipment",
+  "Repair of Three Wheelers",
+  "Repair of Tractors",
+  "Rubber Items, Seals & Stamps",
+  "Safety Equipment",
+  "Sanitary & Cleaning Items",
+  "Sawn Timber & Wood Products",
+  "Security Systems",
+  "Service & Lubrication of Motor Vehicles",
+  "Service & Lubrication of Motorcycles",
+  "Service & Lubrication of Three Wheelers",
+  "Sports Goods",
+  "Stationery & Office Consumables",
+  "Steel Furniture",
+  "Supply & Operation of Earth Moving Equipment",
+  "Teaching & Workshop Equipment",
+  "Toner Cartridges & Master Rolls",
+  "Transport Services",
+  "Tree Removal & Landscaping Services",
+  "Tyres & Tubes",
+  "Uniform Materials & Accessories",
+  "University Ceremony Items",
+  "Vehicle & Motorcycle Batteries",
+  "Vehicles & Transport Equipment",
+  "Wheel Alignment Services",
+  "Wooden Furniture",
+];
+
+export default function Register({ openLogin, onSizeChange }) {
   const googleButtonRef = useRef(null);
+  const googleInitializedRef = useRef(false);
+  const googleRegisterPayloadRef = useRef({});
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const { googleRegister } = useAuth();
   const {
@@ -95,8 +157,9 @@ export default function Register({ openLogin }) {
     handleSubmit,
     watch,
     setError,
+    setValue,
     formState: { errors, isSubmitting },
-  } = useForm({ defaultValues: { mainRole: "FACULTY_STAFF", subRole: "" } });
+  } = useForm({ defaultValues: { accountType: "university_staff", mainRole: "FACULTY_STAFF", subRole: "", categories: [] } });
 
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -106,14 +169,111 @@ export default function Register({ openLogin }) {
   const [successMessage, setSuccessMessage] = useState("");
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isGoogleReady, setIsGoogleReady] = useState(false);
+  const [divisions, setDivisions] = useState([]);
+  const [faculties, setFaculties] = useState([]);
+  const [divisionError, setDivisionError] = useState("");
+  const [facultyError, setFacultyError] = useState("");
+  const [vendorCategorySearch, setVendorCategorySearch] = useState("");
 
-  const selectedRole = watch("mainRole");
   const selectedSubRole = watch("subRole");
+  const selectedFacultyId = watch("facultyId");
+  const selectedDivisionId = watch("divisionId");
+  const accountType = watch("accountType");
+  const selectedCategories = watch("categories") || [];
   const password = watch("password");
-  const roleConfig = ROLE_CONFIG[selectedRole] || ROLE_CONFIG.FACULTY_STAFF;
+  const isUniversityStaff = accountType === "university_staff";
+  const isExternalVendor = accountType === "external_vendor";
+  const isProcurementEntity = accountType === "procurement_entity";
+  const isDpc = accountType === "dpc";
+  const selectedDivision = divisions.find((division) => String(division.divisionId) === String(selectedDivisionId));
+  const isAdministrativeDivision = selectedDivision?.divisionName?.trim().toLowerCase() === "administrative";
+  const roleOptions = isProcurementEntity
+    ? FINANCE_ROLE_OPTIONS
+    : isUniversityStaff && isAdministrativeDivision
+      ? ADMINISTRATIVE_ROLE_OPTIONS
+      : STAFF_ROLE_OPTIONS;
+  const filteredVendorCategories = VENDOR_CATEGORY_OPTIONS.filter((category) =>
+    category.toLowerCase().includes(vendorCategorySearch.trim().toLowerCase())
+  );
   const strength = getStrength(password);
   const strengthConfig = STRENGTH_CONFIG[Math.max(strength - 1, 0)];
-  const isRoleReady = !!selectedRole && (!roleConfig.requiresSubRole || !!selectedSubRole);
+  const isRoleReady = isExternalVendor
+    || isDpc
+    || (isProcurementEntity && !!selectedFacultyId && !!selectedSubRole)
+    || (isUniversityStaff && !!selectedFacultyId && !!selectedDivisionId && !!selectedSubRole);
+  googleRegisterPayloadRef.current = {
+    mainRole: isExternalVendor ? "VENDOR" : isDpc ? "DPC" : isProcurementEntity ? "FINANCE" : "FACULTY_STAFF",
+    subRole: isExternalVendor || isDpc ? null : selectedSubRole,
+    universityAffiliated: isUniversityStaff || isProcurementEntity,
+    registrationType: isExternalVendor ? "VENDOR" : isDpc ? "DPC" : isProcurementEntity ? "PROCUREMENT_ENTITY" : "INTERNAL",
+    facultyId: isUniversityStaff || isProcurementEntity ? Number(selectedFacultyId) : null,
+    divisionId: isUniversityStaff ? Number(selectedDivisionId) : null,
+  };
+
+  useEffect(() => {
+    if (isExternalVendor) {
+      setValue("mainRole", "VENDOR");
+      setValue("subRole", "");
+      setValue("facultyId", "");
+      setValue("divisionId", "");
+    } else if (isDpc) {
+      setValue("mainRole", "DPC");
+      setValue("subRole", "");
+      setValue("facultyId", "");
+      setValue("divisionId", "");
+    } else if (isProcurementEntity) {
+      setValue("mainRole", "FINANCE");
+      setValue("divisionId", "");
+    } else {
+      setValue("mainRole", "FACULTY_STAFF");
+    }
+  }, [isDpc, isExternalVendor, isProcurementEntity, setValue]);
+
+  useEffect(() => {
+    onSizeChange?.(isExternalVendor && step === 2 ? "md" : "sm");
+    return () => onSizeChange?.("sm");
+  }, [isExternalVendor, onSizeChange, step]);
+
+  useEffect(() => {
+    if (!isExternalVendor && !isDpc && selectedSubRole && !roleOptions.some((role) => role.value === selectedSubRole)) {
+      setValue("subRole", "");
+    }
+  }, [isDpc, isExternalVendor, roleOptions, selectedSubRole, setValue]);
+
+  useEffect(() => {
+    let ignore = false;
+    const loadLookups = async () => {
+      try {
+        const [divisionResponse, facultyResponse] = await Promise.all([
+          fetch("/api/divisions"),
+          fetch("/api/admin/faculties/active"),
+        ]);
+        const divisionBody = await divisionResponse.json().catch(() => ({}));
+        const facultyBody = await facultyResponse.json().catch(() => ({}));
+        if (!divisionResponse.ok) {
+          throw new Error(divisionBody?.message || "Could not load divisions");
+        }
+        if (!facultyResponse.ok) {
+          throw new Error(facultyBody?.message || "Could not load faculties");
+        }
+        if (!ignore) {
+          setDivisions(Array.isArray(divisionBody?.data) ? divisionBody.data : []);
+          setFaculties(Array.isArray(facultyBody?.data) ? facultyBody.data : []);
+          setDivisionError("");
+          setFacultyError("");
+        }
+      } catch (error) {
+        if (!ignore) {
+          setDivisionError(error.message || "Could not load divisions");
+          setFacultyError(error.message || "Could not load faculties");
+        }
+      }
+    };
+    loadLookups();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     document.title = "Astraea · Create Account";
@@ -151,20 +311,17 @@ export default function Register({ openLogin }) {
         return;
       }
 
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: async (response) => {
+      if (!googleInitializedRef.current) {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: async (response) => {
           setErrorMsg("");
           setIsGoogleLoading(true);
 
           try {
             const result = await googleRegister({
               idToken: response.credential,
-              mainRole: selectedRole,
-              subRole: roleConfig.requiresSubRole ? selectedSubRole : null,
-              facultyId: null,
-              departmentId: null,
-              vendorId: null,
+              ...googleRegisterPayloadRef.current,
             });
 
             setSuccessMessage(result?.message || "Google sign-up submitted. Awaiting admin approval.");
@@ -177,7 +334,9 @@ export default function Register({ openLogin }) {
             setIsGoogleLoading(false);
           }
         },
-      });
+        });
+        googleInitializedRef.current = true;
+      }
 
       googleButtonRef.current.innerHTML = "";
       window.google.accounts.id.renderButton(googleButtonRef.current, {
@@ -185,7 +344,7 @@ export default function Register({ openLogin }) {
         size: "large",
         shape: "pill",
         text: "signup_with",
-        width: "100%",
+        width: 320,
       });
 
       setIsGoogleReady(true);
@@ -218,7 +377,7 @@ export default function Register({ openLogin }) {
     return () => {
       cancelled = true;
     };
-  }, [googleClientId, googleRegister, isRoleReady, roleConfig.requiresSubRole, selectedRole, selectedSubRole]);
+  }, [googleClientId, googleRegister, isDpc, isExternalVendor, isProcurementEntity, isRoleReady, isUniversityStaff, selectedDivisionId, selectedFacultyId, selectedSubRole]);
 
   const onSubmit = async (data) => {
     if (data.password !== data.confirmPassword) {
@@ -226,15 +385,35 @@ export default function Register({ openLogin }) {
       return;
     }
 
+    const businessRegistrationFile = data.businessRegistrationDocument?.[0] || null;
+    const vatFile = data.vatDocument?.[0] || null;
+    const cidaFile = data.cidaDocument?.[0] || null;
+
     const payload = {
       username: data.username,
       email: data.email,
       password: data.password,
-      mainRole: data.mainRole,
-      subRole: roleConfig.requiresSubRole ? data.subRole : null,
-      facultyId: null,
-      departmentId: null,
-      vendorId: null,
+      universityAffiliated: isUniversityStaff || isProcurementEntity,
+      registrationType: isExternalVendor ? "VENDOR" : isDpc ? "DPC" : isProcurementEntity ? "PROCUREMENT_ENTITY" : "INTERNAL",
+      mainRole: isExternalVendor ? "VENDOR" : isDpc ? "DPC" : isProcurementEntity ? "FINANCE" : "FACULTY_STAFF",
+      subRole: isExternalVendor || isDpc ? null : data.subRole,
+      facultyId: isUniversityStaff || isProcurementEntity ? Number(data.facultyId) : null,
+      divisionId: isUniversityStaff ? Number(data.divisionId) : null,
+      universityId: isExternalVendor ? null : data.universityId,
+      vendorName: data.vendorName || null,
+      companyRegistrationNumber: data.companyRegistrationNumber || null,
+      category: Array.isArray(data.categories) ? data.categories.join(", ") : data.category || null,
+      categories: Array.isArray(data.categories) ? data.categories : [],
+      otherCategory: data.otherCategory || null,
+      contactPerson: data.contactPerson || null,
+      phone: data.phone || null,
+      address: data.address || null,
+      businessRegistrationDocumentName: businessRegistrationFile?.name || null,
+      businessRegistrationDocument: isExternalVendor ? await fileToDataUrl(businessRegistrationFile) : null,
+      vatDocumentName: vatFile?.name || null,
+      vatDocument: isExternalVendor ? await fileToDataUrl(vatFile) : null,
+      cidaDocumentName: cidaFile?.name || null,
+      cidaDocument: isExternalVendor ? await fileToDataUrl(cidaFile) : null,
     };
 
     try {
@@ -350,58 +529,94 @@ export default function Register({ openLogin }) {
               <label className="block text-sm font-semibold text-gray-700">
                 Account Type <span className="text-red-500">*</span>
               </label>
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                {Object.entries(ROLE_CONFIG).map(([key, cfg]) => {
-                  const Icon = cfg.icon;
-                  const isSelected = selectedRole === key;
-                  return (
-                    <label
-                      key={key}
-                      className={`relative cursor-pointer rounded-xl border-2 p-4 transition-all duration-200 hover:shadow-md ${
-                        isSelected ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300 bg-white"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        value={key}
-                        {...register("mainRole", { required: true })}
-                        className="sr-only"
-                      />
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${
-                        isSelected ? "bg-blue-500 text-white" : `${cfg.bgColor} ${cfg.iconColor}`
-                      }`}>
-                        <Icon style={{ fontSize: 20 }} />
-                      </div>
-                      <p className={`text-sm font-medium ${isSelected ? "text-blue-700" : "text-gray-700"}`}>
-                        {cfg.label}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-400">{cfg.desc}</p>
-                      {isSelected && (
-                        <div className="absolute top-2 right-2">
-                          <CheckCircleIcon style={{ fontSize: 16 }} className="text-blue-500" />
-                        </div>
-                      )}
-                    </label>
-                  );
-                })}
+              <div className="grid grid-cols-2 gap-3">
+                {ACCOUNT_TYPE_OPTIONS.map(({ value, label, icon: OptionIcon }) => (
+                  <label key={value} className={`cursor-pointer rounded-xl border-2 p-4 transition ${accountType === value ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"}`}>
+                    <input type="radio" value={value} {...register("accountType")} className="sr-only" />
+                    <OptionIcon className={accountType === value ? "text-blue-600" : "text-gray-400"} />
+                    <p className="mt-2 text-sm font-semibold text-gray-700">{label}</p>
+                  </label>
+                ))}
               </div>
             </div>
 
-            {roleConfig.requiresSubRole && (
+            {(isUniversityStaff || isProcurementEntity) && (
+              <div className="space-y-1.5">
+                <label htmlFor="facultyId" className="block text-sm font-semibold text-gray-700">
+                  Faculty <span className="text-red-500">*</span>
+                </label>
+                <div className="relative flex items-center">
+                  <SchoolIcon className="absolute text-gray-400 left-3" style={{ fontSize: 18 }} />
+                  <select
+                    id="facultyId"
+                    {...register("facultyId", { required: isUniversityStaff || isProcurementEntity ? "Please select your faculty" : false })}
+                    className="w-full py-3 pl-10 pr-10 text-sm transition-colors bg-white border-2 border-gray-200 appearance-none rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300"
+                    disabled={isSubmitting}
+                  >
+                    <option value="">Select your faculty</option>
+                    {faculties.map((faculty) => (
+                      <option key={faculty.id || faculty.facultyId} value={faculty.id || faculty.facultyId}>
+                        {faculty.facultyName}
+                      </option>
+                    ))}
+                  </select>
+                  <ExpandMoreIcon className="absolute text-gray-400 pointer-events-none right-3" style={{ fontSize: 18 }} />
+                </div>
+                {facultyError && <p className="text-xs text-red-500">{facultyError}</p>}
+                {errors.facultyId && (
+                  <p className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                    <ErrorIcon style={{ fontSize: 12 }} /> {errors.facultyId.message}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {isUniversityStaff && (
+              <div className="space-y-1.5">
+                <label htmlFor="divisionId" className="block text-sm font-semibold text-gray-700">
+                  Division <span className="text-red-500">*</span>
+                </label>
+                <div className="relative flex items-center">
+                  <SchoolIcon className="absolute text-gray-400 left-3" style={{ fontSize: 18 }} />
+                  <select
+                    id="divisionId"
+                    {...register("divisionId", { required: isUniversityStaff ? "Please select your division" : false })}
+                    className="w-full py-3 pl-10 pr-10 text-sm transition-colors bg-white border-2 border-gray-200 appearance-none rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300"
+                    disabled={isSubmitting}
+                  >
+                    <option value="">Select your division</option>
+                    {divisions.map((division) => (
+                      <option key={division.divisionId} value={division.divisionId}>
+                        {division.divisionName}
+                      </option>
+                    ))}
+                  </select>
+                  <ExpandMoreIcon className="absolute text-gray-400 pointer-events-none right-3" style={{ fontSize: 18 }} />
+                </div>
+                {divisionError && <p className="text-xs text-red-500">{divisionError}</p>}
+                {errors.divisionId && (
+                  <p className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                    <ErrorIcon style={{ fontSize: 12 }} /> {errors.divisionId.message}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {(isUniversityStaff || isProcurementEntity) && (
               <div className="space-y-1.5">
                 <label htmlFor="subRole" className="block text-sm font-semibold text-gray-700">
-                  Position <span className="text-red-500">*</span>
+                  {isProcurementEntity ? "Procurement Role" : "Role in Division"} <span className="text-red-500">*</span>
                 </label>
                 <div className="relative flex items-center">
                   <BadgeIcon className="absolute text-gray-400 left-3" style={{ fontSize: 18 }} />
                   <select
                     id="subRole"
-                    {...register("subRole", { required: "Please select your position" })}
+                    {...register("subRole", { required: isUniversityStaff || isProcurementEntity ? "Please select your position" : false })}
                     className="w-full py-3 pl-10 pr-10 text-sm transition-colors bg-white border-2 border-gray-200 appearance-none rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300"
                     disabled={isSubmitting}
                   >
                     <option value="">Select your position</option>
-                    {roleConfig.subRoles.map((subRole) => (
+                    {roleOptions.map((subRole) => (
                       <option key={subRole.value} value={subRole.value}>
                         {subRole.label}
                       </option>
@@ -414,6 +629,12 @@ export default function Register({ openLogin }) {
                     <ErrorIcon style={{ fontSize: 12 }} /> {errors.subRole.message}
                   </p>
                 )}
+              </div>
+            )}
+
+            {isExternalVendor && (
+              <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-800">
+                Vendor registration documents are submitted for DPC review before catalog and bidding access is enabled.
               </div>
             )}
 
@@ -485,6 +706,30 @@ export default function Register({ openLogin }) {
 
         {step === 2 && (
           <div className="space-y-5 animate-fadeIn">
+            {!isExternalVendor && (
+              <div className="space-y-1.5">
+                <label htmlFor="universityId" className="block text-sm font-semibold text-gray-700">
+                  University ID / PF Number <span className="text-red-500">*</span>
+                </label>
+                <div className="relative flex items-center">
+                  <BadgeIcon className="absolute text-gray-400 left-3" style={{ fontSize: 18 }} />
+                  <input
+                    id="universityId"
+                    type="text"
+                    {...register("universityId", { required: !isExternalVendor ? "University ID / PF Number is required" : false })}
+                    placeholder="Enter your University ID / PF Number"
+                    className="w-full py-3 pl-10 pr-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300"
+                    disabled={isSubmitting}
+                  />
+                </div>
+                {errors.universityId && (
+                  <p className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                    <ErrorIcon style={{ fontSize: 12 }} /> {errors.universityId.message}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <label htmlFor="username" className="block text-sm font-semibold text-gray-700">
                 Username <span className="text-red-500">*</span>
@@ -511,6 +756,122 @@ export default function Register({ openLogin }) {
                 </p>
               )}
             </div>
+
+            {isExternalVendor && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5 md:col-span-2">
+                  <label htmlFor="vendorName" className="block text-sm font-semibold text-gray-700">
+                    Vendor / Company Name <span className="text-red-500">*</span>
+                  </label>
+                  <input id="vendorName" type="text" {...register("vendorName", { required: isExternalVendor ? "Vendor name is required" : false })} className="w-full py-3 px-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300" disabled={isSubmitting} />
+                  {errors.vendorName && <p className="text-xs text-red-500">{errors.vendorName.message}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="companyRegistrationNumber" className="block text-sm font-semibold text-gray-700">Registration Number</label>
+                  <input id="companyRegistrationNumber" type="text" {...register("companyRegistrationNumber")} className="w-full py-3 px-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300" disabled={isSubmitting} />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Supplier Categories <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="search"
+                    value={vendorCategorySearch}
+                    onChange={(event) => setVendorCategorySearch(event.target.value)}
+                    placeholder="Search supplier categories"
+                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm transition-colors focus:border-blue-500 focus:outline-none hover:border-gray-300"
+                    disabled={isSubmitting}
+                  />
+                  <div className="grid max-h-64 gap-2 overflow-y-auto rounded-xl border-2 border-gray-200 bg-white p-3 md:grid-cols-2">
+                    {filteredVendorCategories.map((category) => (
+                      <label key={category} className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700 hover:bg-blue-50">
+                        <input
+                          type="checkbox"
+                          value={category}
+                          {...register("categories", {
+                            validate: (value) => !isExternalVendor || (Array.isArray(value) && value.length > 0) || "Select at least one supplier category",
+                          })}
+                          className="mt-1"
+                          disabled={isSubmitting}
+                        />
+                        <span>{category}</span>
+                      </label>
+                    ))}
+                    {filteredVendorCategories.length === 0 && (
+                      <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500 md:col-span-2">No matching categories.</div>
+                    )}
+                    <label className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-gray-700 hover:bg-blue-50">
+                      <input type="checkbox" value="Other" {...register("categories")} className="mt-1" disabled={isSubmitting} />
+                      <span>Other</span>
+                    </label>
+                  </div>
+                  {selectedCategories.includes("Other") && (
+                    <input
+                      id="otherCategory"
+                      type="text"
+                      {...register("otherCategory", { required: selectedCategories.includes("Other") ? "Please enter the other category" : false })}
+                      placeholder="Enter other supplier category"
+                      className="w-full px-4 py-3 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300"
+                      disabled={isSubmitting}
+                    />
+                  )}
+                  {errors.categories && <p className="text-xs text-red-500">{errors.categories.message}</p>}
+                  {errors.otherCategory && <p className="text-xs text-red-500">{errors.otherCategory.message}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="contactPerson" className="block text-sm font-semibold text-gray-700">Contact Person</label>
+                  <input id="contactPerson" type="text" {...register("contactPerson")} className="w-full py-3 px-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300" disabled={isSubmitting} />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="phone" className="block text-sm font-semibold text-gray-700">Phone</label>
+                  <input id="phone" type="text" {...register("phone")} className="w-full py-3 px-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300" disabled={isSubmitting} />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="address" className="block text-sm font-semibold text-gray-700">Address</label>
+                  <input id="address" type="text" {...register("address")} className="w-full py-3 px-4 text-sm transition-colors border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300" disabled={isSubmitting} />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <label htmlFor="businessRegistrationDocument" className="block text-sm font-semibold text-gray-700">
+                    Business Registration Certificate <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="businessRegistrationDocument"
+                    type="file"
+                    accept="application/pdf"
+                    {...register("businessRegistrationDocument", { required: isExternalVendor ? "Business registration certificate is required" : false })}
+                    className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm transition-colors file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:border-gray-300 focus:border-blue-500 focus:outline-none"
+                    disabled={isSubmitting}
+                  />
+                  {errors.businessRegistrationDocument && <p className="text-xs text-red-500">{errors.businessRegistrationDocument.message}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="vatDocument" className="block text-sm font-semibold text-gray-700">
+                    VAT Certificate / Exemption Letter
+                  </label>
+                  <input
+                    id="vatDocument"
+                    type="file"
+                    accept="application/pdf"
+                    {...register("vatDocument")}
+                    className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm transition-colors file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:border-gray-300 focus:border-blue-500 focus:outline-none"
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="cidaDocument" className="block text-sm font-semibold text-gray-700">
+                    CIDA Certificate
+                  </label>
+                  <input
+                    id="cidaDocument"
+                    type="file"
+                    accept="application/pdf"
+                    {...register("cidaDocument")}
+                    className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm transition-colors file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:border-gray-300 focus:border-blue-500 focus:outline-none"
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
