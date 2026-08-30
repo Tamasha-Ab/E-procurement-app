@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
+import AutoFixHighRoundedIcon from "@mui/icons-material/AutoFixHighRounded";
+import UndoRoundedIcon from "@mui/icons-material/UndoRounded";
 import { useNavigate, useParams } from "react-router-dom";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
@@ -114,6 +116,8 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isActing, setIsActing] = useState(false);
+  const [suggestingSpecIndex, setSuggestingSpecIndex] = useState(null);
+  const [specUndoValues, setSpecUndoValues] = useState({});
   const usesDetailRoute = roleKey === "HOD" || roleKey === "DEAN" || roleKey === "VC" || roleKey === "BEC";
   const isDetailPage = usesDetailRoute && Boolean(rrId);
   const isQueuePage = usesDetailRoute && !rrId;
@@ -269,12 +273,14 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
     });
     setSpecRows(rows.length ? rows : [{ ...emptySpecRow }]);
     setSpecImages(existingImages);
+    setSpecUndoValues({});
   };
 
   const resetSpecForm = () => {
     setSpecForm(emptySpecForm);
     setSpecRows([{ ...emptySpecRow }]);
     setSpecImages([]);
+    setSpecUndoValues({});
   };
 
   const updateSpecRow = (index, field, value) => {
@@ -291,6 +297,77 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
     setSpecRows((current) => (current.length === 1
       ? [{ ...emptySpecRow }]
       : current.filter((_, rowIndex) => rowIndex !== index)));
+    setSpecUndoValues((current) => {
+      const next = {};
+      Object.entries(current).forEach(([rowIndex, value]) => {
+        const numericIndex = Number(rowIndex);
+        if (numericIndex < index) next[numericIndex] = value;
+        if (numericIndex > index) next[numericIndex - 1] = value;
+      });
+      return next;
+    });
+  };
+
+  const resolveSpecItem = (targetRequest) => {
+    const items = targetRequest?.items || [];
+    if (specForm.itemId) {
+      return items.find((item) => String(item.itemId) === String(specForm.itemId));
+    }
+    return items[0] || null;
+  };
+
+  const suggestRequiredSpecification = async (index, targetRequest) => {
+    const row = specRows[index];
+    const description = row?.description?.trim();
+    const selectedItem = resolveSpecItem(targetRequest);
+    const itemName = selectedItem?.description || selectedItem?.itemName || targetRequest?.itemName || requestDisplayName(targetRequest);
+
+    if (!description) {
+      setError("Enter a description before asking AI to suggest the required specification.");
+      return;
+    }
+    if (!itemName) {
+      setError("Select or enter an item before asking AI to suggest specifications.");
+      return;
+    }
+
+    setError("");
+    setMessage("");
+    setSuggestingSpecIndex(index);
+
+    try {
+      const suggestion = await apiRequest("/api/approvals/hod/specifications/ai-suggestion", {
+        token,
+        method: "POST",
+        body: {
+          itemName,
+          description,
+          itemContext: selectedItem?.description || targetRequest?.description || "",
+          quantity: Number(selectedItem?.quantity) || null,
+        },
+      });
+      setSpecUndoValues((current) => ({
+        ...current,
+        [index]: row.requiredSpecification || "",
+      }));
+      updateSpecRow(index, "requiredSpecification", suggestion.requiredSpecification || "");
+      setMessage("AI suggested a required specification. Please review it before saving.");
+    } catch (err) {
+      setError(err.message || "Could not generate specification suggestion.");
+    } finally {
+      setSuggestingSpecIndex(null);
+    }
+  };
+
+  const undoSpecSuggestion = (index) => {
+    if (!Object.prototype.hasOwnProperty.call(specUndoValues, index)) return;
+    updateSpecRow(index, "requiredSpecification", specUndoValues[index]);
+    setSpecUndoValues((current) => {
+      const next = { ...current };
+      delete next[index];
+      return next;
+    });
+    setMessage("AI change undone for this specification row.");
   };
 
   const handleSpecImageFiles = async (event) => {
@@ -417,12 +494,38 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                   />
                 </td>
                 <td className="border border-slate-700 p-2">
-                  <textarea
-                    value={row.requiredSpecification}
-                    onChange={(event) => updateSpecRow(index, "requiredSpecification", event.target.value)}
-                    rows={2}
-                    className="w-full rounded-xl border border-[#dce8ef] px-3 py-2 outline-none focus:border-[#166e8c]"
-                  />
+                  <div className="flex gap-2">
+                    <textarea
+                      value={row.requiredSpecification}
+                      onChange={(event) => updateSpecRow(index, "requiredSpecification", event.target.value)}
+                      rows={2}
+                      className="min-h-[64px] flex-1 rounded-xl border border-[#dce8ef] px-3 py-2 outline-none focus:border-[#166e8c]"
+                    />
+                    <div className="flex shrink-0 flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => suggestRequiredSpecification(index, targetRequest)}
+                        disabled={suggestingSpecIndex !== null || isActing || !token}
+                        className="inline-flex h-10 items-center justify-center gap-1 rounded-xl border border-[#166e8c] px-3 text-xs font-bold text-[#166e8c] transition hover:bg-[#edf8fb] disabled:cursor-not-allowed disabled:opacity-45"
+                        title="Suggest required specification with AI"
+                      >
+                        <AutoFixHighRoundedIcon fontSize="small" />
+                        {suggestingSpecIndex === index ? "..." : "Suggest"}
+                      </button>
+                      {Object.prototype.hasOwnProperty.call(specUndoValues, index) && (
+                        <button
+                          type="button"
+                          onClick={() => undoSpecSuggestion(index)}
+                          disabled={isActing}
+                          className="inline-flex h-10 items-center justify-center gap-1 rounded-xl border border-slate-300 px-3 text-xs font-bold text-[#10283f] transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+                          title="Undo AI suggestion"
+                        >
+                          <UndoRoundedIcon fontSize="small" />
+                          Undo
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </td>
                 <td className="border border-slate-700 p-2 text-center">
                   <button type="button" onClick={() => removeSpecRow(index)} className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-100">

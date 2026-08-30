@@ -4,6 +4,7 @@ import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
+import AutoFixHighRoundedIcon from "@mui/icons-material/AutoFixHighRounded";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatMoney } from "../../services/apiClient";
@@ -124,6 +125,7 @@ export default function CreateRequisition() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
+  const [suggestingSpecIndex, setSuggestingSpecIndex] = useState(null);
   const isEditMode = Boolean(rrId);
 
   const estimatedTotal = useMemo(() => {
@@ -151,6 +153,44 @@ export default function CreateRequisition() {
 
   const removeSpecificationRow = (index) => {
     setSpecificationRows((current) => current.length > 1 ? current.filter((_, rowIndex) => rowIndex !== index) : current);
+  };
+
+  const suggestRequiredSpecification = async (index) => {
+    const row = specificationRows[index];
+    const description = row?.description?.trim();
+    const itemName = item.description?.trim() || form.title?.trim();
+
+    if (!description) {
+      setError("Enter a description before asking AI to suggest the required specification.");
+      return;
+    }
+    if (!itemName) {
+      setError("Enter the requested item name before asking AI to suggest specifications.");
+      return;
+    }
+
+    setError("");
+    setMessage("");
+    setSuggestingSpecIndex(index);
+
+    try {
+      const suggestion = await apiRequest("/api/staff/requisitions/ai/specification-suggestion", {
+        token,
+        method: "POST",
+        body: {
+          itemName,
+          description,
+          itemContext: item.description,
+          quantity: Number(item.quantity) || null,
+        },
+      });
+      updateSpecificationRow(index, "requiredSpecification", suggestion.requiredSpecification || "");
+      setMessage("AI suggested a required specification. Please review it before saving.");
+    } catch (err) {
+      setError(err.message || "Could not generate specification suggestion.");
+    } finally {
+      setSuggestingSpecIndex(null);
+    }
   };
 
   const addSpecificationImages = async (event) => {
@@ -496,12 +536,24 @@ export default function CreateRequisition() {
                       />
                     </td>
                     <td className={cellClass}>
-                      <textarea
-                        value={row.requiredSpecification}
-                        onChange={(event) => updateSpecificationRow(index, "requiredSpecification", event.target.value)}
-                        rows={2}
-                        className="w-full resize-y border-0 bg-transparent px-2 py-2 text-sm outline-none"
-                      />
+                      <div className="flex min-h-[72px] gap-2 p-2">
+                        <textarea
+                          value={row.requiredSpecification}
+                          onChange={(event) => updateSpecificationRow(index, "requiredSpecification", event.target.value)}
+                          rows={2}
+                          className="min-h-[56px] flex-1 resize-y border-0 bg-transparent text-sm outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => suggestRequiredSpecification(index)}
+                          disabled={suggestingSpecIndex !== null || !token}
+                          className="inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-xl border border-[#166e8c] px-3 text-xs font-bold text-[#166e8c] transition hover:bg-[#edf8fb] disabled:cursor-not-allowed disabled:opacity-45"
+                          title="Suggest required specification with AI"
+                        >
+                          <AutoFixHighRoundedIcon fontSize="small" />
+                          {suggestingSpecIndex === index ? "..." : "Suggest"}
+                        </button>
+                      </div>
                     </td>
                     <td className={`${cellClass} px-2 py-2 text-center`}>
                       <button
