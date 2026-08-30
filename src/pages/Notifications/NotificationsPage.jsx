@@ -6,7 +6,7 @@ import PageHero from "../../components/PageHero";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
 import { procurementApi } from "../../api/procurementApi";
-import { getSeniorAssistantBursarPath } from "../../utils/roleRoutes";
+import { getRolePagePath } from "../../utils/roleRoutes";
 
 export default function NotificationsPage() {
   const { token, user } = useAuth();
@@ -20,7 +20,7 @@ export default function NotificationsPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const isVendor = user?.mainRole === "VENDOR";
-  const rolePath = (page, fallback) => getSeniorAssistantBursarPath(user, page, fallback);
+  const rolePath = (page, fallback) => getRolePagePath(user, page, fallback);
   const unreadCount = notifications.filter((notification) => !notification.read).length;
   const selectedTenderId = useMemo(() => {
     const match = selected?.actionUrl?.match(/^\/tenders\/(\d+)/);
@@ -131,11 +131,16 @@ export default function NotificationsPage() {
   const canViewObjection = selected?.actionUrl?.startsWith("/procurement/tenders")
     && selected?.actionUrl?.includes("section=objections")
     && selected?.title?.toLowerCase().includes("objection");
+  const isRoleRequestApproved = selected?.title?.toLowerCase().includes("role request approved");
+  const isNewRequisitionSubmitted = selected?.title?.toLowerCase().includes("new requisition submitted");
+  const notificationRrId = selected?.rrId || selected?.actionUrl?.match(/(\d+)(?:\D*)$/)?.[1];
   const canOpenAction = selected?.actionUrl
     && !tenderDetailId
     && !canScheduleMeeting
     && !canSubmitObjection
-    && !canViewObjection;
+    && !canViewObjection
+    && !isRoleRequestApproved
+    && !isNewRequisitionSubmitted;
 
   const renderNotificationDetails = ({ showTitle = true, showActions = true } = {}) => (
     !selected ? (
@@ -149,6 +154,15 @@ export default function NotificationsPage() {
         </div>
         )}
         <div className="rounded-[24px] bg-[#f8fcff] p-5 text-sm leading-7 text-slate-600 whitespace-pre-line">{selected.message}</div>
+        {showActions && isNewRequisitionSubmitted && notificationRrId && (
+          <button
+            type="button"
+            onClick={() => navigate(`${rolePath("approvals", "/approvals/hod")}/${notificationRrId}`)}
+            className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]"
+          >
+            View Details
+          </button>
+        )}
         {showActions && tenderDetailId && (
           <button
             type="button"

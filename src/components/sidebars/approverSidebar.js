@@ -6,6 +6,18 @@ import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
 import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded";
+import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
+import { deanPath, divisionHeadPath } from "../../utils/roleRoutes";
+
+export const divisionHeadSidebarItems = [
+  { label: "Request Overview", icon: DashboardRoundedIcon, path: divisionHeadPath("dashboard") },
+  { label: "Division Head Approvals", icon: AssignmentTurnedInRoundedIcon, path: divisionHeadPath("approvals") },
+  { label: "Audit Trail", icon: HistoryRoundedIcon, path: divisionHeadPath("audit-trail") },
+  { label: "Tenders", icon: StorefrontRoundedIcon, path: divisionHeadPath("tenders") },
+  { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: divisionHeadPath("role-requests") },
+  { label: "Notification", icon: NotificationsRoundedIcon, path: divisionHeadPath("notifications") },
+  { label: "Settings", icon: SettingsRoundedIcon, path: divisionHeadPath("settings") },
+];
 
 export const hodSidebarItems = [
   { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
@@ -27,12 +39,14 @@ export const tecSidebarItems = [
 ];
 
 export const deanSidebarItems = [
-  { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
-  { label: "Dean Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/approvals/dean" },
-  { label: "Quotation Approval", icon: GavelRoundedIcon, path: "/approvals/quotation-authority" },
-  { label: "Tenders", icon: StorefrontRoundedIcon, path: "/tenders" },
-  { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: "/role-requests" },
-  { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
+  { label: "Request Overview", icon: DashboardRoundedIcon, path: deanPath("dashboard") },
+  { label: "Dean Approvals", icon: AssignmentTurnedInRoundedIcon, path: deanPath("approvals") },
+  { label: "Audit Trail", icon: HistoryRoundedIcon, path: deanPath("audit-trail") },
+  { label: "Quotation Approval", icon: GavelRoundedIcon, path: deanPath("quotation-approval") },
+  { label: "Tenders", icon: StorefrontRoundedIcon, path: deanPath("tenders") },
+  { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: deanPath("role-requests") },
+  { label: "Notification", icon: NotificationsRoundedIcon, path: deanPath("notifications") },
+  { label: "Settings", icon: SettingsRoundedIcon, path: deanPath("settings") },
 ];
 
 export const vcSidebarItems = [
@@ -44,7 +58,7 @@ export const vcSidebarItems = [
 ];
 
 export const approverSidebarItemsByRole = {
-  DIVISION_HEAD: hodSidebarItems,
+  DIVISION_HEAD: divisionHeadSidebarItems,
   HOD: hodSidebarItems,
   DEAN: deanSidebarItems,
   VC: vcSidebarItems,

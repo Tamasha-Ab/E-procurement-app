@@ -9,8 +9,10 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { useAuth } from "../../contexts/AuthContext";
+import { toast } from "react-toastify";
 
 const requestableRoles = [
+  { label: "Staff member", mainRole: "FACULTY_STAFF", subRole: "STAFF_MEMBER" },
   { label: "BEC member", mainRole: "FINANCE", subRole: "BEC" },
   { label: "DPC member", mainRole: "DPC", subRole: null },
 ];
@@ -57,7 +59,6 @@ export default function RoleRequests() {
   const [decisionRemarks, setDecisionRemarks] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
 
   const assignedRoleKeys = useMemo(
     () => new Set((user?.roles || []).map(roleKey)),
@@ -113,10 +114,10 @@ export default function RoleRequests() {
   const submitRequest = async (event) => {
     event.preventDefault();
     setError("");
-    setMessage("");
     const selectedRole = availableRoles.find((role) => roleKey(role) === selectedRoleKey);
     if (!selectedRole) {
       setError("No role is available to request from your current login role.");
+      toast.warning("No role is available to request from your current login role.", { autoClose: 4500 });
       return;
     }
 
@@ -128,26 +129,29 @@ export default function RoleRequests() {
 
     try {
       await apiRequest("/api/role-requests", { method: "POST", body: payload });
-      setMessage("Role request submitted for admin approval.");
+      toast.success("Role request submitted for admin approval.", { autoClose: 4500 });
       setForm({ ...initialForm, roleKey: roleKey(availableRoles[0] || {}) });
       await loadRequests();
     } catch (submitError) {
-      setError(submitError.message || "Could not submit role request.");
+      const errorMessage = submitError.message || "Could not submit role request.";
+      setError(errorMessage);
+      toast.error(errorMessage, { autoClose: 5000 });
     }
   };
 
   const reviewRequest = async (request, approved) => {
     setError("");
-    setMessage("");
     try {
       await apiRequest(`/api/admin/role-requests/${request.roleRequestId}/${approved ? "approve" : "reject"}`, {
         method: "PATCH",
         body: { decisionRemarks: decisionRemarks[request.roleRequestId] || "" },
       });
-      setMessage(approved ? "Role request approved." : "Role request rejected.");
+      toast.success(approved ? "Role request approved." : "Role request rejected.", { autoClose: 4500 });
       await loadRequests();
     } catch (reviewError) {
-      setError(reviewError.message || "Could not review role request.");
+      const errorMessage = reviewError.message || "Could not review role request.";
+      setError(errorMessage);
+      toast.error(errorMessage, { autoClose: 5000 });
     }
   };
 
@@ -177,7 +181,6 @@ export default function RoleRequests() {
       </section>
 
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
-      {message ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{message}</div> : null}
 
       {!isAdmin ? (
         canUseRoleFeature(user) ? (

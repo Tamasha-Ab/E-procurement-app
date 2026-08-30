@@ -1,16 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
+import { divisionHeadPath } from "../../utils/roleRoutes";
 
 export default function HodAuditTrail() {
   const { token } = useAuth();
+  const navigate = useNavigate();
+  const detailsRef = useRef(null);
   const [requests, setRequests] = useState([]);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const selectedIsOutsideProcurementPlan = selected?.description
+    ?.split(/\r?\n/)
+    .some((line) => /^included in procurement plan:\s*no\s*$/i.test(line.trim()));
 
   const loadAuditTrail = () => {
     setIsLoading(true);
@@ -19,7 +26,7 @@ export default function HodAuditTrail() {
       .then((data) => {
         const list = data?.content || [];
         setRequests(list);
-        setSelected((current) => current ? list.find((item) => item.rrId === current.rrId) || list[0] || null : list[0] || null);
+        setSelected((current) => current ? list.find((item) => item.rrId === current.rrId) || null : null);
       })
       .catch((err) => setError(err.message || "Could not load Division Head audit trail."))
       .finally(() => setIsLoading(false));
@@ -28,6 +35,13 @@ export default function HodAuditTrail() {
   useEffect(() => {
     loadAuditTrail();
   }, [token]);
+
+  const selectRequest = (request) => {
+    setSelected(request);
+    window.requestAnimationFrame(() => {
+      detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   return (
     <div className="space-y-8">
@@ -44,7 +58,7 @@ export default function HodAuditTrail() {
 
       {error && <div className="rounded-[24px] bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
-      <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+      <section className="space-y-6">
         <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Timeline RR List</div>
@@ -60,7 +74,7 @@ export default function HodAuditTrail() {
               <button
                 key={request.rrId}
                 type="button"
-                onClick={() => setSelected(request)}
+                onClick={() => selectRequest(request)}
                 className={`w-full rounded-[26px] border p-5 text-left transition ${selected?.rrId === request.rrId ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#dce8ef] bg-white hover:bg-[#f8fcff]"}`}
               >
                 <div className="flex flex-wrap items-center gap-3">
@@ -78,18 +92,30 @@ export default function HodAuditTrail() {
           </div>
         </div>
 
-        <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
+        {selected && (
+        <div ref={detailsRef} className="scroll-mt-24 rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
           <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">RR Details</div>
-          {!selected ? (
-            <div className="mt-6 rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Select an RR to view its full timeline.</div>
-          ) : (
             <div className="mt-6 space-y-5">
+              {selectedIsOutsideProcurementPlan && (
+                <div className="rounded-[22px] border border-amber-300 bg-amber-50 p-5">
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-800">Outside the procurement plan</div>
+                  <div className="mt-1 text-sm font-bold text-[#6f4808]">Included in procurement plan: No</div>
+                  <p className="mt-2 text-sm leading-6 text-amber-900/80">VC approval is required regardless of the RR amount before it can continue to BEC review.</p>
+                </div>
+              )}
               <div>
                 <div className="flex flex-wrap items-center gap-3">
                   <h2 className="text-2xl font-black text-[#10283f]">{selected.title}</h2>
                   <StatusPill status={selected.status} />
                 </div>
-                <p className="mt-2 text-sm leading-7 text-slate-600">{selected.description || "No description provided."}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Review the audit summary below or open the complete requisition form with every submitted field and item specification.</p>
+                <button
+                  type="button"
+                  onClick={() => navigate(`${divisionHeadPath("approvals")}/${selected.rrId}`)}
+                  className="mt-4 rounded-2xl bg-[#166e8c] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#125d77]"
+                >
+                  View Details
+                </button>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
@@ -167,7 +193,7 @@ export default function HodAuditTrail() {
                         <HistoryRoundedIcon fontSize="small" />
                       </div>
                       <div>
-                        <div className="font-bold text-[#10283f]">{statusLabel(entry.action)} by {statusLabel(entry.actionRole)}</div>
+                        <div className="font-bold text-[#10283f]">{timelineEntryTitle(entry)}</div>
                         <div className="mt-1 text-sm leading-6 text-slate-600">
                           {statusLabel(entry.fromStatus)} to {statusLabel(entry.toStatus)}
                         </div>
@@ -179,8 +205,8 @@ export default function HodAuditTrail() {
                 </div>
               </section>
             </div>
-          )}
         </div>
+        )}
       </section>
     </div>
   );
@@ -193,6 +219,13 @@ function DetailTile({ label, value }) {
       <div className="mt-2 text-sm font-bold text-[#10283f]">{value || "Not available"}</div>
     </div>
   );
+}
+
+function timelineEntryTitle(entry) {
+  const submittedToDean = entry?.toStatus === "SUBMITTED_TO_DEAN"
+    || entry?.comment?.toLowerCase().includes("submitted to dean");
+  if (submittedToDean) return "Division Head approved RR submitted to Dean";
+  return `${statusLabel(entry?.action)} by ${statusLabel(entry?.actionRole)}`;
 }
 
 function DetailBlock({ title, value }) {

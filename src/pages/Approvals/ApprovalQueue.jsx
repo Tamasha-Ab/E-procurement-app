@@ -10,6 +10,8 @@ import { apiRequest, formatMoney } from "../../services/apiClient";
 import { downloadRequisitionForm } from "../../utils/requisitionDocument";
 import { VENDOR_CATEGORY_OPTIONS } from "../../constants/vendorCategories";
 import { requestDisplayName, requestContext } from "../../utils/procurementDisplay";
+import { deanPath, divisionHeadPath, isDean, isDivisionHead } from "../../utils/roleRoutes";
+import { toast } from "react-toastify";
 
 const emptySpecForm = {
   specId: null,
@@ -95,11 +97,12 @@ const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
 });
 
 export default function ApprovalQueue({ roleKey, title, description, pendingUrl, actionBaseUrl, acceptedUrl, specificationBaseUrl }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   const { rrId } = useParams();
   const [requests, setRequests] = useState([]);
   const [acceptedRequests, setAcceptedRequests] = useState([]);
+  const [auditRequests, setAuditRequests] = useState([]);
   const [selected, setSelected] = useState(null);
   const [selectedAccepted, setSelectedAccepted] = useState(null);
   const [specForm, setSpecForm] = useState(emptySpecForm);
@@ -124,10 +127,28 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
   const isDeanReview = roleKey === "DEAN";
   const isBecReview = roleKey === "BEC";
   const isReadOnlyApprover = roleKey === "DEAN" || roleKey === "VC" || roleKey === "BEC";
-  const queuePath = `/approvals/${roleKey.toLowerCase()}`;
+  const queuePath = roleKey === "HOD" && isDivisionHead(user)
+    ? divisionHeadPath("approvals")
+    : roleKey === "DEAN" && isDean(user)
+      ? deanPath("approvals")
+      : `/approvals/${roleKey.toLowerCase()}`;
+  const selectedIsAccepted = Boolean(selected) && (
+    acceptedRequests.some((request) => String(request.rrId) === String(selected.rrId))
+    || (isDetailPage && !requests.some((request) => String(request.rrId) === String(selected.rrId)))
+  );
+
+  useEffect(() => {
+    if (message) toast.success(message, { autoClose: 4500 });
+  }, [message]);
+
+  useEffect(() => {
+    if (error) toast.error(error, { autoClose: 5000 });
+  }, [error]);
   const filteredVendorCategories = VENDOR_CATEGORY_OPTIONS.filter((category) =>
     category.toLowerCase().includes(categorySearch.trim().toLowerCase())
   );
+  const selectedSubmittedForm = parseSubmittedForm(selected?.description || "");
+  const isOutsideProcurementPlan = selectedSubmittedForm.includedInPlan?.toLowerCase() === "no";
 
   const loadRequests = () => {
     setIsLoading(true);
@@ -145,16 +166,28 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
       .catch((err) => setError(err.message || "Could not load accepted requests."));
   };
 
+  const loadAuditRequests = () => {
+    if (!isDetailPage || !["HOD", "DEAN"].includes(roleKey)) return;
+    const auditUrl = roleKey === "DEAN"
+      ? "/api/approvals/dean/audit-trail?page=0&size=100"
+      : "/api/approvals/hod/audit-trail?page=0&size=100";
+    apiRequest(auditUrl, { token })
+      .then((data) => setAuditRequests(data?.content || []))
+      .catch((err) => setError(err.message || "Could not load request audit details."));
+  };
+
   useEffect(() => {
     loadRequests();
     loadAcceptedRequests();
-  }, [pendingUrl, acceptedUrl, token]);
+    loadAuditRequests();
+  }, [pendingUrl, acceptedUrl, token, isDetailPage, roleKey]);
 
   useEffect(() => {
     if (!isDetailPage) return;
-    const nextSelected = requests.find((request) => String(request.rrId) === String(rrId));
+    const nextSelected = [...requests, ...acceptedRequests, ...auditRequests]
+      .find((request) => String(request.rrId) === String(rrId));
     if (nextSelected) selectPendingRequest(nextSelected);
-  }, [isDetailPage, requests, rrId]);
+  }, [isDetailPage, requests, acceptedRequests, auditRequests, rrId]);
 
   const performAction = async (action) => {
     if (!selected) return;
@@ -627,6 +660,20 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
             <div className="mt-6 rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Loading request details...</div>
           ) : (
             <div className="mt-6 space-y-5">
+              {isOutsideProcurementPlan && (
+                <div className="rounded-[22px] border border-amber-300 bg-amber-50 p-5 shadow-[0_10px_28px_rgba(180,115,15,0.10)]">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-amber-500 text-lg font-black text-white">!</span>
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-800">Outside the procurement plan</div>
+                      <div className="mt-1 text-sm font-bold text-[#6f4808]">Included in procurement plan: No</div>
+                      <p className="mt-2 text-sm leading-6 text-amber-900/80">
+                        This RR requires VC approval even when its value is LKR 500,000 or less. The backend workflow routes every RR outside the procurement plan through the VC before BEC review.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div>
                 <h3 className="text-2xl font-black text-[#10283f]">{requestDisplayName(selected)}</h3>
                 <div className="mt-2 text-sm leading-7 text-slate-600">{requestContext(selected) || selected.divisionName || selected.facultyName || "Request details"}</div>
@@ -694,7 +741,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                             ))}
                           </div>
                         )}
-                        {!isReadOnlyApprover && (
+                        {!isReadOnlyApprover && !selectedIsAccepted && (
                         <div className="mt-4">
                           <button type="button" onClick={() => startSpecEdit(spec)} className="rounded-xl bg-[#edf7fb] px-4 py-2 text-sm font-bold text-[#166e8c] hover:bg-[#d9edf5]">
                             Edit Specification
@@ -705,7 +752,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                     );
                   })}
                 </div>
-                {!isReadOnlyApprover && specificationBaseUrl && selected && renderSpecificationEditor(selected, "pending")}
+                {!isReadOnlyApprover && !selectedIsAccepted && specificationBaseUrl && selected && renderSpecificationEditor(selected, "pending")}
               </div>
 
               <div className="rounded-[24px] bg-[#f8fcff] p-5">
@@ -742,7 +789,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                       <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Qty {item.quantity} {item.unitOfMeasure || "Units"} | Unit {formatMoney(item.estimatedUnitPrice)}
                       </div>
-                      {!isReadOnlyApprover && (selected.items || []).length > 1 && (
+                      {!isReadOnlyApprover && !selectedIsAccepted && (selected.items || []).length > 1 && (
                         <div className="mt-4 grid gap-4 md:grid-cols-2">
                           <label className="block space-y-2">
                             <span className="text-sm font-bold text-[#10283f]">Item Decision</span>
@@ -794,7 +841,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                 </div>
               </div>
 
-              {isBecReview ? (
+              {!selectedIsAccepted && (isBecReview ? (
                 <div className="space-y-5 rounded-[24px] border border-[#dce8ef] bg-white p-5">
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Vendor Category List</div>
@@ -862,7 +909,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                 <button disabled={isActing} onClick={() => performAction("review-items")} className="w-full rounded-2xl bg-[#166e8c] px-4 py-3 font-bold text-white hover:bg-[#145f79] disabled:opacity-60">
                   Save Item Review
                 </button>
-              )}
+              ))}
             </div>
           )}
         </div>

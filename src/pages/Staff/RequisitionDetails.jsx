@@ -7,6 +7,7 @@ import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
 import { downloadRequisitionForm } from "../../utils/requisitionDocument";
+import { staffMemberPath } from "../../utils/roleRoutes";
 
 const parseSubmittedForm = (description = "") => {
   const form = {};
@@ -142,7 +143,7 @@ export default function RequisitionDetails() {
                 {["DRAFT", "HOD_REJECTED"].includes(status.status) && (
                   <button
                     type="button"
-                    onClick={() => navigate(`/requisition/create/${rrId}`)}
+                    onClick={() => navigate(`${staffMemberPath("create-requisition")}/${rrId}`)}
                     className="inline-flex items-center gap-2 rounded-2xl bg-[#166e8c] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#145f79]"
                   >
                     <EditRoundedIcon fontSize="small" />

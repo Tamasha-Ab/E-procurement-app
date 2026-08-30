@@ -5,6 +5,7 @@ import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney } from "../../services/apiClient";
 import { requestDisplayName, requestContext } from "../../utils/procurementDisplay";
+import { staffMemberPath } from "../../utils/roleRoutes";
 
 export default function MyRequisitions() {
   const { token } = useAuth();
@@ -57,7 +58,7 @@ export default function MyRequisitions() {
               <button
                 key={request.rrId}
                 type="button"
-                onClick={() => navigate(["DRAFT", "HOD_REJECTED"].includes(request.status) ? `/requisition/create/${request.rrId}` : `/requisitions/${request.rrId}`)}
+                onClick={() => navigate(["DRAFT", "HOD_REJECTED"].includes(request.status) ? `${staffMemberPath("create-requisition")}/${request.rrId}` : `${staffMemberPath("my-requisitions")}/${request.rrId}`)}
                 className="grid w-full gap-4 rounded-[26px] border border-[#dce8ef] bg-[#f8fcff] p-5 text-left transition hover:border-[#166e8c] hover:bg-white md:grid-cols-[1fr_auto]"
               >
                 <div>

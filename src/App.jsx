@@ -58,7 +58,8 @@ import NotificationsPage from "./pages/Notifications/NotificationsPage.jsx";
 import TenderDirectory from "./pages/Tenders/TenderDirectory.jsx";
 import RoleRequests from "./pages/RoleRequests/RoleRequests.jsx";
 import UserSettings from "./pages/Profile/UserSettings.jsx";
-import { getDashboardPath, seniorAssistantBursarPath } from "./utils/roleRoutes.js";
+import DeanAuditTrail from "./pages/Approvals/DeanAuditTrail.jsx";
+import { deanPath, divisionHeadPath, getDashboardPath, isStaffMember, seniorAssistantBursarPath, staffMemberPath } from "./utils/roleRoutes.js";
 
 function LandingPage({ onOpenLogin, onOpenRegister }) {
 const featureCards = [
@@ -237,6 +238,9 @@ const App = () => {
   const defaultAuthenticatedElement = dashboardPath === "/dashboard"
     ? dashboardElement
     : <Navigate to={dashboardPath} replace />;
+  const staffDashboardElement = isStaffMember(user)
+    ? dashboardElement
+    : <Navigate to={dashboardPath} replace />;
 
   const landing = useMemo(
     () => (
@@ -271,6 +275,39 @@ const App = () => {
             <Route path={seniorAssistantBursarPath("notifications")} element={<NotificationsPage />} />
             <Route path={`${seniorAssistantBursarPath("notifications")}/:notificationId`} element={<NotificationsPage />} />
             <Route path={seniorAssistantBursarPath("settings")} element={<UserSettings />} />
+            <Route path={staffMemberPath("dashboard")} element={staffDashboardElement} />
+            <Route path={staffMemberPath("create-requisition")} element={<CreateRequisition />} />
+            <Route path={`${staffMemberPath("create-requisition")}/:rrId`} element={<CreateRequisition />} />
+            <Route path={staffMemberPath("my-requisitions")} element={<MyRequisitions />} />
+            <Route path={`${staffMemberPath("my-requisitions")}/:rrId`} element={<RequisitionDetails />} />
+            <Route path={staffMemberPath("tenders")} element={<TenderDirectory />} />
+            <Route path={`${staffMemberPath("tenders")}/:tenderId`} element={<TenderDirectory />} />
+            <Route path={staffMemberPath("role-requests")} element={<RoleRequests />} />
+            <Route path={staffMemberPath("audit-trail")} element={<StaffAuditTrail />} />
+            <Route path={staffMemberPath("notifications")} element={<NotificationsPage />} />
+            <Route path={`${staffMemberPath("notifications")}/:notificationId`} element={<NotificationsPage />} />
+            <Route path={staffMemberPath("settings")} element={<UserSettings />} />
+            <Route path={divisionHeadPath("dashboard")} element={dashboardElement} />
+            <Route path={divisionHeadPath("approvals")} element={<HodApprovals />} />
+            <Route path={`${divisionHeadPath("approvals")}/:rrId`} element={<HodApprovals />} />
+            <Route path={divisionHeadPath("audit-trail")} element={<HodAuditTrail />} />
+            <Route path={divisionHeadPath("tenders")} element={<TenderDirectory />} />
+            <Route path={`${divisionHeadPath("tenders")}/:tenderId`} element={<TenderDirectory />} />
+            <Route path={divisionHeadPath("role-requests")} element={<RoleRequests />} />
+            <Route path={divisionHeadPath("notifications")} element={<NotificationsPage />} />
+            <Route path={`${divisionHeadPath("notifications")}/:notificationId`} element={<NotificationsPage />} />
+            <Route path={divisionHeadPath("settings")} element={<UserSettings />} />
+            <Route path={deanPath("dashboard")} element={dashboardElement} />
+            <Route path={deanPath("approvals")} element={<DeanApprovals />} />
+            <Route path={`${deanPath("approvals")}/:rrId`} element={<DeanApprovals />} />
+            <Route path={deanPath("audit-trail")} element={<DeanAuditTrail />} />
+            <Route path={deanPath("quotation-approval")} element={<QuotationAuthorityApprovals />} />
+            <Route path={deanPath("tenders")} element={<TenderDirectory />} />
+            <Route path={`${deanPath("tenders")}/:tenderId`} element={<TenderDirectory />} />
+            <Route path={deanPath("role-requests")} element={<RoleRequests />} />
+            <Route path={deanPath("notifications")} element={<NotificationsPage />} />
+            <Route path={`${deanPath("notifications")}/:notificationId`} element={<NotificationsPage />} />
+            <Route path={deanPath("settings")} element={<UserSettings />} />
             <Route path="/bursar/budgets" element={<BursarBudgetWorkspace />} />
             <Route path="/finance/category-rr/:rrId" element={<FinanceCategoryRrDetails />} />
             <Route path="/finance/received-rr-lists" element={<ReceivedRrLists />} />
@@ -316,6 +353,7 @@ const App = () => {
             <Route path="/vendor/rfqs/:rfqId/document" element={<VendorRfqDocument />} />
             <Route path="/vendor/purchase-orders/:poId" element={<VendorPurchaseOrderDetails />} />
             <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/role-requests" element={<RoleRequests />} />
             <Route path="/admin/faculties" element={<AdminFaculties />} />
             <Route path="/admin/departments" element={<AdminDepartments />} />
             <Route path="/admin/divisions" element={<AdminDepartments />} />

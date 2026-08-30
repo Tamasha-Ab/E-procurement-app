@@ -8,6 +8,8 @@ import AutoFixHighRoundedIcon from "@mui/icons-material/AutoFixHighRounded";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatMoney } from "../../services/apiClient";
+import { staffMemberPath } from "../../utils/roleRoutes";
+import { toast } from "react-toastify";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -127,6 +129,14 @@ export default function CreateRequisition() {
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
   const [suggestingSpecIndex, setSuggestingSpecIndex] = useState(null);
   const isEditMode = Boolean(rrId);
+
+  useEffect(() => {
+    if (message) toast.success(message, { autoClose: 4500 });
+  }, [message]);
+
+  useEffect(() => {
+    if (error) toast.error(error, { autoClose: 5000 });
+  }, [error]);
 
   const estimatedTotal = useMemo(() => {
     return Number(item.quantity || 0) * Number(item.cost || 0);
@@ -629,7 +639,7 @@ export default function CreateRequisition() {
               <div className="mt-2"><StatusPill status={createdRequest.status} /></div>
             </div>
             {createdRequest?.rrId && !editableStatuses.has(createdRequest?.status) && (
-              <button type="button" onClick={() => navigate(`/requisitions/${createdRequest.rrId}`)} className="rounded-2xl border border-[#dce8ef] px-5 py-3 font-bold text-[#10283f] transition hover:bg-slate-50">
+              <button type="button" onClick={() => navigate(`${staffMemberPath("my-requisitions")}/${createdRequest.rrId}`)} className="rounded-2xl border border-[#dce8ef] px-5 py-3 font-bold text-[#10283f] transition hover:bg-slate-50">
                 View Submitted RR
               </button>
             )}

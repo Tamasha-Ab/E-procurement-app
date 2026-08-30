@@ -4,6 +4,7 @@ import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded
 import VerifiedUserRoundedIcon from "@mui/icons-material/VerifiedUserRounded";
 import { useAuth } from "../../contexts/AuthContext";
 import PageHero from "../../components/PageHero";
+import { toast } from "react-toastify";
 
 const inputClass = "w-full rounded-2xl border border-[#d8e6ed] bg-white px-4 py-3 text-sm text-[#10283f] outline-none transition focus:border-[#166e8c] focus:ring-4 focus:ring-[#166e8c]/10";
 const cardClass = "rounded-[26px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]";
@@ -33,6 +34,16 @@ export default function UserSettings() {
       phoneNumber: user?.phoneNumber || "",
     });
   }, [user]);
+
+  useEffect(() => {
+    if (!profileNotice) return;
+    toast[profileNotice.type](profileNotice.text, { autoClose: profileNotice.type === "success" ? 4500 : 5000 });
+  }, [profileNotice]);
+
+  useEffect(() => {
+    if (!passwordNotice) return;
+    toast[passwordNotice.type](passwordNotice.text, { autoClose: passwordNotice.type === "success" ? 4500 : 5000 });
+  }, [passwordNotice]);
 
   const saveProfile = async (event) => {
     event.preventDefault();

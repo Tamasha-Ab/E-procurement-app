@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
 import { requestDisplayName, requestContext } from "../../utils/procurementDisplay";
+import { staffMemberPath } from "../../utils/roleRoutes";
 
 export default function StaffAuditTrail() {
   const { token } = useAuth();
+  const navigate = useNavigate();
+  const timelineRef = useRef(null);
   const [requests, setRequests] = useState([]);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState("");
@@ -20,7 +24,7 @@ export default function StaffAuditTrail() {
       .then((data) => {
         const list = data?.content || [];
         setRequests(list);
-        setSelected((current) => current ? list.find((item) => item.rrId === current.rrId) || list[0] || null : list[0] || null);
+        setSelected((current) => current ? list.find((item) => item.rrId === current.rrId) || null : null);
       })
       .catch((err) => setError(err.message || "Could not load staff audit trail."))
       .finally(() => setIsLoading(false));
@@ -29,6 +33,13 @@ export default function StaffAuditTrail() {
   useEffect(() => {
     if (token) loadAuditTrail();
   }, [token]);
+
+  const selectRequest = (request) => {
+    setSelected(request);
+    window.requestAnimationFrame(() => {
+      timelineRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   return (
     <div className="space-y-8">
@@ -45,7 +56,7 @@ export default function StaffAuditTrail() {
 
       {error && <div className="rounded-[24px] bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
-      <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+      <section className="space-y-6">
         <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">My RR List</div>
@@ -61,7 +72,7 @@ export default function StaffAuditTrail() {
               <button
                 key={request.rrId}
                 type="button"
-                onClick={() => setSelected(request)}
+                onClick={() => selectRequest(request)}
                 className={`w-full rounded-[26px] border p-5 text-left transition ${selected?.rrId === request.rrId ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#dce8ef] bg-white hover:bg-[#f8fcff]"}`}
               >
                 <div className="flex flex-wrap items-center gap-3">
@@ -79,7 +90,7 @@ export default function StaffAuditTrail() {
           </div>
         </div>
 
-        <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
+        <div ref={timelineRef} className="scroll-mt-24 rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
           <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Timeline</div>
           {!selected ? (
             <div className="mt-6 rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Select an RR to view its timeline.</div>
@@ -90,7 +101,14 @@ export default function StaffAuditTrail() {
                   <h2 className="text-2xl font-black text-[#10283f]">{requestDisplayName(selected)}</h2>
                   <StatusPill status={selected.status} />
                 </div>
-                <p className="mt-2 text-sm leading-7 text-slate-600">{selected.description || "No description provided."}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Review the request summary and approval history below, or open the complete RR form for all submitted information.</p>
+                <button
+                  type="button"
+                  onClick={() => navigate(`${staffMemberPath("my-requisitions")}/${selected.rrId}`)}
+                  className="mt-4 rounded-2xl bg-[#166e8c] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#125d77]"
+                >
+                  View Details
+                </button>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
