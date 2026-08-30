@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHero from "../../components/PageHero";
+import PaginationControls, { usePagination } from "../../components/PaginationControls";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
@@ -27,6 +28,7 @@ export default function DeanAuditTrail() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { page, setPage, totalPages, pageItems, pageSize } = usePagination(requests);
 
   const load = () => {
     setLoading(true);
@@ -68,7 +70,7 @@ export default function DeanAuditTrail() {
           <div className="mt-5 space-y-3">
             {loading && <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">Loading approved RRs...</div>}
             {!loading && requests.length === 0 && <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">No Dean-approved RRs found.</div>}
-            {requests.map((request) => (
+            {pageItems.map((request) => (
               <button key={request.rrId} type="button" onClick={() => selectRequest(request)} className={`w-full rounded-[20px] border p-4 text-left transition ${selected?.rrId === request.rrId ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#e1ebf0] bg-white hover:bg-[#f8fcff]"}`}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -80,6 +82,7 @@ export default function DeanAuditTrail() {
               </button>
             ))}
           </div>
+          <PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={requests.length} pageSize={pageSize} />
         </div>
 
         {selected && (

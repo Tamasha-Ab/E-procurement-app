@@ -13,6 +13,7 @@ import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { useAuth } from "../../contexts/AuthContext";
+import PaginationControls, { usePagination } from "../../components/PaginationControls";
 import { requestDisplayName } from "../../utils/procurementDisplay";
 
 const formatDateTime = (value) => {
@@ -63,6 +64,7 @@ export default function BursarAuditTrail() {
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState(null);
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const { page, setPage, totalPages, pageItems, pageSize } = usePagination(entries);
   const isFinanceUser = user?.mainRole === "FINANCE";
 
   const authHeaders = useMemo(
@@ -217,7 +219,7 @@ export default function BursarAuditTrail() {
             </div>
           )}
 
-          {entries.map((entry) => {
+          {pageItems.map((entry) => {
             const isExpanded = expandedIds.has(entry.approvalId);
 
             return (
@@ -326,6 +328,7 @@ export default function BursarAuditTrail() {
             );
           })}
         </div>
+        <PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={entries.length} pageSize={pageSize} />
       </section>
 
       {loading && (
