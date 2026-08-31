@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import PageHero from "../../components/PageHero";
+import PaginationControls, { usePagination } from "../../components/PaginationControls";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
@@ -16,6 +17,7 @@ export default function StaffAuditTrail() {
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const { page, setPage, totalPages, pageItems, pageSize } = usePagination(requests);
 
   const loadAuditTrail = () => {
     setIsLoading(true);
@@ -68,7 +70,7 @@ export default function StaffAuditTrail() {
           <div className="mt-6 space-y-4">
             {isLoading && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Loading audit trail...</div>}
             {!isLoading && requests.length === 0 && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No audit records found.</div>}
-            {requests.map((request) => (
+            {pageItems.map((request) => (
               <button
                 key={request.rrId}
                 type="button"
@@ -88,6 +90,7 @@ export default function StaffAuditTrail() {
               </button>
             ))}
           </div>
+          <PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={requests.length} pageSize={pageSize} />
         </div>
 
         <div ref={timelineRef} className="scroll-mt-24 rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">

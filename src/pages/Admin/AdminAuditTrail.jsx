@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import PageHero from "../../components/PageHero";
+import PaginationControls, { usePagination } from "../../components/PaginationControls";
 import { adminApi } from "../../api/adminApi";
 import { formatDateTime } from "../../services/apiClient";
 
@@ -91,6 +92,7 @@ export default function AdminAuditTrail() {
       event.detail,
     ].filter(Boolean).some((value) => String(value).toLowerCase().includes(search)));
   }, [filter, users]);
+  const { page, setPage, totalPages, pageItems, pageSize } = usePagination(events);
 
   return (
     <div className="space-y-8">
@@ -135,7 +137,7 @@ export default function AdminAuditTrail() {
         <div className="mt-6 space-y-3">
           {loading && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Loading audit trail...</div>}
           {!loading && events.length === 0 && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No audit entries found.</div>}
-          {events.map((event) => (
+          {pageItems.map((event) => (
             <div key={event.key} className="rounded-[24px] border border-[#edf3f7] bg-white p-5 shadow-[0_10px_24px_rgba(15,41,64,0.04)]">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="flex gap-4">
@@ -159,6 +161,7 @@ export default function AdminAuditTrail() {
             </div>
           ))}
         </div>
+        <PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={events.length} pageSize={pageSize} />
       </section>
     </div>
   );

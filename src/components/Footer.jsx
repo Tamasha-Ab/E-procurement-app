@@ -11,7 +11,7 @@ export default function Footer() {
           <div className="text-xs font-bold uppercase tracking-[0.24em] text-[#126b89]">Astraea E-Procurement</div>
           <h2 className="mt-2 text-lg font-bold">University procurement, managed with clarity</h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#365a6d]">
-            Astraea supports the University of Ruhuna procurement lifecycle—from requisition and approval to tender management, vendor evaluation and purchasing—through one secure, transparent workspace.
+            Astraea supports the University of Ruhuna procurement lifecycle from requisition and approval to tender management, vendor evaluation and purchasing through one secure, transparent workspace.
           </p>
         </Box>
 

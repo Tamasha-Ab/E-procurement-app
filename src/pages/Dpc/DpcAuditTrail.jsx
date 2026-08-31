@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import PageHero from "../../components/PageHero";
+import PaginationControls, { usePagination } from "../../components/PaginationControls";
 import { useAuth } from "../../contexts/AuthContext";
 import { dpcApi } from "../../api/dpcApi";
 import { formatDateTime, statusLabel } from "../../services/apiClient";
@@ -36,6 +37,7 @@ export default function DpcAuditTrail() {
     detail: vendor.rejectionReason || vendor.vendorCategory || "Registration details reviewed by DPC.",
     at: vendor.updatedAt || vendor.approvedAt || vendor.createdAt,
   })).sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0)), [vendors]);
+  const { page, setPage, totalPages, pageItems, pageSize } = usePagination(events);
 
   return (
     <div className="space-y-8">
@@ -52,7 +54,7 @@ export default function DpcAuditTrail() {
         <div className="mt-5 space-y-3">
           {loading && <div className="rounded-[22px] bg-slate-50 p-4 text-sm text-slate-600">Loading audit trail...</div>}
           {!loading && events.length === 0 && <div className="rounded-[22px] bg-slate-50 p-4 text-sm text-slate-600">No DPC audit entries found.</div>}
-          {events.map((event) => (
+          {pageItems.map((event) => (
             <div key={event.key} className="rounded-[22px] border border-[#edf3f7] bg-white p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div className="flex gap-4">
@@ -73,6 +75,7 @@ export default function DpcAuditTrail() {
             </div>
           ))}
         </div>
+        <PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={events.length} pageSize={pageSize} />
       </section>
     </div>
   );
