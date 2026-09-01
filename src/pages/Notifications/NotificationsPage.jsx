@@ -7,6 +7,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
 import { procurementApi } from "../../api/procurementApi";
 import { getRolePagePath } from "../../utils/roleRoutes";
+import { roleScopedNotifications } from "../../utils/notificationRoles";
 
 const NOTIFICATIONS_PER_PAGE = 10;
 
@@ -21,9 +22,24 @@ export default function NotificationsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
+  const [search, setSearch] = useState("");
+  const [readFilter, setReadFilter] = useState("ALL");
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
   const rolePath = (page, fallback) => getRolePagePath(user, page, fallback);
   const unreadCount = notifications.filter((notification) => !notification.read).length;
+  const filteredNotifications = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return notifications.filter((notification) => {
+      if (readFilter === "UNREAD" && notification.read) return false;
+      if (readFilter === "READ" && !notification.read) return false;
+      if (!query) return true;
+      return [notification.title, notification.message, notification.rrNumber]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    });
+  }, [notifications, readFilter, search]);
   const selectedTenderId = useMemo(() => {
     const match = selected?.actionUrl?.match(/^\/tenders\/(\d+)/);
     return match ? match[1] : null;
@@ -45,7 +61,12 @@ export default function NotificationsPage() {
     setError("");
     apiRequest("/api/notifications/my", { token })
       .then((data) => {
-        const list = Array.isArray(data) ? data : [];
+        const list = [...roleScopedNotifications(data, user)].sort((left, right) => {
+          const rightTime = new Date(right.createdAt || 0).getTime() || 0;
+          const leftTime = new Date(left.createdAt || 0).getTime() || 0;
+          if (rightTime !== leftTime) return rightTime - leftTime;
+          return Number(right.notificationId || 0) - Number(left.notificationId || 0);
+        });
         setNotifications(list);
         const routedNotification = notificationId
           ? list.find((item) => String(item.notificationId) === String(notificationId))
@@ -64,7 +85,11 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     if (token) loadNotifications();
-  }, [token, notificationId]);
+  }, [token, notificationId, user?.mainRole, user?.subRole]);
+
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [readFilter, search]);
 
   useEffect(() => {
     if (!notificationId || notifications.length === 0) return;
@@ -100,6 +125,49 @@ export default function NotificationsPage() {
     setIsDetailModalOpen(false);
     setSelected(null);
     navigate(rolePath("notifications", "/notifications"), { replace: true });
+  };
+
+  const toggleSelected = (id) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const markSelectedAsRead = async () => {
+    const ids = [...selectedIds].filter((id) => !notifications.find((item) => item.notificationId === id)?.read);
+    if (!ids.length) return;
+    setIsBulkUpdating(true);
+    setError("");
+    try {
+      const updated = await Promise.all(ids.map((id) => apiRequest(`/api/notifications/${id}/read`, { token, method: "PATCH" })));
+      const byId = new Map(updated.map((item) => [item.notificationId, item]));
+      setNotifications((current) => current.map((item) => byId.get(item.notificationId) || item));
+      window.dispatchEvent(new Event("notifications:changed"));
+    } catch (err) {
+      setError(err.message || "Could not mark selected notifications as read.");
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  const deleteSelected = async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    setIsBulkUpdating(true);
+    setError("");
+    try {
+      await Promise.all(ids.map((id) => apiRequest(`/api/notifications/${id}`, { token, method: "DELETE" })));
+      setNotifications((current) => current.filter((item) => !selectedIds.has(item.notificationId)));
+      setSelectedIds(new Set());
+      window.dispatchEvent(new Event("notifications:changed"));
+    } catch (err) {
+      setError(err.message || "Could not delete selected notifications.");
+    } finally {
+      setIsBulkUpdating(false);
+    }
   };
 
   const scheduleMeetingFromNotification = () => {
@@ -149,11 +217,15 @@ export default function NotificationsPage() {
     && !canViewObjection
     && !isRoleRequestApproved
     && !isNewRequisitionSubmitted;
-  const totalPages = Math.max(1, Math.ceil(notifications.length / NOTIFICATIONS_PER_PAGE));
-  const paginatedNotifications = notifications.slice(
+  const totalPages = Math.max(1, Math.ceil(filteredNotifications.length / NOTIFICATIONS_PER_PAGE));
+  const paginatedNotifications = filteredNotifications.slice(
     currentPage * NOTIFICATIONS_PER_PAGE,
     (currentPage + 1) * NOTIFICATIONS_PER_PAGE
   );
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages - 1));
+  }, [totalPages]);
 
   const renderNotificationDetails = ({ showTitle = true, showActions = true } = {}) => (
     !selected ? (
@@ -275,22 +347,39 @@ export default function NotificationsPage() {
             </button>
           </div>
 
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-[#e1ebf0] bg-[#f8fbfd] p-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-1 flex-col gap-2 sm:flex-row">
+              <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title, message or RR number" className="min-w-0 flex-1 rounded-xl border border-[#dce8ef] bg-white px-3 py-2 text-sm outline-none focus:border-[#166e8c]" />
+              <select value={readFilter} onChange={(event) => setReadFilter(event.target.value)} className="rounded-xl border border-[#dce8ef] bg-white px-3 py-2 text-sm font-semibold text-[#315d72] outline-none focus:border-[#166e8c]">
+                <option value="ALL">All notifications</option>
+                <option value="UNREAD">Unread only</option>
+                <option value="READ">Read only</option>
+              </select>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="inline-flex items-center gap-2 text-xs font-bold text-[#315d72]">
+                <input type="checkbox" checked={paginatedNotifications.length > 0 && paginatedNotifications.every((item) => selectedIds.has(item.notificationId))} onChange={(event) => setSelectedIds((current) => { const next = new Set(current); paginatedNotifications.forEach((item) => event.target.checked ? next.add(item.notificationId) : next.delete(item.notificationId)); return next; })} />
+                Select page
+              </label>
+              <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#166e8c]">{selectedIds.size} selected</span>
+              <button type="button" disabled={!selectedIds.size || isBulkUpdating} onClick={markSelectedAsRead} className="rounded-xl bg-[#166e8c] px-3 py-2 text-xs font-bold text-white disabled:opacity-40">Mark as read</button>
+              <button type="button" disabled={!selectedIds.size || isBulkUpdating} onClick={deleteSelected} className="rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40">Delete selected</button>
+            </div>
+          </div>
+
           <div className="mt-6 space-y-3">
             {isLoading && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Loading notifications...</div>}
-            {!isLoading && notifications.length === 0 && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No notifications yet.</div>}
+            {!isLoading && filteredNotifications.length === 0 && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No matching notifications.</div>}
             {paginatedNotifications.map((notification) => (
-              <button
-                key={notification.notificationId}
-                type="button"
-                onClick={() => openNotification(notification)}
-                className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
-                  selected?.notificationId === notification.notificationId
+              <div key={notification.notificationId} className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition ${
+                  selectedIds.has(notification.notificationId)
                     ? "border-[#166e8c] bg-[#f5fbff]"
                     : notification.read
                       ? "border-[#dce8ef] bg-white hover:bg-[#f8fcff]"
                       : "border-[#f6c453] bg-[#fff8e7] hover:bg-[#fff3cf]"
-                }`}
-              >
+                }`}>
+                <input type="checkbox" checked={selectedIds.has(notification.notificationId)} onChange={() => toggleSelected(notification.notificationId)} aria-label={`Select ${notification.title}`} />
+                <button type="button" onClick={() => openNotification(notification)} className="min-w-0 flex-1 text-left">
                 <div className="flex items-center gap-3">
                   <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${notification.read ? "bg-[#edf7fb] text-[#166e8c]" : "bg-[#f6c453] text-[#0f2940]"}`}>
                     <NotificationsRoundedIcon sx={{ fontSize: 17 }} />
@@ -306,14 +395,15 @@ export default function NotificationsPage() {
                     </span>
                   </span>
                 </div>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
 
-          {!isLoading && notifications.length > NOTIFICATIONS_PER_PAGE && (
+          {!isLoading && filteredNotifications.length > NOTIFICATIONS_PER_PAGE && (
             <div className="mt-6 flex flex-col gap-3 border-t border-[#e6eef3] pt-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-xs font-semibold text-slate-500">
-                Showing {currentPage * NOTIFICATIONS_PER_PAGE + 1}–{Math.min((currentPage + 1) * NOTIFICATIONS_PER_PAGE, notifications.length)} of {notifications.length}
+                Showing {currentPage * NOTIFICATIONS_PER_PAGE + 1}-{Math.min((currentPage + 1) * NOTIFICATIONS_PER_PAGE, filteredNotifications.length)} of {filteredNotifications.length}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button type="button" disabled={currentPage === 0} onClick={() => setCurrentPage((page) => Math.max(0, page - 1))} className="rounded-xl border border-[#dce8ef] px-3 py-2 text-xs font-bold text-[#166e8c] hover:bg-[#edf7fb] disabled:cursor-not-allowed disabled:opacity-40">

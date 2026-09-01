@@ -15,6 +15,7 @@ import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import { useNavigate } from "react-router-dom";
 import { vendorApi } from "../../api/vendorApi";
 import { useAuth } from "../../contexts/AuthContext";
+import { toast } from "react-toastify";
 
 const emptyForm = {
   amount: "",
@@ -111,7 +112,6 @@ export default function VendorDashboard() {
   const [quotations, setQuotations] = useState([]);
   const [offers, setOffers] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
-  const [reports, setReports] = useState([]);
   const [profile, setProfile] = useState(null);
   const [resubmitForm, setResubmitForm] = useState(emptyResubmitForm);
   const [isResubmitting, setIsResubmitting] = useState(false);
@@ -126,13 +126,12 @@ export default function VendorDashboard() {
     setError("");
 
     try {
-      const [profileData, bidList, quotationList, offerList, poList, reportList] = await Promise.all([
+      const [profileData, bidList, quotationList, offerList, poList] = await Promise.all([
         vendorApi.profile.get().catch(() => null),
         vendorApi.bids.list().catch(() => []),
         vendorApi.quotations.list().catch(() => []),
         vendorApi.offers.list().catch(() => []),
         vendorApi.purchaseOrders.list().catch(() => []),
-        vendorApi.reports.list().catch(() => []),
       ]);
 
       setProfile(profileData);
@@ -151,7 +150,6 @@ export default function VendorDashboard() {
       setQuotations(safeList(quotationList));
       setOffers(safeList(offerList));
       setPurchaseOrders(safeList(poList));
-      setReports(safeList(reportList));
     } catch (loadError) {
       setError(loadError.message);
     } finally {
@@ -173,7 +171,6 @@ export default function VendorDashboard() {
     { label: "Submitted Bids", value: bids.length + quotations.length, icon: AssignmentRoundedIcon },
     { label: "Purchase Orders", value: purchaseOrders.length, icon: ReceiptLongRoundedIcon },
     { label: "Offer Letters", value: offers.length, icon: LocalOfferRoundedIcon },
-    { label: "Reports", value: reports.length, icon: AssignmentRoundedIcon },
   ];
 
   const openDialog = (type, item) => {
@@ -211,9 +208,12 @@ export default function VendorDashboard() {
       const updated = await vendorApi.profile.resubmit(resubmitForm);
       setProfile(updated);
       setNotice("Documents resubmitted successfully. Your registration is waiting for DPC review.");
+      toast.success("Documents resubmitted successfully. Your registration is waiting for DPC review.", { autoClose: 3500 });
       await load();
     } catch (resubmitError) {
-      setError(resubmitError.message || "Could not resubmit vendor documents.");
+      const message = resubmitError.message || "Could not resubmit vendor documents.";
+      setError(message);
+      toast.error(message, { autoClose: 4000 });
     } finally {
       setIsResubmitting(false);
     }
@@ -237,6 +237,7 @@ export default function VendorDashboard() {
           attachmentUrl: form.attachmentUrl,
         });
         setNotice("Quotation submitted successfully.");
+        toast.success("Quotation submitted successfully.", { autoClose: 3000 });
       }
 
       if (dialog.type === "bid") {
@@ -247,6 +248,7 @@ export default function VendorDashboard() {
           encryptedBidData: form.encryptedBidData,
         });
         setNotice("Bid submitted successfully.");
+        toast.success("Bid submitted successfully.", { autoClose: 3000 });
       }
 
       if (dialog.type === "objection") {
@@ -256,6 +258,7 @@ export default function VendorDashboard() {
           comment: form.comment,
         });
         setNotice("Objection submitted successfully.");
+        toast.success("Objection submitted successfully.", { autoClose: 3000 });
       }
 
       if (dialog.type === "offer") {
@@ -264,12 +267,15 @@ export default function VendorDashboard() {
           comment: form.comment,
         });
         setNotice("Offer response saved successfully.");
+        toast.success("Offer response saved successfully.", { autoClose: 3000 });
       }
 
       closeDialog();
       await load();
     } catch (submitError) {
-      setError(submitError.message);
+      const message = submitError.message || "Could not complete the action.";
+      setError(message);
+      toast.error(message, { autoClose: 4000 });
     }
   };
 
@@ -282,12 +288,12 @@ export default function VendorDashboard() {
 
   return (
     <div className="space-y-7">
-      <section className="overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,#0f2940,#166e8c)] p-8 text-white shadow-[0_28px_70px_rgba(15,41,64,0.22)]">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+      <section className="overflow-hidden rounded-2xl border border-[#2c7895] bg-[linear-gradient(110deg,#123047_0%,#175a75_52%,#6fb8cf_100%)] px-6 py-4 text-white shadow-[0_12px_30px_rgba(15,41,64,0.18)]">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-100">Vendor Dashboard</div>
-            <h1 className="mt-4 text-4xl font-black leading-tight">Welcome back, {vendorName}.</h1>
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-100/90">
+            <h1 className="mt-1.5 text-xl font-bold leading-tight md:text-2xl">Welcome back, {vendorName}.</h1>
+            <p className="mt-1 max-w-3xl text-sm leading-5 text-slate-100/90">
               Review RFQ invitations, submit quotations or sealed bids, respond to offer letters, and track awarded
               purchase orders from one workspace.
             </p>
@@ -310,16 +316,15 @@ export default function VendorDashboard() {
           </Button>
         </div>
 
-        <div className="grid gap-4 mt-8 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-3 grid gap-2.5 md:grid-cols-3">
           {cards.map((card) => {
             const Icon = card.icon;
             return (
-              <div key={card.label} className="rounded-[24px] bg-white/10 p-4 backdrop-blur">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
-                  <Icon />
+              <div key={card.label} className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/10 px-3 py-2.5 backdrop-blur">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/15">
+                  <Icon sx={{ fontSize: 18 }} />
                 </div>
-                <div className="mt-5 text-3xl font-black">{loading ? "..." : card.value}</div>
-                <div className="mt-1 text-sm text-slate-200">{card.label}</div>
+                <div><div className="text-lg font-black leading-tight">{loading ? "..." : card.value}</div><div className="mt-1 text-xs text-slate-200">{card.label}</div></div>
               </div>
             );
           })}
@@ -386,67 +391,52 @@ export default function VendorDashboard() {
         </section>
       )}
 
-      <section className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#edf7fb] text-[#166e8c]"><ReceiptLongRoundedIcon /></span>
+      <section className="rounded-2xl border border-[#dce8ef] bg-white p-4 shadow-[0_12px_30px_rgba(15,41,64,0.06)]">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#edf7fb] text-[#166e8c]"><ReceiptLongRoundedIcon sx={{ fontSize: 18 }} /></span>
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Quotations</div>
-              <div className="text-xl font-bold text-[#10283f]">{quotations.length} Submitted</div>
-            </div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#166e8c]">Quotations</div>
+              <div className="text-lg font-bold text-[#10283f]">{quotations.length} Submitted</div>
+            </div></div>
+            <button type="button" onClick={() => navigate("/vendor/quotations")} className="rounded-lg bg-[#edf7fb] px-3 py-2 text-xs font-bold text-[#166e8c]">View All</button>
           </div>
-          <div className="mt-5 space-y-3">
+          <div className="mt-3 space-y-2">
             {quotations.slice(0, 3).map((quotation) => (
               <button
                 key={quotation.quotationId}
                 type="button"
                 onClick={() => navigate("/vendor/quotations")}
-                className="w-full rounded-[20px] bg-slate-50 p-4 text-left text-sm text-slate-600 hover:bg-[#edf7fb]"
+                className="flex w-full items-center justify-between gap-4 rounded-xl bg-slate-50 px-3 py-2.5 text-left text-xs text-slate-600 hover:bg-[#edf7fb]"
               >
-                <div className="font-semibold text-[#10283f]">{quotation.rfqNumber}</div>
-                <div className="mt-1">{money(quotation.quotedAmount)} | {quotation.status || "Submitted"}</div>
+                <span className="font-semibold text-[#10283f]">{quotation.rfqNumber}</span>
+                <span>{money(quotation.quotedAmount)}</span>
+                <span className="font-semibold text-[#166e8c]">{quotation.status || "Submitted"}</span>
               </button>
             ))}
           </div>
-        </div>
-
-        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><AssignmentRoundedIcon /></span>
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Reports</div>
-              <div className="text-xl font-bold text-[#10283f]">{reports.length} Records</div>
-            </div>
-          </div>
-          <div className="mt-5 rounded-[20px] bg-slate-50 p-4 text-sm leading-7 text-slate-600">
-            Vendor bid reports from TEC evaluations appear here once procurement publishes them through the backend.
-          </div>
-        </div>
       </section>
 
-      <section className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
+      <section className="rounded-2xl border border-[#dce8ef] bg-white p-4 shadow-[0_12px_30px_rgba(15,41,64,0.06)]">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Offer Letters</div>
-            <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Received Offer Letters</h2>
+            <h2 className="mt-1 text-xl font-bold text-[#10283f]">Received Offer Letters</h2>
           </div>
-          <span className="rounded-full bg-[#edf7fb] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">
-            {offers.length} Received
-          </span>
+          <div className="flex items-center gap-2"><span className="rounded-full bg-[#edf7fb] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">{offers.length} Received</span><button type="button" onClick={() => navigate("/vendor/offer-letters")} className="rounded-lg bg-[#166e8c] px-3 py-2 text-xs font-bold text-white hover:bg-[#125d77]">View All</button></div>
         </div>
-        <div className="mt-6 space-y-4">
+        <div className="mt-4 space-y-2">
           {!offers.length ? (
-            <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No offer letters received yet.</div>
+            <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">No offer letters received yet.</div>
           ) : (
             offers.map((offerLetter) => (
-              <div key={offerLetter.offerLetterId} className="rounded-[24px] border border-[#e6eef3] bg-slate-50 p-5">
+              <div key={offerLetter.offerLetterId} className="rounded-xl border border-[#e6eef3] bg-slate-50 p-3">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#166e8c]">
                       {offerLetter.letterNumber || `Offer ${offerLetter.offerLetterId}`}
                     </div>
-                    <h3 className="mt-2 text-xl font-bold text-[#10283f]">{offerLetter.requisitionItemName || offerLetter.rfqNumber || "Offer letter"}</h3>
-                    <div className="mt-2 text-sm text-slate-600">{money(offerLetter.offerAmount)} | {offerLetter.status || "SENT_TO_VENDOR"}</div>
+                    <h3 className="mt-1 text-sm font-bold text-[#10283f]">{offerLetter.requisitionItemName || offerLetter.rfqNumber || "Offer letter"}</h3>
+                    <div className="mt-1 text-xs text-slate-600">{money(offerLetter.offerAmount)} | {offerLetter.status || "SENT_TO_VENDOR"}</div>
                   </div>
                   {canSubmitVendorWork && (
                   <Button

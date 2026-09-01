@@ -22,9 +22,13 @@ import ErrorRoundedIcon from "@mui/icons-material/ErrorRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
+import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
+import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { downloadRequisitionForm } from "../../utils/requisitionDocument";
 import { requestDisplayName, requestContext } from "../../utils/procurementDisplay";
+import { deleteTenderDraft, loadTenderDrafts, saveTenderDraft } from "../../utils/tenderDrafts";
 
 const bursarSubRoles = ["BURSAR", "ASSISTANT_BURSAR", "SENIOR_ASSISTANT_BURSAR"];
 const tenderTypeOptions = ["Goods", "Works", "Services", "IT Systems"];
@@ -204,6 +208,10 @@ const getResponseMessage = (body, fallback) =>
 
 export default function BursarBudgetWorkspace() {
   const { token, user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editingDraftId = searchParams.get("draftId") || "";
+  const draftUserId = user?.userId || user?.id || user?.username;
   const [tenders, setTenders] = useState([]);
   const [pendingRrs, setPendingRrs] = useState([]);
   const [finalRrs, setFinalRrs] = useState([]);
@@ -218,6 +226,13 @@ export default function BursarBudgetWorkspace() {
   const [bursarComment, setBursarComment] = useState("");
   const [previewTender, setPreviewTender] = useState(null);
   const [tenderTypeInput, setTenderTypeInput] = useState("");
+
+  useEffect(() => {
+    if (!editingDraftId || !draftUserId) return;
+    const draft = loadTenderDrafts(draftUserId).find((item) => item.id === editingDraftId);
+    if (!draft?.form) return;
+    setTenderForm({ ...initialTenderForm, ...draft.form, tenderTypes: normalizeTenderTypes(draft.form.tenderTypes || []) });
+  }, [editingDraftId, draftUserId]);
 
   const isBursar = user?.mainRole === "FINANCE" && bursarSubRoles.includes(user?.subRole);
   const canActOnBursarRrs = user?.mainRole === "FINANCE" && user?.subRole === "ASSISTANT_BURSAR";
@@ -313,6 +328,7 @@ export default function BursarBudgetWorkspace() {
       setPreviewTender(createdTender);
       setTenderForm(initialTenderForm);
       setTenderTypeInput("");
+      if (editingDraftId) deleteTenderDraft(draftUserId, editingDraftId);
       await loadTenders();
       await loadRequisitionQueues();
     } catch (error) {
@@ -320,6 +336,20 @@ export default function BursarBudgetWorkspace() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSaveDraft = () => {
+    const tenderTypes = normalizeTenderTypes([...tenderForm.tenderTypes, tenderTypeInput]);
+    const draftId = editingDraftId || (globalThis.crypto?.randomUUID?.() || `draft-${Date.now()}`);
+    saveTenderDraft(draftUserId, {
+      id: draftId,
+      savedAt: new Date().toISOString(),
+      form: { ...tenderForm, tenderTypes },
+    });
+    setTenderForm((current) => ({ ...current, tenderTypes }));
+    setTenderTypeInput("");
+    setNotice({ type: "success", message: "Tender draft saved successfully." });
+    if (!editingDraftId) navigate(`/senior-assistant-bursar/tender-creation?draftId=${draftId}`, { replace: true });
   };
 
   const openRrReview = (rr) => {
@@ -514,6 +544,12 @@ export default function BursarBudgetWorkspace() {
         </Alert>
       )}
 
+      <section className="mx-auto flex max-w-7xl justify-end">
+        <Button variant="outlined" startIcon={<FolderOpenRoundedIcon />} onClick={() => navigate("/senior-assistant-bursar/tender-drafts")} sx={{ borderRadius: "12px", textTransform: "none", fontWeight: 800 }}>
+          Saved Tender Drafts
+        </Button>
+      </section>
+
       <section className="mx-auto max-w-7xl">
         <Panel title="Create Tender" eyebrow="Tender Details">
           <Box component="form" className="grid gap-5 md:grid-cols-2" onSubmit={handleTenderSubmit}>
@@ -574,9 +610,12 @@ export default function BursarBudgetWorkspace() {
                 Download PDF
               </Button>
             </div>
-            <Button type="submit" variant="contained" disabled={loading} fullWidth sx={primaryButtonSx} className="md:col-span-2">
-              Create Tender
-            </Button>
+            <div className="grid gap-3 sm:grid-cols-2 md:col-span-2">
+              <Button type="button" variant="outlined" startIcon={<SaveRoundedIcon />} onClick={handleSaveDraft} disabled={loading} fullWidth sx={{ borderRadius: "14px", textTransform: "none", fontWeight: 800 }}>
+                {editingDraftId ? "Update Draft" : "Save Draft"}
+              </Button>
+              <Button type="submit" variant="contained" disabled={loading} fullWidth sx={primaryButtonSx}>Create Tender</Button>
+            </div>
           </Box>
         </Panel>
       </section>

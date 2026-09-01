@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import PageHero from "../../components/PageHero";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import StatusPill from "../../components/StatusPill";
+import PaginationControls from "../../components/PaginationControls";
 import { procurementApi } from "../../api/procurementApi";
 import { useAuth } from "../../contexts/AuthContext";
 import { formatDateTime, formatMoney } from "../../services/apiClient";
@@ -10,6 +11,13 @@ const cardClass = "rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0
 const buttonClass = "inline-flex items-center justify-center rounded-2xl bg-[#166e8c] px-4 py-2 text-sm font-black text-white hover:bg-[#145f79] disabled:cursor-not-allowed disabled:bg-slate-300";
 const inputClass = "w-full rounded-[18px] border border-[#dce8ef] bg-white px-4 py-3 text-sm outline-none focus:border-[#166e8c]";
 const logoPath = "/Images/ruhuna-logo.png";
+const vendorTabs = [
+  { key: "NOT_SENT", label: "Offer Letter Not Sent" },
+  { key: "SENT", label: "Offer Letter Sent" },
+  { key: "REJECTED", label: "Offer Letter Rejected" },
+  { key: "ACCEPTED", label: "Offer Letter Accepted" },
+  { key: "FINALIZED", label: "Finalized PO Details" },
+];
 
 const getArray = (data) => {
   if (Array.isArray(data)) return data;
@@ -95,6 +103,22 @@ const buildDefaultOfferLetter = (offer) => [
 ].join("\n");
 
 const itemAmountFor = (offer) => offer.itemOfferAmount ?? offer.quotedTotalPrice ?? offer.offerAmount;
+
+const specificationRows = (requiredSpecification = "", vendorSpecification = "") => {
+  const rows = String(vendorSpecification || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const withoutNumber = line.replace(/^\d+\.\s*/, "");
+      const [description = "", detail = ""] = withoutNumber.split(/\s+-\s+Required:\s*/);
+      const [required = "", conformityDetail = ""] = detail.split(/\s+\|\s+Conformity:\s*/);
+      const [conformity = "", bidderResponse = ""] = conformityDetail.split(/\s+\|\s+Bidder Response:\s*/);
+      return { description: description.trim(), required: required.trim(), conformity: conformity.trim(), bidderResponse: bidderResponse.trim() };
+    })
+    .filter((row) => row.description || row.required || row.conformity || row.bidderResponse);
+  return rows.length ? rows : [{ description: "Specification", required: requiredSpecification || "Not recorded", conformity: "Not recorded", bidderResponse: vendorSpecification || "Not recorded" }];
+};
 
 const buildOfferLetterPdfBlob = async (offer, content) => {
   const logo = await loadLogoHex();
@@ -189,6 +213,12 @@ export default function BecSelectedVendors() {
   const [busyKey, setBusyKey] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [activeTab, setActiveTab] = useState("NOT_SENT");
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [expandedOfferId, setExpandedOfferId] = useState(null);
+  const pageSize = 10;
   const isBecUser = user?.mainRole === "FINANCE" && user?.subRole === "BEC_HEAD";
 
   const load = useCallback(async () => {
@@ -196,9 +226,13 @@ export default function BecSelectedVendors() {
     setLoading(true);
     setError("");
     try {
-      const data = await procurementApi.offers.selectedVendors(token);
+      const data = activeTab === "FINALIZED"
+        ? await procurementApi.offers.finalizedPurchaseOrders(token, page, pageSize)
+        : await procurementApi.offers.selectedVendorsPaged(token, activeTab, page, pageSize);
       const loadedOffers = getArray(data);
       setOffers(loadedOffers);
+      setTotalPages(Math.max(1, Number(data?.totalPages || 1)));
+      setTotalItems(Number(data?.totalElements || 0));
       setLetterDrafts((current) => {
         const next = { ...current };
         loadedOffers.forEach((offer) => {
@@ -215,7 +249,7 @@ export default function BecSelectedVendors() {
     } finally {
       setLoading(false);
     }
-  }, [token, isBecUser]);
+  }, [token, isBecUser, activeTab, page]);
 
   useEffect(() => {
     load();
@@ -333,17 +367,14 @@ export default function BecSelectedVendors() {
   }
 
   return (
-    <div className="space-y-8">
-      <PageHero
-        eyebrow="BEC"
-        title="Selected Vendors"
-        description="Issue purchase orders to authority-approved selected vendors."
-      >
-        <div className="rounded-[24px] bg-white/10 p-5 text-right backdrop-blur">
-          <div className="text-xs uppercase tracking-[0.2em] text-cyan-100">Selected Offers</div>
-          <div className="mt-2 text-3xl font-black">{offers.length}</div>
-        </div>
-      </PageHero>
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-[#2c7895] bg-[linear-gradient(110deg,#123047_0%,#175a75_52%,#6fb8cf_100%)] px-6 py-4 text-white shadow-[0_12px_30px_rgba(15,41,64,0.16)]">
+        <div className="flex flex-wrap items-center justify-between gap-4"><div><div className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-100">BEC · Selected Vendors</div><h1 className="mt-1 text-2xl font-black">Selected vendor management</h1><p className="mt-1 text-sm text-slate-100/90">Manage offer letters and purchase orders by vendor response status.</p></div><div className="rounded-2xl bg-white/10 px-5 py-3 text-right"><div className="text-[10px] uppercase tracking-[0.18em] text-cyan-100">Current list</div><div className="mt-1 text-2xl font-black">{totalItems}</div></div></div>
+      </section>
+
+      <div className="grid gap-2 rounded-2xl border border-[#dce8ef] bg-white p-2 shadow-[0_10px_25px_rgba(15,41,64,0.05)] md:grid-cols-5">
+        {vendorTabs.map((tab) => <button key={tab.key} type="button" onClick={() => { setActiveTab(tab.key); setPage(0); setExpandedOfferId(null); }} className={`rounded-xl px-4 py-3 text-sm font-black transition ${activeTab === tab.key ? "bg-[#166e8c] text-white" : "text-[#166e8c] hover:bg-[#edf7fb]"}`}>{tab.label}</button>)}
+      </div>
 
       {error && <div className="rounded-[24px] bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
       {message && <div className="rounded-[24px] bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">{message}</div>}
@@ -354,7 +385,7 @@ export default function BecSelectedVendors() {
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Authority Approved Vendors</div>
             <h2 className="mt-2 text-2xl font-black text-[#10283f]">Selected vendor list</h2>
             <div className="mt-2 text-sm leading-7 text-slate-600">
-              {offers.length} selected vendor{offers.length === 1 ? "" : "s"} | Total value {formatMoney(totalValue)}
+              {totalItems} selected vendor{totalItems === 1 ? "" : "s"} in this category | Page value {formatMoney(totalValue)}
             </div>
           </div>
           <button type="button" onClick={load} className="inline-flex items-center gap-2 rounded-2xl bg-[#edf7fb] px-4 py-2 text-sm font-bold text-[#166e8c] hover:bg-[#d9edf5]">
@@ -367,23 +398,24 @@ export default function BecSelectedVendors() {
           {loading && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Loading selected vendors...</div>}
           {!loading && offers.length === 0 && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No selected vendors are waiting for BEC action.</div>}
           {offers.map((offer) => {
+            if (activeTab === "FINALIZED") {
+              return <FinalizedPoRow key={offer.poId} purchaseOrder={offer} expanded={expandedOfferId === `po-${offer.poId}`} onToggle={() => setExpandedOfferId((current) => current === `po-${offer.poId}` ? null : `po-${offer.poId}`)} />;
+            }
             const poBusy = busyKey === `offer-po-${offer.offerLetterId}`;
             const form = poForms[offer.offerLetterId] || {};
             const vendorAccepted = offer.status === "ACCEPTED_BY_VENDOR";
             const vendorRejected = offer.status === "REJECTED_BY_VENDOR";
             return (
-              <article key={offer.offerLetterId} className="rounded-[24px] border border-[#e0ebf1] bg-[#fbfdff] p-5">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#166e8c]">{offer.letterNumber || `Offer ${offer.offerLetterId}`}</div>
-                    <h3 className="mt-2 text-xl font-black text-[#10283f]">{offer.requisitionItemName || offer.rfqNumber || "Selected quotation"}</h3>
-                    <div className="mt-2 text-sm leading-7 text-slate-600">
-                      Vendor: <span className="font-bold text-[#10283f]">{offer.vendorName || "Vendor not recorded"}</span>
-                    </div>
-                  </div>
-                  <StatusPill status={offer.status || "APPROVED_BY_AUTHORITY"} />
-                </div>
+              <article key={offer.offerLetterId} className="overflow-hidden rounded-2xl border border-[#e0ebf1] bg-white">
+                <button type="button" onClick={() => setExpandedOfferId((current) => current === offer.offerLetterId ? null : offer.offerLetterId)} className="grid w-full gap-2 px-4 py-3 text-left text-sm transition hover:bg-[#f5fbfe] md:grid-cols-[0.9fr_1.2fr_1fr_0.8fr_auto] md:items-center">
+                  <span className="font-bold text-[#166e8c]">{offer.letterNumber || `Offer ${offer.offerLetterId}`}</span>
+                  <span className="font-black text-[#10283f]">{offer.requisitionItemName || offer.rfqNumber || "Selected quotation"}</span>
+                  <span className="truncate text-slate-600">{offer.vendorName || "Vendor not recorded"}</span>
+                  <span><StatusPill status={offer.status || "APPROVED_BY_AUTHORITY"} /></span>
+                  <ExpandMoreRoundedIcon className={`text-[#166e8c] transition-transform ${expandedOfferId === offer.offerLetterId ? "rotate-180" : ""}`} />
+                </button>
 
+                {expandedOfferId === offer.offerLetterId && <div className="border-t border-[#e0ebf1] bg-[#fbfdff] p-5">
                 <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <DetailTile label="RFQ" value={offer.rfqNumber || offer.rfqId || "Not recorded"} />
                   <DetailTile label="Vendor ID" value={offer.vendorId || "Not recorded"} />
@@ -445,10 +477,12 @@ export default function BecSelectedVendors() {
                     {poBusy ? "Sending..." : "Offer to Vendor and send PO"}
                   </button>
                 </div>
+                </div>}
               </article>
             );
           })}
         </div>
+        <PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} alwaysShow />
       </section>
     </div>
   );
@@ -460,5 +494,47 @@ function DetailTile({ label, value }) {
       <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">{label}</div>
       <div className="mt-2 break-words text-sm font-bold text-[#10283f]">{value || "Not available"}</div>
     </div>
+  );
+}
+
+function FinalizedPoRow({ purchaseOrder, expanded, onToggle }) {
+  const rows = specificationRows(purchaseOrder.requiredSpecification, purchaseOrder.vendorSpecification);
+  return (
+    <article className="overflow-hidden rounded-2xl border border-[#e0ebf1] bg-white">
+      <button type="button" onClick={onToggle} className="grid w-full gap-2 px-4 py-3 text-left text-sm transition hover:bg-[#f5fbfe] md:grid-cols-[0.9fr_1.2fr_1fr_0.8fr_auto] md:items-center">
+        <span className="font-bold text-[#166e8c]">{purchaseOrder.poNumber || `PO ${purchaseOrder.poId}`}</span>
+        <span className="font-black text-[#10283f]">{purchaseOrder.requisitionItemName || purchaseOrder.rrNumber || "Purchase order"}</span>
+        <span className="truncate text-slate-600">{purchaseOrder.vendorName || "Vendor not recorded"}</span>
+        <span><StatusPill status={purchaseOrder.status || "ISSUED"} /></span>
+        <ExpandMoreRoundedIcon className={`text-[#166e8c] transition-transform ${expanded ? "rotate-180" : ""}`} />
+      </button>
+      {expanded && (
+        <div className="border-t border-[#e0ebf1] bg-[#fbfdff] p-5">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <DetailTile label="PO Number" value={purchaseOrder.poNumber || purchaseOrder.poId} />
+            <DetailTile label="Vendor" value={purchaseOrder.vendorName || "Not recorded"} />
+            <DetailTile label="Vendor ID" value={purchaseOrder.vendorId || "Not recorded"} />
+            <DetailTile label="Offer Letter ID" value={purchaseOrder.offerLetterId || "Not recorded"} />
+            <DetailTile label="RR Number" value={purchaseOrder.rrNumber || "Not recorded"} />
+            <DetailTile label="Item" value={purchaseOrder.requisitionItemName || "Not recorded"} />
+            <DetailTile label="Category" value={purchaseOrder.itemCategory || "Not recorded"} />
+            <DetailTile label="Quantity" value={purchaseOrder.quantity || "Not recorded"} />
+            <DetailTile label="Total Amount" value={formatMoney(purchaseOrder.totalAmount || purchaseOrder.quotedTotalPrice)} />
+            <DetailTile label="PO Date" value={formatDateTime(purchaseOrder.poDate)} />
+            <DetailTile label="Delivery Deadline" value={formatDateTime(purchaseOrder.deliveryDeadline)} />
+            <DetailTile label="Issued By" value={purchaseOrder.issuedByName || "Not recorded"} />
+            <DetailTile label="Created At" value={formatDateTime(purchaseOrder.createdAt)} />
+            <DetailTile label="Last Updated" value={formatDateTime(purchaseOrder.updatedAt)} />
+          </div>
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[#c8dce7] bg-white">
+            <div className="border-b border-[#c8dce7] bg-[#edf7fb] px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Specification Comparison</div>
+            <table className="w-full table-fixed border-collapse text-sm">
+              <thead className="bg-[#f7fbfd] text-left text-[#10283f]"><tr><th className="w-[24%] border border-[#c8dce7] px-3 py-3">Description</th><th className="w-[36%] border border-[#c8dce7] px-3 py-3">Required Specification</th><th className="w-[14%] border border-[#c8dce7] px-3 py-3 text-center">Conformity</th><th className="w-[26%] border border-[#c8dce7] px-3 py-3">Bidder Response</th></tr></thead>
+              <tbody>{rows.map((row, index) => <tr key={`${row.description}-${index}`}><td className="break-words border border-[#c8dce7] px-3 py-3 align-top text-slate-700">{row.description || "Not provided"}</td><td className="whitespace-pre-wrap break-words border border-[#c8dce7] px-3 py-3 align-top text-slate-700">{row.required || "Not provided"}</td><td className="break-words border border-[#c8dce7] px-3 py-3 text-center align-top font-bold text-slate-700">{row.conformity || "Not provided"}</td><td className="whitespace-pre-wrap break-words border border-[#c8dce7] px-3 py-3 align-top text-slate-700">{row.bidderResponse || "Not provided"}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </article>
   );
 }

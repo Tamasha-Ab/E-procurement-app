@@ -5,6 +5,8 @@ import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney } from "../../services/apiClient";
 import { requestDisplayName } from "../../utils/procurementDisplay";
+import { becHeadPath } from "../../utils/roleRoutes";
+import { toast } from "react-toastify";
 
 const sampleImageSrc = (spec) => {
   if (!spec?.sampleImageBase64) return null;
@@ -95,7 +97,11 @@ export default function BecCategoryList() {
     setError("");
     apiRequest("/api/approvals/bec/category-list", { token })
       .then((data) => setRequests(Array.isArray(data) ? data : []))
-      .catch((err) => setError(err.message || "Could not load BEC category list."))
+      .catch((err) => {
+        const errorMessage = err.message || "Could not load BEC category list.";
+        setError(errorMessage);
+        toast.error(errorMessage);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -117,10 +123,14 @@ export default function BecCategoryList() {
           comment: `BEC submitted ${category} category list to Finance Department`,
         },
       });
-      setMessage(`${submitted?.length || 0} RR${submitted?.length === 1 ? "" : "s"} submitted to Finance Department.`);
+      const successMessage = `${submitted?.length || 0} RR${submitted?.length === 1 ? "" : "s"} submitted to Finance Department.`;
+      setMessage(successMessage);
+      toast.success(successMessage);
       loadRequests();
     } catch (err) {
-      setError(err.message || "Could not submit category list.");
+      const errorMessage = err.message || "Could not submit category list.";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSubmittingCategory("");
     }
@@ -138,9 +148,12 @@ export default function BecCategoryList() {
         method: "POST",
         body: { comment: `BEC moved ${requestDisplayName(request)} back to the queue` },
       });
-      navigate("/approvals/bec");
+      toast.success(`${requestDisplayName(request)} moved back to the BEC queue.`);
+      navigate(becHeadPath("approvals"));
     } catch (err) {
-      setError(err.message || "Could not move RR back to the BEC queue.");
+      const errorMessage = err.message || "Could not move RR back to the BEC queue.";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setUndoingId(null);
     }
@@ -169,7 +182,7 @@ export default function BecCategoryList() {
         {!loading && !selectedRequest && (
           <div className="space-y-4 rounded-[24px] bg-white p-5">
             <div className="text-sm text-slate-600">This RR is no longer in the BEC category list.</div>
-            <button type="button" onClick={() => navigate("/approvals/bec-category-list")} className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]">
+            <button type="button" onClick={() => navigate(becHeadPath("category-lists"))} className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79]">
               Back to Category Lists
             </button>
           </div>
@@ -188,7 +201,7 @@ export default function BecCategoryList() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3">
-                <button type="button" onClick={() => navigate("/approvals/bec-category-list")} className="rounded-2xl border border-[#dce8ef] px-5 py-3 text-sm font-bold text-[#10283f] hover:bg-slate-50">
+                <button type="button" onClick={() => navigate(becHeadPath("category-lists"))} className="rounded-2xl border border-[#dce8ef] px-5 py-3 text-sm font-bold text-[#10283f] hover:bg-slate-50">
                   Back
                 </button>
                 <button
@@ -365,7 +378,7 @@ export default function BecCategoryList() {
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
-                            onClick={() => navigate(`/approvals/bec-category-list/${request.rrId}`)}
+                            onClick={() => navigate(`${becHeadPath("category-lists")}/${request.rrId}`)}
                             className="rounded-xl border border-[#dce8ef] px-3 py-2 text-xs font-bold text-[#10283f] hover:bg-slate-50"
                           >
                             View

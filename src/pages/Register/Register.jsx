@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -185,6 +185,10 @@ export default function Register({ openLogin, onSizeChange }) {
   const isExternalVendor = accountType === "external_vendor";
   const isProcurementEntity = accountType === "procurement_entity";
   const isDpc = accountType === "dpc";
+  const facultyDivisions = useMemo(() => {
+    if (!selectedFacultyId) return [];
+    return divisions.filter((division) => String(division.facultyId) === String(selectedFacultyId));
+  }, [divisions, selectedFacultyId]);
   const selectedDivision = divisions.find((division) => String(division.divisionId) === String(selectedDivisionId));
   const isAdministrativeDivision = selectedDivision?.divisionName?.trim().toLowerCase() === "administrative";
   const roleOptions = isProcurementEntity
@@ -239,6 +243,12 @@ export default function Register({ openLogin, onSizeChange }) {
       setValue("subRole", "");
     }
   }, [isDpc, isExternalVendor, roleOptions, selectedSubRole, setValue]);
+
+  useEffect(() => {
+    if (selectedDivisionId && !facultyDivisions.some((division) => String(division.divisionId) === String(selectedDivisionId))) {
+      setValue("divisionId", "");
+    }
+  }, [facultyDivisions, selectedDivisionId, setValue]);
 
   useEffect(() => {
     let ignore = false;
@@ -550,7 +560,7 @@ export default function Register({ openLogin, onSizeChange }) {
                   <select
                     id="facultyId"
                     {...register("facultyId", { required: isUniversityStaff || isProcurementEntity ? "Please select your faculty" : false })}
-                    className="w-full py-3 pl-10 pr-10 text-sm transition-colors bg-white border-2 border-gray-200 appearance-none rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300"
+                    className="w-full py-3 pl-10 pr-10 text-sm transition-colors bg-white border-2 border-gray-200 appearance-none rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                     disabled={isSubmitting}
                   >
                     <option value="">Select your faculty</option>
@@ -581,11 +591,11 @@ export default function Register({ openLogin, onSizeChange }) {
                   <select
                     id="divisionId"
                     {...register("divisionId", { required: isUniversityStaff ? "Please select your division" : false })}
-                    className="w-full py-3 pl-10 pr-10 text-sm transition-colors bg-white border-2 border-gray-200 appearance-none rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300"
-                    disabled={isSubmitting}
+                    className="w-full py-3 pl-10 pr-10 text-sm transition-colors bg-white border-2 border-gray-200 appearance-none rounded-xl focus:border-blue-500 focus:outline-none hover:border-gray-300 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    disabled={isSubmitting || !selectedFacultyId}
                   >
-                    <option value="">Select your division</option>
-                    {divisions.map((division) => (
+                    <option value="">{selectedFacultyId ? "Select your division" : "Select a faculty first"}</option>
+                    {facultyDivisions.map((division) => (
                       <option key={division.divisionId} value={division.divisionId}>
                         {division.divisionName}
                       </option>

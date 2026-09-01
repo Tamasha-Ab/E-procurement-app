@@ -61,38 +61,37 @@ export default function HodAuditTrail() {
       {error && <div className="rounded-[24px] bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
       <section className="space-y-6">
-        <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
-          <div className="flex items-center justify-between gap-3">
+        <div className="overflow-hidden rounded-[30px] border border-[#dce8ef] bg-white shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
+          <div className="flex items-center justify-between gap-3 border-b border-[#e6eef3] px-5 py-3">
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Timeline RR List</div>
             <button type="button" onClick={loadAuditTrail} className="rounded-2xl bg-[#edf7fb] px-4 py-2 text-sm font-bold text-[#166e8c] hover:bg-[#d9edf5]">
               Refresh
             </button>
           </div>
 
-          <div className="mt-6 space-y-4">
-            {isLoading && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Loading audit trail...</div>}
-            {!isLoading && requests.length === 0 && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No RR audit records found.</div>}
+          <div className="space-y-3 overflow-x-auto p-5">
+            <div className="grid min-w-[1040px] grid-cols-[48px_220px_220px_130px_170px_210px] gap-1 rounded-xl bg-[#f5fbff] px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#166e8c]">
+              <span></span><span>RR</span><span>Details</span><span>Amount</span><span>Status</span><span className="pl-10">Date / Time</span>
+            </div>
+            {isLoading && <div className="p-5 text-sm text-slate-600">Loading audit trail...</div>}
+            {!isLoading && requests.length === 0 && <div className="p-5 text-sm text-slate-600">No RR audit records found.</div>}
             {pageItems.map((request) => (
               <button
                 key={request.rrId}
                 type="button"
                 onClick={() => selectRequest(request)}
-                className={`w-full rounded-[26px] border p-5 text-left transition ${selected?.rrId === request.rrId ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#dce8ef] bg-white hover:bg-[#f8fcff]"}`}
+                className={`grid min-w-[1040px] w-full grid-cols-[48px_220px_220px_130px_170px_210px] items-center gap-1 rounded-xl border px-3 py-2.5 text-left transition ${selected?.rrId === request.rrId ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#dce8ef] bg-white hover:bg-[#f8fcff]"}`}
               >
-                <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-lg font-black text-[#10283f]">{request.title}</h3>
-                  <StatusPill status={request.status} />
-                </div>
-                <div className="mt-2 text-sm leading-7 text-slate-600">
-                  {request.rrNumber} | {request.requestedByName || "Staff member"} | {formatMoney(request.estimatedTotalAmount)}
-                </div>
-                <div className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">
-                  Updated {formatDateTime(request.updatedAt)}
-                </div>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#edf7fb] text-[#166e8c]"><HistoryRoundedIcon sx={{ fontSize: 17 }} /></span>
+                <span className="min-w-0"><span className="block truncate text-sm font-bold text-[#10283f]">{request.title}</span><span className="mt-0.5 block truncate text-[10px] font-semibold text-[#166e8c]">{request.rrNumber}</span></span>
+                <span className="truncate text-xs text-slate-600">{request.requestedByName || "Staff member"}</span>
+                <span className="whitespace-nowrap text-xs font-bold text-[#10283f]">{formatMoney(request.estimatedTotalAmount)}</span>
+                <span><StatusPill status={request.status} /></span>
+                <span className="whitespace-nowrap border-l border-[#dce8ef] pl-10 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#166e8c]">{formatDateTime(request.updatedAt)}</span>
               </button>
             ))}
           </div>
-          <PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={requests.length} pageSize={pageSize} />
+          <div className="px-5 pb-5"><PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={requests.length} pageSize={pageSize} /></div>
         </div>
 
         {selected && (

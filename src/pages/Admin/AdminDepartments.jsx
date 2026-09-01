@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from "@mui/material";
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, TextField } from "@mui/material";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import PowerSettingsNewRoundedIcon from "@mui/icons-material/PowerSettingsNewRounded";
 import { adminApi } from "../../api/adminApi";
+import PaginationControls, { usePagination } from "../../components/PaginationControls";
+import PageHero from "../../components/PageHero";
 
 const initialForm = {
+  facultyId: "",
   divisionName: "",
   description: "",
   active: true,
@@ -13,6 +16,7 @@ const initialForm = {
 
 export default function AdminDepartments() {
   const [divisions, setDivisions] = useState([]);
+  const [faculties, setFaculties] = useState([]);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(initialForm);
   const [editing, setEditing] = useState(null);
@@ -24,18 +28,23 @@ export default function AdminDepartments() {
     const term = search.trim().toLowerCase();
     if (!term) return divisions;
     return divisions.filter((division) =>
-      [division.divisionName, division.description]
+      [division.divisionName, division.description, division.facultyName, division.facultyCode]
         .filter(Boolean)
         .some((value) => value.toLowerCase().includes(term))
     );
   }, [divisions, search]);
+  const { page, setPage, totalPages, pageItems, pageSize } = usePagination(filteredDivisions);
 
   const load = async () => {
     setLoading(true);
     setError("");
     try {
-      const page = await adminApi.divisions.list();
-      setDivisions(page.content || []);
+      const [divisionPage, facultyList] = await Promise.all([
+        adminApi.divisions.list(),
+        adminApi.faculties.all(),
+      ]);
+      setDivisions(divisionPage.content || []);
+      setFaculties(Array.isArray(facultyList) ? facultyList : []);
     } catch (loadError) {
       setError(loadError.message);
     } finally {
@@ -56,6 +65,7 @@ export default function AdminDepartments() {
   const openEdit = (division) => {
     setEditing(division);
     setForm({
+      facultyId: division.facultyId || "",
       divisionName: division.divisionName || "",
       description: division.description || "",
       active: division.active ?? true,
@@ -66,6 +76,7 @@ export default function AdminDepartments() {
   const submit = async (event) => {
     event.preventDefault();
     const payload = {
+      facultyId: form.facultyId ? Number(form.facultyId) : null,
       divisionName: form.divisionName.trim(),
       description: form.description?.trim() || "",
       active: form.active,
@@ -87,16 +98,11 @@ export default function AdminDepartments() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)] lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Admin</div>
-          <h1 className="mt-2 text-3xl font-black text-[#10283f]">Divisions</h1>
-          <p className="mt-2 text-sm text-slate-600">Create and maintain university divisions used for staff registration and Division Head approvals.</p>
-        </div>
+      <PageHero eyebrow="Admin" title="Divisions" description="Create and maintain university divisions used for staff registration and Division Head approvals.">
         <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate} sx={{ textTransform: "none", borderRadius: "14px", bgcolor: "#166e8c" }}>
           Add Division
         </Button>
-      </section>
+      </PageHero>
 
       <TextField fullWidth label="Search divisions" value={search} onChange={(e) => setSearch(e.target.value)} className="bg-white" />
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
@@ -107,24 +113,26 @@ export default function AdminDepartments() {
             <thead className="bg-[#f5fbff] text-xs uppercase tracking-[0.18em] text-[#166e8c]">
               <tr>
                 <th className="px-5 py-4">Division</th>
+                <th className="px-5 py-4">Faculty</th>
                 <th className="px-5 py-4">Description</th>
                 <th className="px-5 py-4">Status</th>
                 <th className="px-5 py-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredDivisions.map((division) => (
+              {pageItems.map((division) => (
                 <tr key={division.divisionId || division.id}>
-                  <td className="px-5 py-4">
-                    <div className="font-semibold text-[#10283f]">{division.divisionName}</div>
+                  <td className="px-5 py-2.5">
+                    <div className="text-sm font-semibold text-[#10283f]">{division.divisionName}</div>
                   </td>
-                  <td className="px-5 py-4 text-slate-600">{division.description || "No description added."}</td>
-                  <td className="px-5 py-4">
-                    <span className="rounded-full bg-[#edf7fb] px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-[#166e8c]">
+                  <td className="px-5 py-2.5"><div className="text-xs font-bold text-[#10283f]">{division.facultyName || "Not assigned"}</div><div className="mt-0.5 text-[10px] text-slate-400">{division.facultyCode || "Edit division to assign"}</div></td>
+                  <td className="max-w-sm truncate px-5 py-2.5 text-xs text-slate-600">{division.description || "No description added."}</td>
+                  <td className="px-5 py-2.5">
+                    <span className="rounded-full bg-[#edf7fb] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#166e8c]">
                       {division.active ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-2.5">
                     <div className="flex flex-wrap gap-2">
                       <Button size="small" startIcon={<EditRoundedIcon />} onClick={() => openEdit(division)} sx={{ textTransform: "none" }}>Edit</Button>
                       <Button size="small" startIcon={<PowerSettingsNewRoundedIcon />} onClick={() => toggle(division)} sx={{ textTransform: "none" }}>
@@ -136,18 +144,22 @@ export default function AdminDepartments() {
               ))}
               {!filteredDivisions.length ? (
                 <tr>
-                  <td className="px-5 py-8 text-center text-slate-500" colSpan={4}>{loading ? "Loading divisions..." : "No divisions found."}</td>
+                  <td className="px-5 py-8 text-center text-slate-500" colSpan={5}>{loading ? "Loading divisions..." : "No divisions found."}</td>
                 </tr>
               ) : null}
             </tbody>
           </table>
         </div>
+        <div className="px-5 pb-5"><PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={filteredDivisions.length} pageSize={pageSize} /></div>
       </section>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>{editing ? "Edit Division" : "Add Division"}</DialogTitle>
         <form onSubmit={submit}>
           <DialogContent className="grid gap-4">
+            <TextField select label="Faculty" value={form.facultyId} onChange={(e) => setForm({ ...form, facultyId: e.target.value })} required>
+              {faculties.map((faculty) => <MenuItem key={faculty.id} value={faculty.id}>{faculty.facultyCode} - {faculty.facultyName}</MenuItem>)}
+            </TextField>
             <TextField label="Division name" value={form.divisionName} onChange={(e) => setForm({ ...form, divisionName: e.target.value })} required />
             <TextField label="Description" multiline minRows={3} value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </DialogContent>

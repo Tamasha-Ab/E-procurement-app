@@ -16,8 +16,10 @@ import ResetPassword from "./pages/ResetPassword/ResetPassword.jsx";
 import Layout from "./components/Layout.jsx";
 import Dashboard from "./pages/Dashboard/dashboard.jsx";
 import BursarBudgetWorkspace from "./pages/Bursar/BursarBudgetWorkspace.jsx";
+import TenderDrafts from "./pages/Bursar/TenderDrafts.jsx";
 import FinanceCategoryRrDetails from "./pages/Bursar/FinanceCategoryRrDetails.jsx";
 import ReceivedRrLists from "./pages/Bursar/ReceivedRrLists.jsx";
+import CreatedRfqs from "./pages/Bursar/CreatedRfqs.jsx";
 import BursarTenderWorkspace from "./pages/Bursar/BursarTenderWorkspace.jsx";
 import BursarAuditTrail from "./pages/Bursar/BursarAuditTrail.jsx";
 import AdminDashboard from "./pages/Admin/AdminDashboard.jsx";
@@ -35,6 +37,7 @@ import VendorRfqDocument from "./pages/Vendor/VendorRfqDocument.jsx";
 import VendorPurchaseOrderDetails from "./pages/Vendor/VendorPurchaseOrderDetails.jsx";
 import VendorRfqInvitations from "./pages/Vendor/VendorRfqInvitations.jsx";
 import VendorQuotationSubmission from "./pages/Vendor/VendorQuotationSubmission.jsx";
+import VendorOfferLetters from "./pages/Vendor/VendorOfferLetters.jsx";
 import { useAuth } from "./contexts/AuthContext";
 import CreateRequisition from "./pages/Staff/CreateRequisition.jsx";
 import MyRequisitions from "./pages/Staff/MyRequisitions.jsx";
@@ -47,6 +50,9 @@ import BecApprovals from "./pages/Approvals/BecApprovals.jsx";
 import BecCategoryList from "./pages/Approvals/BecCategoryList.jsx";
 import BecVendorReview from "./pages/Approvals/BecVendorReview.jsx";
 import BecSelectedVendors from "./pages/Approvals/BecSelectedVendors.jsx";
+import BecCategoryAssignment from "./pages/Approvals/BecCategoryAssignment.jsx";
+import BecAssignedQuotations from "./pages/Approvals/BecAssignedQuotations.jsx";
+import BecFinalVendorList from "./pages/Approvals/BecFinalVendorList.jsx";
 import QuotationAuthorityApprovals from "./pages/Approvals/QuotationAuthorityApprovals.jsx";
 import BecAuditTrail from "./pages/Approvals/BecAuditTrail.jsx";
 import HodAuditTrail from "./pages/Approvals/HodAuditTrail.jsx";
@@ -59,7 +65,13 @@ import TenderDirectory from "./pages/Tenders/TenderDirectory.jsx";
 import RoleRequests from "./pages/RoleRequests/RoleRequests.jsx";
 import UserSettings from "./pages/Profile/UserSettings.jsx";
 import DeanAuditTrail from "./pages/Approvals/DeanAuditTrail.jsx";
-import { deanPath, divisionHeadPath, getDashboardPath, isStaffMember, seniorAssistantBursarPath, staffMemberPath } from "./utils/roleRoutes.js";
+import VcAuditTrail from "./pages/Approvals/VcAuditTrail.jsx";
+import BecMemberDashboard from "./pages/Dashboard/BecMemberDashboard.jsx";
+import BecMemberAuditTrail from "./pages/Approvals/BecMemberAuditTrail.jsx";
+import Footer from "./components/Footer.jsx";
+import CallOutlinedIcon from "@mui/icons-material/CallOutlined";
+import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
+import { adminPath, becHeadPath, becPath, deanPath, divisionHeadPath, getDashboardPath, isStaffMember, seniorAssistantBursarPath, staffMemberPath, vcPath, vendorPath } from "./utils/roleRoutes.js";
 
 function LandingPage({ onOpenLogin, onOpenRegister }) {
 const featureCards = [
@@ -69,13 +81,40 @@ const featureCards = [
 ];
 
   return (
-    <Box className="relative h-screen overflow-hidden bg-[#f4f8fb] text-[#123047]">
+    <Box className="relative flex min-h-screen flex-col overflow-x-hidden bg-[#f4f8fb] text-[#123047]">
       <Box className="absolute right-[-180px] top-[-180px] h-[420px] w-[420px] rounded-full bg-[#f0b73f]/20 blur-3xl" />
       <Box className="absolute left-[-220px] top-[220px] h-[420px] w-[420px] rounded-full bg-[#2d8fb3]/15 blur-3xl" />
 
+      <Box className="relative z-20 w-full bg-[linear-gradient(100deg,rgba(194,225,237,0.97)_0%,rgba(147,201,220,0.97)_52%,rgba(104,172,198,0.97)_100%)] shadow-[0_4px_14px_rgba(15,68,91,0.09)]">
+        <Box className="flex items-center justify-between gap-5 px-4 py-2.5 sm:px-6 md:px-8">
+          <Box className="flex items-center gap-4">
+            <img src="/Images/Logo/Astraea_Logo-removebg-preview.png" alt="Astraea Logo" className="h-12 w-auto object-contain" />
+            <Box className="min-w-0">
+              <div className="text-xs font-semibold uppercase tracking-[0.26em] text-[#166e8c]">Astraea</div>
+              <div className="truncate text-sm font-bold text-[#10283f] sm:text-base">E-Procurement Workspace</div>
+            </Box>
+          </Box>
+
+          <Box className="flex items-center gap-3 text-xs font-semibold text-[#173c52] lg:gap-6 lg:text-sm">
+            <Box className="hidden items-center gap-6 xl:flex">
+              <a href="tel:+94912245765" className="flex items-center gap-2 transition hover:text-[#0c607e]">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-white/60 text-[#126b89]"><CallOutlinedIcon sx={{ fontSize: 17 }} /></span>
+                <span><span className="text-[#557486]">Call us:</span> +(94)0 91 2245765/6</span>
+              </a>
+              <a href="mailto:webmaster@eng.ruh.ac.lk" className="flex items-center gap-2 transition hover:text-[#0c607e]">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-white/60 text-[#126b89]"><MailOutlineRoundedIcon sx={{ fontSize: 17 }} /></span>
+                <span><span className="text-[#557486]">E-mail:</span> webmaster@eng.ruh.ac.lk</span>
+              </a>
+            </Box>
+            <Button variant="outlined" onClick={onOpenLogin} sx={{ borderColor: "#166e8c", color: "#10283f", borderRadius: "12px", textTransform: "none", fontWeight: 800 }}>Login</Button>
+            <Button variant="contained" onClick={onOpenRegister} sx={{ bgcolor: "#f0b73f", color: "#10283f", borderRadius: "12px", textTransform: "none", fontWeight: 900, boxShadow: "none", "&:hover": { bgcolor: "#dca432" } }}>Registration</Button>
+          </Box>
+        </Box>
+      </Box>
+
       <Container maxWidth="xl" className="relative z-10 px-4 py-3 md:px-6">
-        <Box className="rounded-[26px] border border-[#d9e6ee] bg-white/95 shadow-[0_18px_55px_rgba(7,34,54,0.12)] backdrop-blur">
-          <Box className="flex flex-col gap-3 border-b border-[#d8e5ec] px-4 py-3 md:flex-row md:items-center md:justify-between md:px-6">
+        <Box>
+          <Box className="hidden">
             <Box className="flex items-center gap-4">
               <Box className="flex items-center justify-center w-16 h-16 rounded-2xl">
                 <img
@@ -145,7 +184,7 @@ const featureCards = [
             </Box>
           </Box>
 
-          <Box className="grid gap-5 px-4 py-4 md:grid-cols-[1.02fr_0.98fr] md:px-6 md:py-5 lg:gap-7">
+          <Box className="grid gap-5 px-1 py-4 md:grid-cols-[1.02fr_0.98fr] md:px-2 md:py-5 lg:gap-7">
             <Box className="flex flex-col justify-center">
               <Typography className="!text-3xl !font-black !leading-[1.02] !tracking-[-0.04em] !text-[#123047] md:!text-5xl">
                 Modern Procurement System for University of Ruhuna
@@ -185,7 +224,11 @@ const featureCards = [
         </Box>
       </Container>
 
-      <Container maxWidth="xl" className="relative z-10 px-4 pb-3 md:px-6">
+      <Box className="relative z-10 mt-auto pt-3">
+        <Footer />
+      </Box>
+
+      {false && <Container maxWidth="xl" className="relative z-10 px-4 pb-3 md:px-6">
         <Box className="rounded-[20px] bg-[linear-gradient(135deg,#123047,#1c6f8d)] p-3 text-white shadow-[0_10px_28px_rgba(7,34,54,0.12)] md:p-4">
           <Box className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <Box>
@@ -211,7 +254,7 @@ const featureCards = [
             </Typography>
           </Box>
         </Box>
-      </Container>
+      </Container>}
     </Box>
   );
 }
@@ -265,9 +308,11 @@ const App = () => {
             <Route path="/dashboard" element={defaultAuthenticatedElement} />
             <Route path={seniorAssistantBursarPath("dashboard")} element={dashboardElement} />
             <Route path={seniorAssistantBursarPath("tender-creation")} element={<BursarBudgetWorkspace />} />
+            <Route path={seniorAssistantBursarPath("tender-drafts")} element={<TenderDrafts />} />
             <Route path={seniorAssistantBursarPath("tender-records")} element={<TenderDirectory />} />
             <Route path={`${seniorAssistantBursarPath("tender-records")}/:tenderId`} element={<TenderDirectory />} />
             <Route path={seniorAssistantBursarPath("received-rr-lists")} element={<ReceivedRrLists />} />
+            <Route path={seniorAssistantBursarPath("created-rfqs")} element={<CreatedRfqs />} />
             <Route path={`${seniorAssistantBursarPath("received-rr")}/:rrId`} element={<FinanceCategoryRrDetails />} />
             <Route path={seniorAssistantBursarPath("rfq-creation")} element={<BursarTenderWorkspace />} />
             <Route path={seniorAssistantBursarPath("role-requests")} element={<RoleRequests />} />
@@ -308,6 +353,45 @@ const App = () => {
             <Route path={deanPath("notifications")} element={<NotificationsPage />} />
             <Route path={`${deanPath("notifications")}/:notificationId`} element={<NotificationsPage />} />
             <Route path={deanPath("settings")} element={<UserSettings />} />
+            <Route path={vcPath("dashboard")} element={dashboardElement} />
+            <Route path={vcPath("approvals")} element={<VcApprovals />} />
+            <Route path={`${vcPath("approvals")}/:rrId`} element={<VcApprovals />} />
+            <Route path={vcPath("quotation-approval")} element={<QuotationAuthorityApprovals />} />
+            <Route path={vcPath("role-requests")} element={<RoleRequests />} />
+            <Route path={vcPath("notifications")} element={<NotificationsPage />} />
+            <Route path={`${vcPath("notifications")}/:notificationId`} element={<NotificationsPage />} />
+            <Route path={vcPath("audit-trail")} element={<VcAuditTrail />} />
+            <Route path={vcPath("settings")} element={<UserSettings />} />
+            <Route path={becHeadPath("dashboard")} element={dashboardElement} />
+            <Route path={becHeadPath("approvals")} element={<BecApprovals />} />
+            <Route path={`${becHeadPath("approvals")}/:rrId`} element={<BecApprovals />} />
+            <Route path={becHeadPath("category-lists")} element={<BecCategoryList />} />
+            <Route path={`${becHeadPath("category-lists")}/:rrId`} element={<BecCategoryList />} />
+            <Route path={becHeadPath("category-assignment")} element={<BecCategoryAssignment />} />
+            <Route path={becHeadPath("quotation-review")} element={<ProcurementWorkspace />} />
+            <Route path={becHeadPath("assigned-quotations")} element={<BecAssignedQuotations />} />
+            <Route path={becHeadPath("vendor-review")} element={<BecVendorReview />} />
+            <Route path={becHeadPath("vendor-final-list")} element={<BecFinalVendorList />} />
+            <Route path={becHeadPath("selected-vendors")} element={<BecSelectedVendors />} />
+            <Route path={becHeadPath("role-requests")} element={<RoleRequests />} />
+            <Route path={becHeadPath("audit-trail")} element={<BursarAuditTrail />} />
+            <Route path={becHeadPath("notifications")} element={<NotificationsPage />} />
+            <Route path={`${becHeadPath("notifications")}/:notificationId`} element={<NotificationsPage />} />
+            <Route path={becHeadPath("tenders")} element={<TenderDirectory />} />
+            <Route path={`${becHeadPath("tenders")}/:tenderId`} element={<TenderDirectory />} />
+            <Route path={becHeadPath("settings")} element={<UserSettings />} />
+            <Route path={becPath("dashboard")} element={<BecMemberDashboard />} />
+            <Route path={becPath("assigned-quotations")} element={<BecAssignedQuotations />} />
+            <Route path={becPath("approved-quotations")} element={<BecAssignedQuotations approvedOnly />} />
+            <Route path={becPath("audit-trail")} element={<BecMemberAuditTrail />} />
+            <Route path={becPath("role-requests")} element={<RoleRequests />} />
+            <Route path={becPath("notifications")} element={<NotificationsPage />} />
+            <Route path={`${becPath("notifications")}/:notificationId`} element={<NotificationsPage />} />
+            <Route path={becPath("settings")} element={<UserSettings />} />
+            <Route path={adminPath("dashboard")} element={<AdminDashboard />} />
+            <Route path={adminPath("notifications")} element={<NotificationsPage />} />
+            <Route path={`${adminPath("notifications")}/:notificationId`} element={<NotificationsPage />} />
+            <Route path={adminPath("settings")} element={<UserSettings />} />
             <Route path="/bursar/budgets" element={<BursarBudgetWorkspace />} />
             <Route path="/finance/category-rr/:rrId" element={<FinanceCategoryRrDetails />} />
             <Route path="/finance/received-rr-lists" element={<ReceivedRrLists />} />
@@ -327,6 +411,7 @@ const App = () => {
             <Route path="/approvals/vc/:rrId" element={<VcApprovals />} />
             <Route path="/approvals/quotation-authority" element={<QuotationAuthorityApprovals />} />
             <Route path="/approvals/bec" element={<BecApprovals />} />
+            <Route path="/approvals/bec/assigned-quotations" element={<BecAssignedQuotations />} />
             <Route path="/approvals/bec/:rrId" element={<BecApprovals />} />
             <Route path="/approvals/bec/quotations" element={<ProcurementWorkspace />} />
             <Route path="/approvals/bec/vendor-review" element={<BecVendorReview />} />
@@ -344,7 +429,12 @@ const App = () => {
             <Route path="/tenders/:tenderId" element={<TenderDirectory />} />
             <Route path="/procurement/tenders" element={<ProcurementWorkspace />} />
             <Route path="/procurement/rfqs" element={<ProcurementRfqList />} />
+            <Route path={vendorPath("dashboard")} element={<VendorDashboard />} />
+            <Route path={vendorPath("notifications")} element={<NotificationsPage />} />
+            <Route path={`${vendorPath("notifications")}/:notificationId`} element={<NotificationsPage />} />
+            <Route path={vendorPath("settings")} element={<UserSettings />} />
             <Route path="/vendor/quotations" element={<VendorQuotations />} />
+            <Route path={vendorPath("offer-letters")} element={<VendorOfferLetters />} />
             <Route path="/vendor/objections" element={<VendorObjections />} />
             <Route path="/vendor/rfq-invitations" element={<VendorRfqInvitations />} />
             <Route path="/vendor/quotation-submission" element={<VendorQuotationSubmission />} />

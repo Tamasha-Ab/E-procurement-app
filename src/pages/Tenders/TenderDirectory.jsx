@@ -6,6 +6,7 @@ import { procurementApi } from "../../api/procurementApi";
 import { useAuth } from "../../contexts/AuthContext";
 import { buildTenderViewModel, downloadTenderForm, tenderRows } from "../../utils/tenderDocument";
 import { formatDateTime, statusLabel } from "../../services/apiClient";
+import PaginationControls, { usePagination } from "../../components/PaginationControls";
 
 const statusTone = {
   DRAFT: "bg-slate-100 text-slate-700",
@@ -70,6 +71,10 @@ export default function TenderDirectory() {
     );
   }, [search, tenders, user]);
 
+  const { page, setPage, totalPages, pageItems, pageSize } = usePagination(filtered, 10);
+
+  useEffect(() => { setPage(0); }, [search, setPage]);
+
   const selected = filtered.find((tender) => String(tender.tenderId) === String(selectedId)) || filtered[0] || null;
   const view = selected ? buildTenderViewModel(selected) : null;
 
@@ -104,29 +109,33 @@ export default function TenderDirectory() {
             placeholder="Search tenders"
             className="w-full rounded-2xl border border-[#dce8ef] px-4 py-3 text-sm outline-none focus:border-[#166e8c]"
           />
-          <div className="mt-5 space-y-3">
+          <div className="mt-4 overflow-x-auto">
+            <div className="grid min-w-[930px] grid-cols-[190px_minmax(230px,1fr)_150px_165px_150px_85px] gap-2 rounded-xl bg-[#f5fbff] px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#166e8c]">
+              <span>Tender</span><span>Title</span><span>Type</span><span>Status</span><span>Date / Time</span><span>Action</span>
+            </div>
+            <div className="mt-2 space-y-2">
             {loading && <div className="rounded-[20px] bg-slate-50 p-4 text-sm text-slate-600">Loading tenders...</div>}
             {!loading && filtered.length === 0 && <div className="rounded-[20px] bg-slate-50 p-4 text-sm text-slate-600">No tenders found.</div>}
-            {filtered.map((tender) => (
+            {pageItems.map((tender) => (
               <button
                 key={tender.tenderId}
                 type="button"
                 onClick={() => selectTender(tender.tenderId)}
-                className={`w-full rounded-[22px] border p-4 text-left transition ${String(selected?.tenderId) === String(tender.tenderId) ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#edf3f7] bg-white hover:bg-slate-50"}`}
+                className={`grid min-w-[930px] w-full grid-cols-[190px_minmax(230px,1fr)_150px_165px_150px_85px] items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition ${String(selected?.tenderId) === String(tender.tenderId) ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#edf3f7] bg-white hover:bg-slate-50"}`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-black text-[#10283f]">{tender.tenderNumber}</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-700">{tender.title}</div>
-                    <div className="mt-1 text-xs text-slate-500">{tender.tenderType || "Tender type not set"}</div>
-                  </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-black ${statusTone[tender.status] || statusTone.DRAFT}`}>
+                  <span className="truncate text-sm font-black text-[#10283f]">{tender.tenderNumber}</span>
+                  <span className="truncate text-xs font-semibold text-slate-700">{tender.title}</span>
+                  <span className="truncate text-xs text-slate-500">{tender.tenderType || "Not set"}</span>
+                  <span className={`w-fit rounded-full px-2.5 py-1 text-[10px] font-black ${statusTone[tender.status] || statusTone.DRAFT}`}>
                     {statusLabel(tender.status)}
                   </span>
-                </div>
+                  <span className="whitespace-nowrap text-[10px] font-semibold text-slate-500">{formatDateTime(tender.createdAt)}</span>
+                  <span className="text-xs font-bold text-[#166e8c]">Details</span>
               </button>
             ))}
+            </div>
           </div>
+          <PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={filtered.length} pageSize={pageSize} />
         </div>
 
         <div ref={detailsRef} className="scroll-mt-24 rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
