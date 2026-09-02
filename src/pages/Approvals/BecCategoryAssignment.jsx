@@ -3,10 +3,8 @@ import PageHero from "../../components/PageHero";
 import { adminApi } from "../../api/adminApi";
 import { procurementApi } from "../../api/procurementApi";
 import { useAuth } from "../../contexts/AuthContext";
-import { rfqContext, rfqDisplayName } from "../../utils/procurementDisplay";
 import { VENDOR_CATEGORY_OPTIONS } from "../../constants/vendorCategories";
 
-const assignmentKey = "bec_category_assignments";
 const cardClass = "rounded-[28px] border border-[#dce8ef] bg-white p-5 shadow-[0_18px_45px_rgba(15,41,64,0.07)]";
 const inputClass = "w-full rounded-2xl border border-[#dce8ef] bg-white px-4 py-3 text-sm outline-none focus:border-[#166e8c]";
 const buttonClass = "rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79] disabled:opacity-60";
@@ -17,12 +15,15 @@ function getArray(data) {
   return [];
 }
 
-function readAssignments() {
-  try {
-    return JSON.parse(localStorage.getItem(assignmentKey) || "{}");
-  } catch {
-    return {};
-  }
+function assignmentsToMap(items) {
+  return getArray(items).reduce((state, assignment) => ({
+    ...state,
+    [assignment.category]: {
+      assignmentId: assignment.assignmentId,
+      becUserId: assignment.becUserId,
+      becName: assignment.becName,
+    },
+  }), {});
 }
 
 function displayUserName(user) {
@@ -34,8 +35,7 @@ export default function BecCategoryAssignment() {
   const { token, user } = useAuth();
   const isBecHead = user?.mainRole === "FINANCE" && user?.subRole === "BEC_HEAD";
   const [becUsers, setBecUsers] = useState([]);
-  const [rfqs, setRfqs] = useState([]);
-  const [assignments, setAssignments] = useState(readAssignments);
+  const [assignments, setAssignments] = useState({});
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [notice, setNotice] = useState("");
@@ -46,12 +46,12 @@ export default function BecCategoryAssignment() {
     let mounted = true;
     Promise.all([
       adminApi.users.list({ mainRole: "FINANCE", subRole: "BEC", userStatus: "APPROVED", isActive: true, size: 100 }),
-      procurementApi.rfqs.publishedForBec(token),
+      procurementApi.becCategoryAssignments.list(token),
     ])
-      .then(([usersPage, rfqData]) => {
+      .then(([usersPage, assignmentData]) => {
         if (!mounted) return;
         setBecUsers(getArray(usersPage));
-        setRfqs(getArray(rfqData));
+        setAssignments(assignmentsToMap(assignmentData));
       })
       .catch((err) => setError(err.message || "Could not load BEC assignment data."));
     return () => {
@@ -61,25 +61,32 @@ export default function BecCategoryAssignment() {
 
   const categories = VENDOR_CATEGORY_OPTIONS;
 
-  const saveAssignment = () => {
+  const saveAssignment = async () => {
     if (!selectedCategory || !selectedUserId) {
       setError("Select a category and BEC member first.");
       return;
     }
-    const becUser = becUsers.find((candidate) => String(candidate.userId || candidate.id) === String(selectedUserId));
-    const next = {
-      ...assignments,
-      [selectedCategory]: {
+    try {
+      const saved = await procurementApi.becCategoryAssignments.save(token, {
+        category: selectedCategory,
         becUserId: Number(selectedUserId),
-        becName: displayUserName(becUser),
-      },
-    };
-    localStorage.setItem(assignmentKey, JSON.stringify(next));
-    setAssignments(next);
-    setNotice(`${selectedCategory} assigned to ${displayUserName(becUser)}.`);
-    setError("");
+      });
+      const next = {
+        ...assignments,
+        [saved.category]: {
+          assignmentId: saved.assignmentId,
+          becUserId: saved.becUserId,
+          becName: saved.becName,
+        },
+      };
+      setAssignments(next);
+      setNotice(`${saved.category} assigned to ${saved.becName || `BEC ${saved.becUserId}`}.`);
+      setError("");
+    } catch (err) {
+      setNotice("");
+      setError(err.message || "Could not save BEC category assignment.");
+    }
   };
-
   if (!isBecHead) {
     return (
       <div className="min-h-screen bg-[#f4f8fb] p-6">
@@ -100,7 +107,7 @@ export default function BecCategoryAssignment() {
       {notice && <div className="mb-4 rounded-2xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">{notice}</div>}
       {error && <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
-      <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+      <div className="space-y-5">
         <section className={cardClass}>
           <h2 className="text-lg font-black text-[#10283f]">Assign Category</h2>
           <div className="mt-4 grid gap-4">
@@ -142,18 +149,7 @@ export default function BecCategoryAssignment() {
           </div>
         </section>
       </div>
-
-      <section className={`${cardClass} mt-5`}>
-        <h2 className="text-lg font-black text-[#10283f]">Published RFQ Categories</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {rfqs.map((rfq) => (
-            <div key={rfq.rfqId} className="rounded-2xl border border-[#e4eef4] bg-[#fbfdff] p-4">
-              <div className="text-sm font-black text-[#10283f]">{rfqDisplayName(rfq)}</div>
-              <div className="mt-1 text-sm text-slate-600">{rfqContext(rfq) || "Category not recorded"}</div>
-            </div>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }
+

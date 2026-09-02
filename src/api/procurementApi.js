@@ -51,6 +51,10 @@ export const procurementApi = {
     evaluate: (token, bidId, payload) =>
       apiRequest(`${procurementBase}/bids/${bidId}/evaluate`, { token, method: "PATCH", body: payload }),
   },
+  becCategoryAssignments: {
+    list: (token) => apiRequest(`${procurementBase}/bec/category-assignments`, { token }),
+    save: (token, payload) => apiRequest(`${procurementBase}/bec/category-assignments`, { token, method: "PUT", body: payload }),
+  },
   quotations: {
     aiReview: (token, quotationId) =>
       apiRequest(`${procurementBase}/quotations/${quotationId}/ai-review`, { token, method: "POST" }),
@@ -139,6 +143,7 @@ export const vendorProcurementApi = {
   bids: {
     list: (token) => apiRequest(`${vendorBase}/bids`, { token }),
   },
+
   quotations: {
     list: (token) => apiRequest(`${vendorBase}/quotations`, { token }),
     submitRequestedDocument: (token, quotationId, payload) =>
@@ -156,3 +161,4 @@ export const vendorProcurementApi = {
     list: (token) => apiRequest(`${vendorBase}/purchase-orders`, { token }),
   },
 };
+

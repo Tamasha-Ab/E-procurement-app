@@ -444,9 +444,11 @@ export default function BecSelectedVendors() {
                     <button type="button" onClick={() => downloadOfferLetter(offer)} disabled={busyKey === `letter-download-${offer.offerLetterId}`} className="inline-flex items-center justify-center rounded-2xl bg-white px-4 py-2 text-sm font-black text-[#166e8c] ring-1 ring-[#dce8ef] hover:bg-[#f8fcff] disabled:cursor-not-allowed disabled:bg-slate-100">
                       {busyKey === `letter-download-${offer.offerLetterId}` ? "Preparing..." : "Download Offer Letter"}
                     </button>
-                    <button type="button" onClick={() => sendOfferLetterToVendor(offer)} disabled={busyKey === `letter-send-${offer.offerLetterId}`} className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">
-                      {busyKey === `letter-send-${offer.offerLetterId}` ? "Sending..." : "Send Offer Letter to Vendor"}
-                    </button>
+                    {activeTab === "NOT_SENT" && (
+                      <button type="button" onClick={() => sendOfferLetterToVendor(offer)} disabled={busyKey === `letter-send-${offer.offerLetterId}`} className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">
+                        {busyKey === `letter-send-${offer.offerLetterId}` ? "Sending..." : "Send Offer Letter to Vendor"}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -538,3 +540,4 @@ function FinalizedPoRow({ purchaseOrder, expanded, onToggle }) {
     </article>
   );
 }
+

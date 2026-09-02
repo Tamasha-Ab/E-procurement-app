@@ -24,7 +24,6 @@ const aiConfidenceTone = {
   MEDIUM: "bg-amber-100 text-amber-800",
   LOW: "bg-slate-200 text-slate-700",
 };
-const becCategoryAssignmentKey = "bec_category_assignments";
 
 const initialRfq = {
   rrId: "",
@@ -1376,9 +1375,17 @@ This offer letter is issued for the selected quotation item listed above.`;
     }
     let assignments = {};
     try {
-      assignments = JSON.parse(localStorage.getItem(becCategoryAssignmentKey) || "{}");
-    } catch {
-      assignments = {};
+      const savedAssignments = await procurementApi.becCategoryAssignments.list(token);
+      assignments = getArray(savedAssignments).reduce((state, assignment) => ({
+        ...state,
+        [assignment.category]: {
+          becUserId: assignment.becUserId,
+          becName: assignment.becName,
+        },
+      }), {});
+    } catch (err) {
+      setError(err.message || "Could not load BEC category assignments.");
+      return;
     }
     const missingCategories = [];
     const payloads = items.map((item) => {
@@ -2815,3 +2822,4 @@ export default function ProcurementWorkspace() {
     </div>
   );
 }
+
