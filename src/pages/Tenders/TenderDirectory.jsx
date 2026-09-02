@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import PageHero from "../../components/PageHero";
 import { procurementApi } from "../../api/procurementApi";
@@ -26,6 +26,7 @@ const visibleTendersForUser = (tenders, user) =>
 export default function TenderDirectory() {
   const { token, user } = useAuth();
   const { tenderId } = useParams();
+  const navigate = useNavigate();
   const [tenders, setTenders] = useState([]);
   const [selectedId, setSelectedId] = useState(tenderId || "");
   const [search, setSearch] = useState("");
@@ -91,6 +92,11 @@ export default function TenderDirectory() {
   const view = selected ? buildTenderViewModel(selected) : null;
 
   const selectTender = (id) => {
+    const tender = filtered.find((item) => String(item.tenderId) === String(id));
+    if (tender?.status === "DRAFT") {
+      navigate(`/senior-assistant-bursar/tender-creation?draftId=${id}`);
+      return;
+    }
     setSelectedId(String(id));
     window.requestAnimationFrame(() => {
       detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -152,7 +158,7 @@ export default function TenderDirectory() {
                     {statusLabel(tender.status)}
                   </span>
                   <span className="whitespace-nowrap text-[10px] font-semibold text-slate-500">{formatDateTime(tender.createdAt)}</span>
-                  <span className="text-xs font-bold text-[#166e8c]">Details</span>
+                  <span className="text-xs font-bold text-[#166e8c]">{tender.status === "DRAFT" ? "Continue" : "Details"}</span>
               </button>
             ))}
             </div>

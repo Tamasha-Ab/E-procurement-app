@@ -27,7 +27,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { downloadRequisitionForm } from "../../utils/requisitionDocument";
 import { requestDisplayName, requestContext } from "../../utils/procurementDisplay";
-import { deleteTenderDraft, loadTenderDrafts, saveTenderDraft } from "../../utils/tenderDrafts";
 
 const bursarSubRoles = ["BURSAR", "ASSISTANT_BURSAR", "SENIOR_ASSISTANT_BURSAR"];
 const tenderTypeOptions = ["Goods", "Works", "Services", "IT Systems"];
@@ -210,7 +209,6 @@ export default function BursarBudgetWorkspace() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editingDraftId = searchParams.get("draftId") || "";
-  const draftUserId = user?.userId || user?.id || user?.username;
   const [tenders, setTenders] = useState([]);
   const [pendingRrs, setPendingRrs] = useState([]);
   const [finalRrs, setFinalRrs] = useState([]);
@@ -225,13 +223,6 @@ export default function BursarBudgetWorkspace() {
   const [bursarComment, setBursarComment] = useState("");
   const [previewTender, setPreviewTender] = useState(null);
   const [tenderTypeInput, setTenderTypeInput] = useState("");
-
-  useEffect(() => {
-    if (!editingDraftId || !draftUserId) return;
-    const draft = loadTenderDrafts(draftUserId).find((item) => item.id === editingDraftId);
-    if (!draft?.form) return;
-    setTenderForm({ ...initialTenderForm, ...draft.form, tenderTypes: normalizeTenderTypes(draft.form.tenderTypes || []) });
-  }, [editingDraftId, draftUserId]);
 
   const isBursar = user?.mainRole === "FINANCE" && bursarSubRoles.includes(user?.subRole);
   const canActOnBursarRrs = user?.mainRole === "FINANCE" && user?.subRole === "ASSISTANT_BURSAR";
@@ -264,6 +255,24 @@ export default function BursarBudgetWorkspace() {
     },
     [authHeaders]
   );
+
+  useEffect(() => {
+    if (!editingDraftId) return;
+    requestJson(`/api/tenders/${editingDraftId}`)
+      .then((draft) => setTenderForm({
+        ...initialTenderForm,
+        title: draft.title === "Untitled tender draft" ? "" : draft.title || "",
+        tenderNumber: String(draft.tenderNumber || "").startsWith("DRAFT-") ? "" : draft.tenderNumber || "",
+        tenderTypes: normalizeTenderTypes(String(draft.tenderType || "").split(",")),
+        procurementMethod: draft.procurementMethod || "",
+        tenderValue: Number(draft.tenderValue || 0) > 0 ? String(draft.tenderValue) : "",
+        fundingSource: draft.fundingSource || "",
+        dateOfPublication: draft.dateOfPublication || "",
+        closingDateTime: draft.closingDateTime ? String(draft.closingDateTime).slice(0, 16) : "",
+        description: draft.description || "",
+      }))
+      .catch((error) => setNotice({ type: "error", message: error.message }));
+  }, [editingDraftId, requestJson]);
 
   const loadTenders = useCallback(async () => {
     setLoading(true);
@@ -309,25 +318,26 @@ export default function BursarBudgetWorkspace() {
     setNotice(null);
 
     try {
-      const createdTender = await requestJson("/api/tenders", {
+      const payload = {
+        title: tenderForm.title,
+        tenderNumber: tenderForm.tenderNumber,
+        description: tenderForm.description,
+        tenderType: tenderTypes.join(", "),
+        procurementMethod: tenderForm.procurementMethod,
+        fundingSource: tenderForm.fundingSource,
+        dateOfPublication: tenderForm.dateOfPublication,
+        closingDateTime: tenderForm.closingDateTime,
+        tenderValue: Number(tenderForm.tenderValue),
+      };
+      const createdTender = await requestJson(editingDraftId ? `/api/tenders/drafts/${editingDraftId}/publish` : "/api/tenders", {
         method: "POST",
-        body: JSON.stringify({
-          title: tenderForm.title,
-          tenderNumber: tenderForm.tenderNumber,
-          description: tenderForm.description,
-          tenderType: tenderTypes.join(", "),
-          procurementMethod: tenderForm.procurementMethod,
-          fundingSource: tenderForm.fundingSource,
-          dateOfPublication: tenderForm.dateOfPublication,
-          closingDateTime: tenderForm.closingDateTime,
-          tenderValue: Number(tenderForm.tenderValue),
-        }),
+        body: JSON.stringify(payload),
       });
       setNotice({ type: "success", message: "Tender created and notifications sent to internal users." });
       setPreviewTender(createdTender);
       setTenderForm(initialTenderForm);
       setTenderTypeInput("");
-      if (editingDraftId) deleteTenderDraft(draftUserId, editingDraftId);
+      if (editingDraftId) navigate("/senior-assistant-bursar/tender-records", { replace: true });
       await loadTenders();
       await loadRequisitionQueues();
     } catch (error) {
@@ -337,18 +347,35 @@ export default function BursarBudgetWorkspace() {
     }
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     const tenderTypes = normalizeTenderTypes([...tenderForm.tenderTypes, tenderTypeInput]);
-    const draftId = editingDraftId || (globalThis.crypto?.randomUUID?.() || `draft-${Date.now()}`);
-    saveTenderDraft(draftUserId, {
-      id: draftId,
-      savedAt: new Date().toISOString(),
-      form: { ...tenderForm, tenderTypes },
-    });
-    setTenderForm((current) => ({ ...current, tenderTypes }));
-    setTenderTypeInput("");
-    setNotice({ type: "success", message: "Tender draft saved successfully." });
-    if (!editingDraftId) navigate(`/senior-assistant-bursar/tender-creation?draftId=${draftId}`, { replace: true });
+    setLoading(true);
+    setNotice(null);
+    try {
+      const savedDraft = await requestJson(editingDraftId ? `/api/tenders/drafts/${editingDraftId}` : "/api/tenders/drafts", {
+        method: editingDraftId ? "PUT" : "POST",
+        body: JSON.stringify({
+          title: tenderForm.title,
+          tenderNumber: tenderForm.tenderNumber,
+          description: tenderForm.description,
+          tenderType: tenderTypes.join(", "),
+          procurementMethod: tenderForm.procurementMethod,
+          fundingSource: tenderForm.fundingSource,
+          dateOfPublication: tenderForm.dateOfPublication || null,
+          closingDateTime: tenderForm.closingDateTime || null,
+          tenderValue: tenderForm.tenderValue ? Number(tenderForm.tenderValue) : null,
+        }),
+      });
+      setTenderForm((current) => ({ ...current, tenderTypes }));
+      setTenderTypeInput("");
+      setNotice({ type: "success", message: "Tender draft saved to the database successfully." });
+      await loadTenders();
+      if (!editingDraftId) navigate(`/senior-assistant-bursar/tender-creation?draftId=${savedDraft.tenderId}`, { replace: true });
+    } catch (error) {
+      setNotice({ type: "error", message: error.message });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openRrReview = (rr) => {

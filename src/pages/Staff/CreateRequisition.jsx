@@ -392,7 +392,10 @@ export default function CreateRequisition() {
         body: payload,
       });
       setCreatedRequest(data);
-      setMessage(`Draft ${data.rrNumber} ${isEditMode ? "updated" : "created"} successfully.`);
+      const successMessage = `Draft ${data.rrNumber} ${isEditMode ? "updated" : "created"} successfully.`;
+      setMessage(successMessage);
+      toast.success(successMessage, { autoClose: 3500 });
+      navigate(staffMemberPath("my-requisitions"));
     } catch (err) {
       setError(err.message || "Could not save requisition draft.");
     } finally {
@@ -412,8 +415,11 @@ export default function CreateRequisition() {
         method: "POST",
       });
       setCreatedRequest(data);
-      setMessage(`${data.rrNumber} submitted to Division Head.`);
+      const successMessage = `${data.rrNumber} submitted to Division Head.`;
+      setMessage(successMessage);
+      toast.success(successMessage, { autoClose: 3500 });
       resetRequisitionForm();
+      navigate(staffMemberPath("my-requisitions"));
     } catch (err) {
       setError(err.message || "Could not submit requisition to Division Head.");
     } finally {
