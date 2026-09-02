@@ -40,6 +40,17 @@ const fileToDataUrl = (file) =>
     reader.readAsDataURL(file);
   });
 
+// Documents are stored as Base64 in the registration JSON.  Keep the source
+// file small enough that the encoded request stays within the API limit.
+const MAX_VENDOR_DOCUMENT_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_VENDOR_DOCUMENT_SIZE_LABEL = "5 MB";
+
+const validateVendorDocumentSize = (files) => {
+  const file = files?.[0];
+  return !file || file.size <= MAX_VENDOR_DOCUMENT_SIZE_BYTES
+    || `Each document must be ${MAX_VENDOR_DOCUMENT_SIZE_LABEL} or smaller`;
+};
+
 const STRENGTH_CONFIG = [
   { color: "bg-red-400", label: "Weak", textColor: "text-red-500" },
   { color: "bg-orange-400", label: "Fair", textColor: "text-orange-500" },
@@ -321,30 +332,34 @@ export default function Register({ openLogin, onSizeChange }) {
         return;
       }
 
-      if (!googleInitializedRef.current) {
+      const handleGoogleCredential = async (response) => {
+        setErrorMsg("");
+        setIsGoogleLoading(true);
+
+        try {
+          const result = await googleRegister({
+            idToken: response.credential,
+            ...googleRegisterPayloadRef.current,
+          });
+
+          setSuccessMessage(result?.message || "Google sign-up submitted. Awaiting admin approval.");
+          setSubmitState("success");
+        } catch (error) {
+          console.error("Google registration failed:", error);
+          setErrorMsg(error.message || "Google sign-up failed. Please try again.");
+          setSubmitState("error");
+        } finally {
+          setIsGoogleLoading(false);
+        }
+      };
+
+      window.__astraeaGoogleIdentityHandler = handleGoogleCredential;
+      if (!window.__astraeaGoogleIdentityInitialized) {
         window.google.accounts.id.initialize({
           client_id: googleClientId,
-          callback: async (response) => {
-          setErrorMsg("");
-          setIsGoogleLoading(true);
-
-          try {
-            const result = await googleRegister({
-              idToken: response.credential,
-              ...googleRegisterPayloadRef.current,
-            });
-
-            setSuccessMessage(result?.message || "Google sign-up submitted. Awaiting admin approval.");
-            setSubmitState("success");
-          } catch (error) {
-            console.error("Google registration failed:", error);
-            setErrorMsg(error.message || "Google sign-up failed. Please try again.");
-            setSubmitState("error");
-          } finally {
-            setIsGoogleLoading(false);
-          }
-        },
+          callback: (response) => window.__astraeaGoogleIdentityHandler?.(response),
         });
+        window.__astraeaGoogleIdentityInitialized = true;
         googleInitializedRef.current = true;
       }
 
@@ -398,6 +413,14 @@ export default function Register({ openLogin, onSizeChange }) {
     const businessRegistrationFile = data.businessRegistrationDocument?.[0] || null;
     const vatFile = data.vatDocument?.[0] || null;
     const cidaFile = data.cidaDocument?.[0] || null;
+
+    const oversizedFile = [businessRegistrationFile, vatFile, cidaFile]
+      .find((file) => file && file.size > MAX_VENDOR_DOCUMENT_SIZE_BYTES);
+    if (oversizedFile) {
+      setErrorMsg(`${oversizedFile.name} is larger than ${MAX_VENDOR_DOCUMENT_SIZE_LABEL}. Please upload a smaller PDF.`);
+      setSubmitState("error");
+      return;
+    }
 
     const payload = {
       username: data.username,
@@ -848,7 +871,10 @@ export default function Register({ openLogin, onSizeChange }) {
                     id="businessRegistrationDocument"
                     type="file"
                     accept="application/pdf"
-                    {...register("businessRegistrationDocument", { required: isExternalVendor ? "Business registration certificate is required" : false })}
+                    {...register("businessRegistrationDocument", {
+                      required: isExternalVendor ? "Business registration certificate is required" : false,
+                      validate: validateVendorDocumentSize,
+                    })}
                     className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm transition-colors file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:border-gray-300 focus:border-blue-500 focus:outline-none"
                     disabled={isSubmitting}
                   />
@@ -862,7 +888,7 @@ export default function Register({ openLogin, onSizeChange }) {
                     id="vatDocument"
                     type="file"
                     accept="application/pdf"
-                    {...register("vatDocument")}
+                    {...register("vatDocument", { validate: validateVendorDocumentSize })}
                     className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm transition-colors file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:border-gray-300 focus:border-blue-500 focus:outline-none"
                     disabled={isSubmitting}
                   />
@@ -875,7 +901,7 @@ export default function Register({ openLogin, onSizeChange }) {
                     id="cidaDocument"
                     type="file"
                     accept="application/pdf"
-                    {...register("cidaDocument")}
+                    {...register("cidaDocument", { validate: validateVendorDocumentSize })}
                     className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm transition-colors file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:border-gray-300 focus:border-blue-500 focus:outline-none"
                     disabled={isSubmitting}
                   />

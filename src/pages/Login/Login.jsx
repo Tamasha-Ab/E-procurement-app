@@ -86,28 +86,35 @@ function Login({ onClose, openRegister }) {
         return;
       }
 
-      if (!googleInitializedRef.current) {
+      const handleGoogleCredential = async (response) => {
+        setLoginError("");
+        setIsGoogleLoading(true);
+
+        try {
+          const result = await googleLogin(response.credential);
+          if (!result?.token) {
+            setLoginError(result?.message || "Your account is pending admin approval.");
+            return;
+          }
+          navigateByRole(result.user);
+        } catch (error) {
+          console.error("Google login failed:", error);
+          setLoginError(error.message || "Google sign-in failed. Please try again.");
+        } finally {
+          setIsGoogleLoading(false);
+        }
+      };
+
+      // Google Identity supports one global initialize call. Keep the active
+      // page callback separately so switching between Sign In and Sign Up does
+      // not initialize the SDK again.
+      window.__astraeaGoogleIdentityHandler = handleGoogleCredential;
+      if (!window.__astraeaGoogleIdentityInitialized) {
         window.google.accounts.id.initialize({
           client_id: googleClientId,
-          callback: async (response) => {
-          setLoginError("");
-          setIsGoogleLoading(true);
-
-          try {
-            const result = await googleLogin(response.credential);
-            if (!result?.token) {
-              setLoginError(result?.message || "Your account is pending admin approval.");
-              return;
-            }
-            navigateByRole(result.user);
-          } catch (error) {
-            console.error("Google login failed:", error);
-            setLoginError(error.message || "Google sign-in failed. Please try again.");
-          } finally {
-            setIsGoogleLoading(false);
-          }
-        },
+          callback: (response) => window.__astraeaGoogleIdentityHandler?.(response),
         });
+        window.__astraeaGoogleIdentityInitialized = true;
         googleInitializedRef.current = true;
       }
 
