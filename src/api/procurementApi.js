@@ -17,9 +17,12 @@ export const procurementApi = {
   },
   rfqs: {
     list: (token) => apiRequest(`${procurementBase}/rfqs?page=0&size=20`, { token }),
+    listPage: (token, page = 0, size = 10) => apiRequest(`${procurementBase}/rfqs?page=${page}&size=${size}&sort=createdAt,desc`, { token }),
+    listAll: (token) => apiRequest(`${procurementBase}/rfqs?page=0&size=10000`, { token }),
     readyForSpecifications: (token) => apiRequest(`${procurementBase}/rfqs/ready-for-specifications`, { token }),
     publishedForTec: (token) => apiRequest(`${procurementBase}/tec/published-rfqs`, { token }),
     publishedForBec: (token) => apiRequest(`${procurementBase}/bec/published-rfqs`, { token }),
+    publishedForBecPage: (token, page = 0, size = 10, search = "") => apiRequest(`${procurementBase}/bec/published-rfqs/paged?page=${page}&size=${size}&search=${encodeURIComponent(search)}`, { token }),
     detail: (token, rfqId) => apiRequest(`${procurementBase}/rfqs/${rfqId}`, { token }),
     create: (token, payload) => apiRequest(`${procurementBase}/rfqs`, { token, method: "POST", body: payload }),
     inviteVendors: (token, rfqId, payload) =>
@@ -61,6 +64,10 @@ export const procurementApi = {
       apiRequest(`${procurementBase}/quotation-items/${quotationItemId}/bec-review`, { token, method: "PATCH", body: payload }),
     myAssignedBecQuotations: (token) =>
       apiRequest(`${procurementBase}/bec/my-assigned-quotations`, { token }),
+    myApprovedBecQuotations: (token, page = 0, size = 10) =>
+      apiRequest(`${procurementBase}/bec/my-approved-quotations?page=${page}&size=${size}`, { token }),
+    myBecReviewAuditTrail: (token, page = 0, size = 10) =>
+      apiRequest(`${procurementBase}/bec/my-review-audit-trail?page=${page}&size=${size}`, { token }),
     selectItemVendor: (token, quotationItemId, payload) =>
       apiRequest(`${procurementBase}/quotation-items/${quotationItemId}/vendor-selection`, { token, method: "PATCH", body: payload }),
     requestDocument: (token, quotationId, payload) =>
@@ -79,12 +86,16 @@ export const procurementApi = {
     decideAuthority: (token, offerLetterId, payload) =>
       apiRequest(`${procurementBase}/offer-letters/${offerLetterId}/authority-decision`, { token, method: "PATCH", body: payload }),
     selectedVendors: (token) => apiRequest(`${procurementBase}/offer-letters/selected-vendors`, { token }),
+    selectedVendorsPaged: (token, group, page = 0, size = 10) =>
+      apiRequest(`${procurementBase}/offer-letters/selected-vendors/paged?group=${group}&page=${page}&size=${size}`, { token }),
+    finalizedPurchaseOrders: (token, page = 0, size = 10) =>
+      apiRequest(`${procurementBase}/offer-letters/selected-vendors/finalized-purchase-orders?page=${page}&size=${size}`, { token }),
     sendToVendor: (token, offerLetterId, payload = null) =>
       apiRequest(`${procurementBase}/offer-letters/${offerLetterId}/send-to-vendor`, { token, method: "PATCH", ...(payload ? { body: payload } : {}) }),
   },
   purchaseOrders: {
     acceptedOffers: (token) => apiRequest(`${procurementBase}/accepted-offer-letters`, { token }),
-    list: (token) => apiRequest(`${procurementBase}/purchase-orders`, { token }),
+    list: (token, page = 0, size = 10) => apiRequest(`${procurementBase}/purchase-orders?page=${page}&size=${size}&sort=createdAt,desc`, { token }),
     create: (token, payload) =>
       apiRequest(`${procurementBase}/purchase-orders`, { token, method: "POST", body: payload }),
     updateStatus: (token, poId, payload) =>

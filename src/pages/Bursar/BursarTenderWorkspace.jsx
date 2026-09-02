@@ -6,6 +6,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { getSeniorAssistantBursarPath } from "../../utils/roleRoutes";
 import { apiRequest, formatDateTime, formatMoney } from "../../services/apiClient";
 import { requestDisplayName } from "../../utils/procurementDisplay";
+import { toast } from "react-toastify";
 
 const cardClass = "rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]";
 const inputClass = "w-full rounded-2xl border border-[#dce8ef] bg-white px-4 py-3 text-sm outline-none focus:border-[#166e8c]";
@@ -354,7 +355,9 @@ export default function BursarTenderWorkspace() {
     setNotice("");
 
     if (!selectedVendorIds.length) {
-      setError("Select at least one vendor before sending the RFQ.");
+      const validationMessage = "Select at least one vendor before sending the RFQ.";
+      setError(validationMessage);
+      toast.warning(validationMessage);
       return;
     }
 
@@ -384,7 +387,9 @@ export default function BursarTenderWorkspace() {
       });
       const createdRrId = createdRfq?.rrId || requestedRrId;
       rememberCreatedRfqRr(createdRrId);
-      setNotice("RFQ created and sent to selected category vendors.");
+      const successMessage = "RFQ created and sent successfully to the selected category vendors.";
+      setNotice(successMessage);
+      toast.success(successMessage);
       setForm(initialForm);
       setVendors([]);
       setSelectedVendorIds([]);
@@ -392,7 +397,9 @@ export default function BursarTenderWorkspace() {
       setReceivedRrs((current) => current.filter((rr) => String(rr.rrId) !== String(createdRrId)));
       navigate(getSeniorAssistantBursarPath(user, "audit-trail", "/finance/audit-trail"), { replace: true });
     } catch (submitError) {
-      setError(submitError.message || "Could not send RFQ.");
+      const errorMessage = submitError.message || "Could not send RFQ.";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

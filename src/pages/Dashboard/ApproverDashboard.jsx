@@ -6,7 +6,7 @@ import VerifiedRoundedIcon from "@mui/icons-material/VerifiedRounded";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
 import { approverDashboardConfig } from "./dashboardConfig";
-import { deanPath, divisionHeadPath, isDean, isDivisionHead } from "../../utils/roleRoutes";
+import { becHeadPath, deanPath, divisionHeadPath, isBecHead, isDean, isDivisionHead, isVc, vcPath } from "../../utils/roleRoutes";
 import StatusPill from "../../components/StatusPill";
 import { requestDisplayName } from "../../utils/procurementDisplay";
 
@@ -26,7 +26,11 @@ export default function ApproverDashboard() {
     ? divisionHeadPath("approvals")
     : isDean(user)
       ? deanPath("approvals")
-      : config.queuePath;
+      : isBecHead(user)
+        ? becHeadPath("approvals")
+        : isVc(user)
+          ? vcPath("approvals")
+        : config.queuePath;
 
   useEffect(() => {
     if (!token || !config?.pendingUrl) return;
@@ -111,8 +115,8 @@ export default function ApproverDashboard() {
               <h3 className="mt-2 text-2xl font-bold text-[#10283f]">Recent RRs</h3>
               <p className="mt-1 text-sm text-slate-500">Latest requisitions recorded in your approval workflow.</p>
             </div>
-            <button type="button" onClick={() => navigate(isDean(user) ? deanPath("approvals") : divisionHeadPath("audit-trail"))} className="rounded-full bg-[#edf7fb] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c] hover:bg-[#d9edf5]">
-              {isDean(user) ? "View Approvals" : "View Audit Trail"}
+            <button type="button" onClick={() => navigate(isVc(user) ? vcPath("approvals") : isDean(user) ? deanPath("approvals") : isBecHead(user) ? becHeadPath("audit-trail") : divisionHeadPath("audit-trail"))} className="rounded-full bg-[#edf7fb] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c] hover:bg-[#d9edf5]">
+              {isDean(user) || isVc(user) ? "View Approvals" : "View Audit Trail"}
             </button>
           </div>
           <div className="mt-5 space-y-3">

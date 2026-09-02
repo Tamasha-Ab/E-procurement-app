@@ -38,8 +38,11 @@ const isStaffDeanDivisionHeadOrVc = (user) =>
 const getRequestableRolesForUser = (user) => {
   if (!canUseRoleFeature(user)) return [];
   if (isStaffDeanDivisionHeadOrVc(user)) return requestableRoles;
-  if (user?.mainRole === "FINANCE" && user?.subRole === "BEC") {
-    return requestableRoles.filter((role) => role.mainRole === "DPC");
+  if (user?.mainRole === "FINANCE" && ["BEC", "BEC_HEAD"].includes(user?.subRole)) {
+    return requestableRoles.filter((role) =>
+      role.mainRole === "DPC"
+      || (role.mainRole === "FACULTY_STAFF" && role.subRole === "STAFF_MEMBER")
+    );
   }
   return [];
 };

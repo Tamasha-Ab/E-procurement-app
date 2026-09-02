@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import { useAuth } from "../contexts/AuthContext";
 import { apiRequest, formatDateTime } from "../services/apiClient";
 import { isStaffMember, staffMemberPath } from "../utils/roleRoutes";
+import { roleScopedNotifications } from "../utils/notificationRoles";
 
 export default function StaffNotificationToasts() {
   const { token, user } = useAuth();
@@ -79,7 +80,7 @@ export default function StaffNotificationToasts() {
       try {
         const data = await apiRequest("/api/notifications/my", { token });
         if (cancelled) return;
-        const notifications = Array.isArray(data) ? data : [];
+        const notifications = roleScopedNotifications(data, user);
         notifications.filter((notification) => !notification.read).forEach(showNotification);
       } catch {
         // Silent polling failure; the regular notification page remains available.
@@ -95,7 +96,7 @@ export default function StaffNotificationToasts() {
       window.clearInterval(pollTimer);
       window.removeEventListener("focus", loadNotifications);
     };
-  }, [token, isStaffRole, navigate]);
+  }, [token, isStaffRole, navigate, user?.mainRole, user?.subRole]);
 
   return null;
 }

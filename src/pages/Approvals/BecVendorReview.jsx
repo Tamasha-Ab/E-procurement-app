@@ -5,6 +5,7 @@ import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { procurementApi } from "../../api/procurementApi";
 import { useAuth } from "../../contexts/AuthContext";
+import { becHeadPath } from "../../utils/roleRoutes";
 import { formatDateTime, formatMoney } from "../../services/apiClient";
 import { rfqDisplayName, rfqContext } from "../../utils/procurementDisplay";
 
@@ -397,7 +398,7 @@ Lowest quoted technically approved vendor sent to approval.`;
           </div>
           <button
             type="button"
-            onClick={() => navigate("/approvals/bec/vendor-final-list")}
+            onClick={() => navigate(becHeadPath("vendor-final-list"))}
             className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-black text-white hover:bg-[#145f79]"
           >
             View Final List

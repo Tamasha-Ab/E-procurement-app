@@ -7,7 +7,7 @@ import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
 import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
-import { deanPath, divisionHeadPath } from "../../utils/roleRoutes";
+import { deanPath, divisionHeadPath, vcPath } from "../../utils/roleRoutes";
 
 export const divisionHeadSidebarItems = [
   { label: "Request Overview", icon: DashboardRoundedIcon, path: divisionHeadPath("dashboard") },
@@ -50,11 +50,13 @@ export const deanSidebarItems = [
 ];
 
 export const vcSidebarItems = [
-  { label: "Request Overview", icon: DashboardRoundedIcon, path: "/dashboard" },
-  { label: "VC Approvals", icon: AssignmentTurnedInRoundedIcon, path: "/approvals/vc" },
-  { label: "Quotation Approval", icon: GavelRoundedIcon, path: "/approvals/quotation-authority" },
-  { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: "/role-requests" },
-  { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
+  { label: "Request Overview", icon: DashboardRoundedIcon, path: vcPath("dashboard") },
+  { label: "VC Approvals", icon: AssignmentTurnedInRoundedIcon, path: vcPath("approvals") },
+  { label: "Quotation Approval", icon: GavelRoundedIcon, path: vcPath("quotation-approval") },
+  { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: vcPath("role-requests") },
+  { label: "Notification", icon: NotificationsRoundedIcon, path: vcPath("notifications") },
+  { label: "Audit Trail", icon: HistoryRoundedIcon, path: vcPath("audit-trail") },
+  { label: "Settings", icon: SettingsRoundedIcon, path: vcPath("settings") },
 ];
 
 export const approverSidebarItemsByRole = {

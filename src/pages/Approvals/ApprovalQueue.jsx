@@ -6,12 +6,15 @@ import { useNavigate, useParams } from "react-router-dom";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
-import { apiRequest, formatMoney } from "../../services/apiClient";
+import { apiRequest, formatDateTime, formatMoney } from "../../services/apiClient";
 import { downloadRequisitionForm } from "../../utils/requisitionDocument";
 import { VENDOR_CATEGORY_OPTIONS } from "../../constants/vendorCategories";
 import { requestDisplayName, requestContext } from "../../utils/procurementDisplay";
-import { deanPath, divisionHeadPath, isDean, isDivisionHead } from "../../utils/roleRoutes";
+import { becHeadPath, deanPath, divisionHeadPath, isBecHead, isDean, isDivisionHead, isVc, vcPath } from "../../utils/roleRoutes";
 import { toast } from "react-toastify";
+import PaginationControls from "../../components/PaginationControls";
+
+const QUEUE_PAGE_SIZE = 10;
 
 const emptySpecForm = {
   specId: null,
@@ -102,6 +105,12 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
   const { rrId } = useParams();
   const [requests, setRequests] = useState([]);
   const [acceptedRequests, setAcceptedRequests] = useState([]);
+  const [pendingPage, setPendingPage] = useState(0);
+  const [pendingTotalPages, setPendingTotalPages] = useState(1);
+  const [pendingTotalItems, setPendingTotalItems] = useState(0);
+  const [acceptedPage, setAcceptedPage] = useState(0);
+  const [acceptedTotalPages, setAcceptedTotalPages] = useState(1);
+  const [acceptedTotalItems, setAcceptedTotalItems] = useState(0);
   const [auditRequests, setAuditRequests] = useState([]);
   const [selected, setSelected] = useState(null);
   const [selectedAccepted, setSelectedAccepted] = useState(null);
@@ -131,6 +140,10 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
     ? divisionHeadPath("approvals")
     : roleKey === "DEAN" && isDean(user)
       ? deanPath("approvals")
+      : roleKey === "BEC" && isBecHead(user)
+        ? becHeadPath("approvals")
+      : roleKey === "VC" && isVc(user)
+        ? vcPath("approvals")
       : `/approvals/${roleKey.toLowerCase()}`;
   const selectedIsAccepted = Boolean(selected) && (
     acceptedRequests.some((request) => String(request.rrId) === String(selected.rrId))
@@ -153,16 +166,26 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
   const loadRequests = () => {
     setIsLoading(true);
     setError("");
-    apiRequest(`${pendingUrl}?page=0&size=20`, { token })
-      .then((data) => setRequests(data?.content || []))
+    apiRequest(`${pendingUrl}?page=${pendingPage}&size=${QUEUE_PAGE_SIZE}`, { token })
+      .then((data) => {
+        const content = data?.content || [];
+        setRequests(content);
+        setPendingTotalPages(Math.max(1, data?.totalPages || 1));
+        setPendingTotalItems(data?.totalElements ?? content.length);
+      })
       .catch((err) => setError(err.message || "Could not load pending requests."))
       .finally(() => setIsLoading(false));
   };
 
   const loadAcceptedRequests = () => {
     if (!acceptedUrl) return;
-    apiRequest(`${acceptedUrl}?page=0&size=20`, { token })
-      .then((data) => setAcceptedRequests(data?.content || []))
+    apiRequest(`${acceptedUrl}?page=${acceptedPage}&size=${QUEUE_PAGE_SIZE}`, { token })
+      .then((data) => {
+        const content = data?.content || [];
+        setAcceptedRequests(content);
+        setAcceptedTotalPages(Math.max(1, data?.totalPages || 1));
+        setAcceptedTotalItems(data?.totalElements ?? content.length);
+      })
       .catch((err) => setError(err.message || "Could not load accepted requests."));
   };
 
@@ -180,7 +203,7 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
     loadRequests();
     loadAcceptedRequests();
     loadAuditRequests();
-  }, [pendingUrl, acceptedUrl, token, isDetailPage, roleKey]);
+  }, [pendingUrl, acceptedUrl, token, isDetailPage, roleKey, pendingPage, acceptedPage]);
 
   useEffect(() => {
     if (!isDetailPage) return;
@@ -489,13 +512,18 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
       setMessage("Specification saved.");
       resetSpecForm();
       const refreshUrl = targetList === "accepted" ? acceptedUrl : pendingUrl;
-      const refreshed = await apiRequest(`${refreshUrl}?page=0&size=20`, { token });
+      const refreshPage = targetList === "accepted" ? acceptedPage : pendingPage;
+      const refreshed = await apiRequest(`${refreshUrl}?page=${refreshPage}&size=${QUEUE_PAGE_SIZE}`, { token });
       const refreshedItems = refreshed?.content || [];
       if (targetList === "accepted") {
         setAcceptedRequests(refreshedItems);
+        setAcceptedTotalPages(Math.max(1, refreshed?.totalPages || 1));
+        setAcceptedTotalItems(refreshed?.totalElements ?? refreshedItems.length);
         setSelectedAccepted(refreshedItems.find((item) => item.rrId === targetRequest.rrId) || null);
       } else {
         setRequests(refreshedItems);
+        setPendingTotalPages(Math.max(1, refreshed?.totalPages || 1));
+        setPendingTotalItems(refreshed?.totalElements ?? refreshedItems.length);
         setSelected(refreshedItems.find((item) => item.rrId === targetRequest.rrId) || null);
       }
     } catch (err) {
@@ -610,9 +638,21 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
       <PageHero eyebrow="Approval Workflow" title={title} description={description}>
         <div className="rounded-[24px] bg-white/10 p-5 text-right backdrop-blur">
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-100">Pending</div>
-          <div className="mt-2 text-3xl font-black">{requests.length}</div>
+          <div className="mt-2 text-3xl font-black">{pendingTotalItems}</div>
         </div>
       </PageHero>
+
+      {isBecReview && isQueuePage && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => navigate(becHeadPath("category-lists"))}
+            className="inline-flex items-center rounded-xl border border-[#b9d7e4] bg-white px-4 py-2 text-sm font-bold text-[#166e8c] shadow-sm transition hover:border-[#166e8c] hover:bg-[#edf7fb]"
+          >
+            View Category Lists
+          </button>
+        </div>
+      )}
 
       {(message || error) && (
         <div className={`rounded-[24px] p-4 text-sm font-semibold ${error ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
@@ -628,28 +668,30 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
 
       <section className={`grid gap-6 ${isDetailPage || isQueuePage ? "" : "xl:grid-cols-[1.1fr_0.9fr]"}`}>
         {!isDetailPage && (
-        <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">{roleKey} Queue</div>
-          <div className="mt-6 space-y-4">
-            {isLoading && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Loading pending requests...</div>}
-            {!isLoading && requests.length === 0 && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No pending requests.</div>}
+        <div className="overflow-hidden rounded-[30px] border border-[#dce8ef] bg-white shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
+          <div className="border-b border-[#e6eef3] px-5 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">{roleKey} Queue</div>
+          <div className="space-y-3 overflow-x-auto p-5">
+            <div className="grid min-w-[920px] grid-cols-[minmax(180px,1fr)_minmax(220px,1.3fr)_140px_155px_170px] gap-2 rounded-xl bg-[#f5fbff] px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#166e8c]">
+              <span>RR</span><span>Details</span><span>Amount</span><span>Status</span><span>Date / Time</span>
+            </div>
+            {isLoading && <div className="p-5 text-sm text-slate-600">Loading pending requests...</div>}
+            {!isLoading && requests.length === 0 && <div className="p-5 text-sm text-slate-600">No pending requests.</div>}
             {requests.map((request) => (
               <button
                 key={request.rrId}
                 type="button"
                 onClick={() => openPendingRequest(request)}
-                className={`w-full rounded-[26px] border p-5 text-left transition ${selected?.rrId === request.rrId ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#dce8ef] bg-white hover:bg-[#f8fcff]"}`}
+                className={`grid min-w-[920px] w-full grid-cols-[minmax(180px,1fr)_minmax(220px,1.3fr)_140px_155px_170px] items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition ${selected?.rrId === request.rrId ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#dce8ef] bg-white hover:bg-[#f8fcff]"}`}
               >
-                <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-lg font-black text-[#10283f]">{requestDisplayName(request)}</h3>
-                  <StatusPill status={request.status} />
-                </div>
-                <div className="mt-2 text-sm leading-7 text-slate-600">
-                  {requestContext(request) || request.divisionName || request.facultyName || "Division"} | {formatMoney(request.estimatedTotalAmount)}
-                </div>
+                <span className="truncate text-sm font-bold text-[#10283f]">{requestDisplayName(request)}</span>
+                <span className="truncate text-xs text-slate-600">{requestContext(request) || request.divisionName || request.facultyName || "Division"}</span>
+                <span className="whitespace-nowrap text-xs font-bold text-[#10283f]">{formatMoney(request.estimatedTotalAmount)}</span>
+                <span><StatusPill status={request.status} /></span>
+                <span className="whitespace-nowrap text-[10px] font-semibold text-[#166e8c]">{formatDateTime(request.updatedAt)}</span>
               </button>
             ))}
           </div>
+          <div className="px-5 pb-5"><PaginationControls page={pendingPage} setPage={setPendingPage} totalPages={pendingTotalPages} totalItems={pendingTotalItems} pageSize={QUEUE_PAGE_SIZE} alwaysShow /></div>
         </div>
         )}
 
@@ -918,18 +960,21 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
 
       {acceptedUrl && (
         <section>
-          <div className="rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="overflow-hidden rounded-[30px] border border-[#dce8ef] bg-white shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
+            <div className="flex flex-col gap-3 border-b border-[#e6eef3] px-5 py-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Division Head Final List</div>
                 <div className="mt-2 text-sm text-slate-600">Approved RRs are held here until the final list is submitted to Dean.</div>
               </div>
-              <button type="button" disabled={isActing || acceptedRequests.length === 0} onClick={submitFinalListToTec} className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79] disabled:opacity-60">
+              <button type="button" disabled={isActing || acceptedTotalItems === 0} onClick={submitFinalListToTec} className="rounded-xl bg-[#166e8c] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#145f79] disabled:opacity-60">
                 Submit Final List to Dean
               </button>
             </div>
-            <div className="mt-6 space-y-4">
-              {acceptedRequests.length === 0 && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No RRs in the final list yet.</div>}
+            <div className="space-y-3 overflow-x-auto p-5">
+              <div className="grid min-w-[940px] grid-cols-[minmax(180px,1fr)_minmax(220px,1.3fr)_110px_90px_155px_170px] gap-2 rounded-xl bg-[#f5fbff] px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#166e8c]">
+                <span>RR</span><span>Details</span><span>Priority</span><span>Specs</span><span>Status</span><span>Date / Time</span>
+              </div>
+              {acceptedRequests.length === 0 && <div className="p-5 text-sm text-slate-600">No RRs in the final list yet.</div>}
               {acceptedRequests.map((request) => (
                 <button
                   key={request.rrId}
@@ -938,38 +983,18 @@ export default function ApprovalQueue({ roleKey, title, description, pendingUrl,
                     setSelectedAccepted(request);
                     resetSpecForm();
                   }}
-                  className={`w-full rounded-[26px] border p-5 text-left transition ${selectedAccepted?.rrId === request.rrId ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#dce8ef] bg-white hover:bg-[#f8fcff]"}`}
+                  className={`grid min-w-[940px] w-full grid-cols-[minmax(180px,1fr)_minmax(220px,1.3fr)_110px_90px_155px_170px] items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition ${selectedAccepted?.rrId === request.rrId ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#dce8ef] bg-white hover:bg-[#f8fcff]"}`}
                 >
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-lg font-black text-[#10283f]">{requestDisplayName(request)}</h3>
-                    <StatusPill status={request.status} />
-                  </div>
-                  <div className="mt-2 text-sm leading-7 text-slate-600">
-                    {requestContext(request) || request.divisionName || request.facultyName || "Division"} | Priority {request.priority || "Not set"} | Specs {(request.technicalSpecifications || []).length}
-                  </div>
-                  {(request.items || []).length > 1 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {(request.items || []).filter((item) => item.hodDecision !== "REJECTED").map((item, index) => (
-                        <span key={item.itemId || index} className="rounded-full bg-[#edf7fb] px-3 py-1 text-xs font-bold text-[#166e8c]">
-                          {item.itemName || `Item ${index + 1}`}: {item.priority || "Not set"}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {(request.items || []).some((item) => item.hodComment || item.hodDecision) && (
-                    <div className="mt-3 space-y-2">
-                      {(request.items || []).map((item, index) => (
-                        <div key={item.itemId || index} className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-600">
-                          <span className="font-bold text-[#10283f]">{item.itemName || `Item ${index + 1}`}</span>
-                          {item.hodDecision ? ` | ${item.hodDecision}` : ""}
-                          {item.hodComment ? ` | ${item.hodComment}` : ""}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <span className="truncate text-sm font-bold text-[#10283f]">{requestDisplayName(request)}</span>
+                  <span className="truncate text-xs text-slate-600">{requestContext(request) || request.divisionName || request.facultyName || "Division"}</span>
+                  <span className="text-xs font-bold text-[#10283f]">{request.priority || "Not set"}</span>
+                  <span className="text-xs font-bold text-[#166e8c]">{(request.technicalSpecifications || []).length}</span>
+                  <span><StatusPill status={request.status} /></span>
+                  <span className="whitespace-nowrap text-[10px] font-semibold text-[#166e8c]">{formatDateTime(request.updatedAt)}</span>
                 </button>
               ))}
             </div>
+            <div className="px-5 pb-5"><PaginationControls page={acceptedPage} setPage={setAcceptedPage} totalPages={acceptedTotalPages} totalItems={acceptedTotalItems} pageSize={QUEUE_PAGE_SIZE} alwaysShow /></div>
           </div>
         </section>
       )}

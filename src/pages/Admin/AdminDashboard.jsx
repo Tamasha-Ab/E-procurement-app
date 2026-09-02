@@ -6,6 +6,7 @@ import PendingActionsRoundedIcon from "@mui/icons-material/PendingActionsRounded
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import { useNavigate } from "react-router-dom";
 import { adminApi } from "../../api/adminApi";
+import PageHero from "../../components/PageHero";
 
 const emptyStats = {
   totalUsers: 0,
@@ -79,17 +80,11 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-7">
-      <section className="rounded-[32px] bg-[linear-gradient(135deg,#0f2940,#166e8c)] p-8 text-white shadow-[0_28px_70px_rgba(15,41,64,0.22)]">
-        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-100">Admin Dashboard</div>
-        <div className="mt-4">
-          <div>
-            <h1 className="text-4xl font-black leading-tight">Control center for users and university structure.</h1>
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-100/90">
-              Manage account approvals, university faculties, and divisions using the backend admin API.
-            </p>
-          </div>
-        </div>
-      </section>
+      <PageHero
+        eyebrow="Admin Dashboard"
+        title="Control center for users and university structure"
+        description="Manage account approvals, university faculties, and divisions using the backend admin API."
+      />
 
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
 

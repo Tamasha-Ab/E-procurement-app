@@ -109,6 +109,7 @@ export const adminApi = {
     toggle: (division) => adminRequest(`/api/divisions/${division.divisionId || division.id}`, {
       method: "PUT",
       body: {
+        facultyId: division.facultyId || null,
         divisionName: division.divisionName,
         description: division.description,
         active: !division.active,

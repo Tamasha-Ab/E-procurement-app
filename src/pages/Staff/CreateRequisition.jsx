@@ -151,6 +151,23 @@ export default function CreateRequisition() {
     setItem((current) => ({ ...current, [field]: value }));
   };
 
+  const resetRequisitionForm = () => {
+    specificationImagesRef.current.forEach((image) => {
+      if (image.url?.startsWith("blob:")) URL.revokeObjectURL(image.url);
+    });
+    setForm({
+      ...initialForm,
+      facultyAdmin: user?.facultyName || "",
+      departmentBranch: user?.divisionName || "",
+      contactPerson: [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.username || "",
+      telephoneNo: user?.phoneNumber || "",
+    });
+    setItem({ ...emptyItem });
+    setSpecificationRows(defaultSpecificationRows.map((row) => ({ ...row })));
+    setSpecificationImages([]);
+    setCreatedRequest(null);
+  };
+
   const updateSpecificationRow = (index, field, value) => {
     setSpecificationRows((current) => current.map((row, rowIndex) => (
       rowIndex === index ? { ...row, [field]: value } : row
@@ -396,6 +413,7 @@ export default function CreateRequisition() {
       });
       setCreatedRequest(data);
       setMessage(`${data.rrNumber} submitted to Division Head.`);
+      resetRequisitionForm();
     } catch (err) {
       setError(err.message || "Could not submit requisition to Division Head.");
     } finally {

@@ -7,7 +7,7 @@ import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import PlaylistAddCheckRoundedIcon from "@mui/icons-material/PlaylistAddCheckRounded";
 import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
-import { seniorAssistantBursarPath } from "../../utils/roleRoutes";
+import { becHeadPath, becPath, seniorAssistantBursarPath } from "../../utils/roleRoutes";
 
 export const bursarSidebarItems = [
   { label: "Finance Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
@@ -29,6 +29,7 @@ export const seniorAssistantBursarSidebarItems = [
     path: seniorAssistantBursarPath("received-rr-lists"),
     activePaths: [seniorAssistantBursarPath("received-rr")],
   },
+  { label: "Created RFQs", icon: RuleFolderRoundedIcon, path: seniorAssistantBursarPath("created-rfqs") },
   { label: "Audit Trail", icon: ReceiptLongRoundedIcon, path: seniorAssistantBursarPath("audit-trail") },
   { label: "Notification", icon: NotificationsRoundedIcon, path: seniorAssistantBursarPath("notifications") },
   { label: "Settings", icon: SettingsRoundedIcon, path: seniorAssistantBursarPath("settings") },
@@ -42,23 +43,28 @@ export const financeSidebarItems = [
 ];
 
 export const becHeadSidebarItems = [
-  { label: "BEC Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
-  { label: "BEC Approvals", icon: RuleFolderRoundedIcon, path: "/approvals/bec" },
-  { label: "Category Lists", icon: ReceiptLongRoundedIcon, path: "/approvals/bec-category-list" },
-  { label: "BEC Category Assignment", icon: ManageAccountsRoundedIcon, path: "/approvals/bec/category-assignment" },
-  { label: "Quotation Review", icon: PlaylistAddCheckRoundedIcon, path: "/approvals/bec/quotations" },
-  { label: "Vendor Review", icon: RuleFolderRoundedIcon, path: "/approvals/bec/vendor-review" },
-  { label: "Selected Vendors", icon: PlaylistAddCheckRoundedIcon, path: "/approvals/bec/selected-vendors" },
-  { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: "/role-requests" },
-  { label: "Audit Trail", icon: ReceiptLongRoundedIcon, path: "/finance/audit-trail" },
-  { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
-  { label: "Tenders", icon: StorefrontRoundedIcon, path: "/tenders" },
+  { label: "BEC Dashboard", icon: DashboardRoundedIcon, path: becHeadPath("dashboard") },
+  { label: "BEC Approvals", icon: RuleFolderRoundedIcon, path: becHeadPath("approvals") },
+  { label: "Category Lists", icon: ReceiptLongRoundedIcon, path: becHeadPath("category-lists") },
+  { label: "BEC Category Assignment", icon: ManageAccountsRoundedIcon, path: becHeadPath("category-assignment") },
+  { label: "Quotation Review", icon: PlaylistAddCheckRoundedIcon, path: becHeadPath("quotation-review") },
+  { label: "Vendor Review", icon: RuleFolderRoundedIcon, path: becHeadPath("vendor-review") },
+  { label: "Selected Vendors", icon: PlaylistAddCheckRoundedIcon, path: becHeadPath("selected-vendors") },
+  { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: becHeadPath("role-requests") },
+  { label: "Audit Trail", icon: ReceiptLongRoundedIcon, path: becHeadPath("audit-trail") },
+  { label: "Notification", icon: NotificationsRoundedIcon, path: becHeadPath("notifications") },
+  { label: "Tenders", icon: StorefrontRoundedIcon, path: becHeadPath("tenders") },
+  { label: "Settings", icon: SettingsRoundedIcon, path: becHeadPath("settings") },
 ];
 
 export const becSidebarItems = [
-  { label: "BEC Dashboard", icon: DashboardRoundedIcon, path: "/dashboard" },
-  { label: "Assigned Quotations", icon: PlaylistAddCheckRoundedIcon, path: "/approvals/bec/assigned-quotations" },
-  { label: "Notification", icon: NotificationsRoundedIcon, path: "/notifications" },
+  { label: "BEC Dashboard", icon: DashboardRoundedIcon, path: becPath("dashboard") },
+  { label: "Assigned Quotations", icon: PlaylistAddCheckRoundedIcon, path: becPath("assigned-quotations") },
+  { label: "Approved Reviews", icon: RuleFolderRoundedIcon, path: becPath("approved-quotations") },
+  { label: "Audit Trail", icon: ReceiptLongRoundedIcon, path: becPath("audit-trail") },
+  { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: becPath("role-requests") },
+  { label: "Notification", icon: NotificationsRoundedIcon, path: becPath("notifications") },
+  { label: "Settings", icon: SettingsRoundedIcon, path: becPath("settings") },
 ];
 
 export const procurementOfficerSidebarItems = [
