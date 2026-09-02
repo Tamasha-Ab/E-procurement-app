@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { procurementApi } from "../../api/procurementApi";
 import { useAuth } from "../../contexts/AuthContext";
+import { becHeadPath } from "../../utils/roleRoutes";
 import { formatDateTime, formatMoney } from "../../services/apiClient";
 import { rfqDisplayName, rfqContext } from "../../utils/procurementDisplay";
 
@@ -207,6 +209,10 @@ export default function BecVendorReview() {
 
   const addToFinalList = (row) => {
     const selectionKey = finalSelectionKeyFor(row);
+    const alreadyAdded = finalList.some((entry) =>
+      entry.selectionKey === selectionKey && String(entry.quotationItemId) === String(row.item.bidItemId)
+    );
+    if (alreadyAdded) return;
     setError("");
     setMessage("");
     setAddingFinalListKey(selectionKey);
@@ -254,7 +260,9 @@ export default function BecVendorReview() {
       writeFinalList(next);
       return next;
     });
-    setMessage(`${entry.vendorName} added to the final list for ${entry.category}.`);
+    const successMessage = `${entry.vendorName} added to the final list for ${entry.category}.`;
+    setMessage(successMessage);
+    toast.success(successMessage, { autoClose: 4500 });
     window.setTimeout(() => setAddingFinalListKey(""), 200);
   };
 
@@ -276,7 +284,9 @@ Lowest quoted technically approved vendor sent to approval.`;
   const sendToApproval = async (row) => {
     const quotationItemId = row?.item?.bidItemId;
     if (!quotationItemId) {
-      setError("Quotation item ID is missing.");
+      const errorMessage = "Quotation item ID is missing.";
+      setError(errorMessage);
+      toast.error(errorMessage);
       return;
     }
     setError("");
@@ -290,9 +300,12 @@ Lowest quoted technically approved vendor sent to approval.`;
       });
       setSentApprovalItemIds((current) => new Set(current).add(String(quotationItemId)));
       setMessage("Lowest vendor quotation sent to approval.");
+      toast.success("Lowest vendor quotation sent to approval.");
       await load();
     } catch (sendError) {
-      setError(sendError.message || "Could not send this vendor quotation to approval.");
+      const errorMessage = sendError.message || "Could not send this vendor quotation to approval.";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSubmittingItemId("");
     }
@@ -314,11 +327,15 @@ Lowest quoted technically approved vendor sent to approval.`;
     const quotationId = row?.quotation?.quotationId;
     const form = documentRequests[quotationId] || {};
     if (!quotationId) {
-      setError("Quotation ID is missing.");
+      const errorMessage = "Quotation ID is missing.";
+      setError(errorMessage);
+      toast.error(errorMessage);
       return;
     }
     if (!form.requestedDocumentName?.trim()) {
-      setError("Enter the document name BEC needs from the vendor.");
+      const errorMessage = "Enter the document name BEC needs from the vendor.";
+      setError(errorMessage);
+      toast.error(errorMessage);
       return;
     }
 
@@ -331,10 +348,13 @@ Lowest quoted technically approved vendor sent to approval.`;
         note: form.note?.trim() || "",
       });
       setMessage("Document request sent to vendor.");
+      toast.success("Document request sent to vendor.");
       setDocumentRequests((current) => ({ ...current, [quotationId]: { requestedDocumentName: "", note: "" } }));
       await load();
     } catch (requestError) {
-      setError(requestError.message || "Could not request this document from the vendor.");
+      const errorMessage = requestError.message || "Could not request this document from the vendor.";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSubmittingDocumentId("");
     }
@@ -343,7 +363,9 @@ Lowest quoted technically approved vendor sent to approval.`;
   const acceptDocument = async (row) => {
     const quotationId = row?.quotation?.quotationId;
     if (!quotationId) {
-      setError("Quotation ID is missing.");
+      const errorMessage = "Quotation ID is missing.";
+      setError(errorMessage);
+      toast.error(errorMessage);
       return;
     }
 
@@ -353,9 +375,12 @@ Lowest quoted technically approved vendor sent to approval.`;
     try {
       await procurementApi.quotations.acceptDocument(token, quotationId);
       setMessage("Vendor document accepted.");
+      toast.success("Vendor document accepted.");
       await load();
     } catch (acceptError) {
-      setError(acceptError.message || "Could not accept this document.");
+      const errorMessage = acceptError.message || "Could not accept this document.";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSubmittingDocumentId("");
     }
@@ -397,7 +422,7 @@ Lowest quoted technically approved vendor sent to approval.`;
           </div>
           <button
             type="button"
-            onClick={() => navigate("/approvals/bec/vendor-final-list")}
+            onClick={() => navigate(becHeadPath("vendor-final-list"))}
             className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-black text-white hover:bg-[#145f79]"
           >
             View Final List
@@ -436,7 +461,7 @@ Lowest quoted technically approved vendor sent to approval.`;
             <>
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Categories</div>
-                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {categories.map((category) => (
                     <button
                       key={category.name}
@@ -445,13 +470,13 @@ Lowest quoted technically approved vendor sent to approval.`;
                         setSelectedCategory(category.name);
                         setSelectedItemKey("");
                       }}
-                      className={`rounded-[22px] border p-4 text-left transition ${selectedCategory === category.name ? selectedButtonClass : idleButtonClass}`}
+                      className={`rounded-2xl border px-3 py-2.5 text-left transition ${selectedCategory === category.name ? selectedButtonClass : idleButtonClass}`}
                     >
-                      <div className="text-base font-black">{category.name}</div>
-                      <div className="mt-2 text-sm font-semibold text-slate-600">
+                      <div className="text-sm font-black leading-5">{category.name}</div>
+                      <div className="mt-1 text-xs font-semibold text-slate-600">
                         {category.itemKeys.size} item{category.itemKeys.size === 1 ? "" : "s"} | {category.vendors.size} vendor{category.vendors.size === 1 ? "" : "s"}
                       </div>
-                      <div className="mt-1 text-sm font-bold text-[#166e8c]">{formatMoney(category.totalValue)}</div>
+                      <div className="mt-1 text-xs font-bold text-[#166e8c]">{formatMoney(category.totalValue)}</div>
                     </button>
                   ))}
                 </div>
@@ -460,19 +485,19 @@ Lowest quoted technically approved vendor sent to approval.`;
               {selectedCategory && (
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Items</div>
-                  <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {items.map((item) => (
                       <button
                         key={item.key}
                         type="button"
                         onClick={() => setSelectedItemKey(item.key)}
-                        className={`rounded-[22px] border p-4 text-left transition ${selectedItemKey === item.key ? selectedButtonClass : idleButtonClass}`}
+                        className={`rounded-2xl border px-3 py-2.5 text-left transition ${selectedItemKey === item.key ? selectedButtonClass : idleButtonClass}`}
                       >
-                        <div className="text-base font-black">{item.name}</div>
-                        <div className="mt-2 text-sm font-semibold text-slate-600">
+                        <div className="text-sm font-black leading-5">{item.name}</div>
+                        <div className="mt-1 text-xs font-semibold text-slate-600">
                           {item.vendors.size} vendor{item.vendors.size === 1 ? "" : "s"} quoted
                         </div>
-                        <div className="mt-1 text-sm font-bold text-[#166e8c]">{formatMoney(item.totalValue)}</div>
+                        <div className="mt-1 text-xs font-bold text-[#166e8c]">{formatMoney(item.totalValue)}</div>
                       </button>
                     ))}
                   </div>
@@ -533,7 +558,7 @@ Lowest quoted technically approved vendor sent to approval.`;
                                     <button
                                       type="button"
                                       onClick={() => addToFinalList(row)}
-                                      disabled={isAdding}
+                                      disabled={isAdding || isAddedToFinalList}
                                       className="rounded-2xl bg-[#166e8c] px-4 py-2 text-xs font-black text-white hover:bg-[#145f79] disabled:cursor-not-allowed disabled:bg-slate-300"
                                     >
                                       {isAdding ? "Adding..." : isAddedToFinalList ? "Added" : "Add to list"}

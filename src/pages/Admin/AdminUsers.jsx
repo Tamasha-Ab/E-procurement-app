@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Dialog,
@@ -13,13 +13,15 @@ import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import PowerSettingsNewRoundedIcon from "@mui/icons-material/PowerSettingsNewRounded";
+import PageHero from "../../components/PageHero";
 import { useLocation } from "react-router-dom";
 import { adminApi } from "../../api/adminApi";
+import PaginationControls from "../../components/PaginationControls";
 
 const mainRoles = ["ADMIN", "UNIVERSITY_EXECUTIVE", "FACULTY_STAFF", "FINANCE", "DPC"];
 const subRolesByMainRole = {
   UNIVERSITY_EXECUTIVE: ["VC"],
-  FACULTY_STAFF: ["DIVISION_HEAD", "DEAN", "STAFF_MEMBER", "TEC"],
+  FACULTY_STAFF: ["DIVISION_HEAD", "DEAN", "STAFF_MEMBER"],
   FINANCE: [
     "PROCUREMENT_OFFICER",
     "FINANCE_OFFICER",
@@ -80,6 +82,7 @@ const normalizeRoles = (mainRole, subRole, roles = []) => {
 
 export default function AdminUsers() {
   const location = useLocation();
+  const loadRequestId = useRef(0);
   const [users, setUsers] = useState([]);
   const [page, setPage] = useState({ number: 0, totalPages: 1, totalElements: 0 });
   const [faculties, setFaculties] = useState([]);
@@ -111,6 +114,7 @@ export default function AdminUsers() {
   }, [filters, page.number]);
 
   const load = async () => {
+    const requestId = ++loadRequestId.current;
     setLoading(true);
     setError("");
     try {
@@ -119,19 +123,21 @@ export default function AdminUsers() {
         adminApi.faculties.all().catch(() => []),
         fetch("/api/divisions").then((response) => response.json()).catch(() => ({ data: [] })),
       ]);
+      if (requestId !== loadRequestId.current) return;
       const nonVendorUsers = (userPage.content || []).filter((user) => user.mainRole !== "VENDOR");
       setUsers(nonVendorUsers);
-      setPage({
-        number: userPage.number || 0,
+      setPage((current) => ({
+        number: current.number,
         totalPages: userPage.totalPages || 1,
-        totalElements: nonVendorUsers.length,
-      });
+        totalElements: userPage.totalElements ?? nonVendorUsers.length,
+      }));
       setFaculties(Array.isArray(facultyList) ? facultyList : []);
       setDivisions(Array.isArray(divisionResponse?.data) ? divisionResponse.data : []);
     } catch (loadError) {
+      if (requestId !== loadRequestId.current) return;
       setError(loadError.message);
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestId.current) setLoading(false);
     }
   };
 
@@ -306,16 +312,11 @@ export default function AdminUsers() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)] lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Admin</div>
-          <h1 className="mt-2 text-3xl font-black text-[#10283f]">User Governance</h1>
-          <p className="mt-2 text-sm text-slate-600">{page.totalElements} users found across roles and approval states.</p>
-        </div>
+      <PageHero eyebrow="Admin" title="User Governance" description={`${page.totalElements} users found across roles and approval states.`}>
         <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate} sx={{ textTransform: "none", borderRadius: "14px", bgcolor: "#166e8c" }}>
           Create User
         </Button>
-      </section>
+      </PageHero>
 
       <section className="grid gap-3 rounded-[26px] border border-[#dce8ef] bg-white p-4 shadow-[0_12px_30px_rgba(15,41,64,0.05)] md:grid-cols-3">
         <TextField label="Search" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} size="small" />
@@ -336,42 +337,46 @@ export default function AdminUsers() {
           <table className="min-w-full text-left text-sm">
             <thead className="bg-[#f5fbff] text-xs uppercase tracking-[0.18em] text-[#166e8c]">
               <tr>
-                <th className="px-5 py-4">User</th>
-                <th className="px-5 py-4">Role</th>
-                <th className="px-5 py-4">Faculty / Division</th>
-                <th className="px-5 py-4">Status</th>
-                <th className="px-5 py-4">Actions</th>
+                <th className="px-5 py-3">User</th>
+                <th className="px-5 py-3">Role</th>
+                <th className="px-5 py-3">Faculty / Division</th>
+                <th className="px-5 py-3">Status</th>
+                <th className="px-5 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {users.map((user) => (
-                <tr key={user.userId} className="align-top">
-                  <td className="px-5 py-4">
-                    <div className="flex flex-wrap items-center gap-2 font-semibold text-[#10283f]">
+                <tr key={user.userId} className="align-middle transition hover:bg-[#f8fcff]">
+                  <td className="px-5 py-2.5">
+                    <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-[#10283f]">
                       <span>{getFullName(user)}</span>
                       {user.subRole === "BEC_HEAD" ? (
                         <span className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">Head</span>
                       ) : null}
                     </div>
-                    <div className="mt-1 text-slate-500">{user.email}</div>
+                    <div className="mt-0.5 text-xs text-slate-500">{user.email}</div>
                   </td>
-                  <td className="px-5 py-4">
-                    <div className="font-semibold text-slate-700">{user.mainRole}</div>
-                    <div className="mt-1 text-slate-500">{user.subRole || "No sub role"}</div>
-                    {(user.roles || []).length > 1 ? (
-                      <div className="mt-2 text-xs font-semibold text-[#166e8c]">
-                        {(user.roles || []).length} assigned roles
-                      </div>
-                    ) : null}
+                  <td className="px-5 py-2.5">
+                    <div className="flex max-w-xs flex-wrap gap-1">
+                      {[...new Set(
+                        ((user.roles || []).length ? user.roles : [{ mainRole: user.mainRole, subRole: user.subRole }])
+                          .map((role) => role?.subRole || role?.mainRole || String(role))
+                          .filter(Boolean)
+                      )].map((roleName) => (
+                        <span key={roleName} className="rounded-full bg-[#edf7fb] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#166e8c]">
+                          {roleName.replaceAll("_", " ")}
+                        </span>
+                      ))}
+                    </div>
                   </td>
-                  <td className="px-5 py-4 text-slate-600">
+                  <td className="px-5 py-2.5 text-xs text-slate-600">
                     {[user.facultyName, user.divisionName].filter(Boolean).join(" / ") || "Not assigned"}
                   </td>
-                  <td className="px-5 py-4">
-                    <span className="rounded-full bg-[#edf7fb] px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-[#166e8c]">{user.userStatus}</span>
-                    <div className="mt-2 text-xs text-slate-500">{user.active ? "Active" : "Inactive"}</div>
+                  <td className="px-5 py-2.5">
+                    <span className="rounded-full bg-[#edf7fb] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#166e8c]">{user.userStatus}</span>
+                    <div className="mt-1 text-[10px] text-slate-500">{user.active ? "Active" : "Inactive"}</div>
                   </td>
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-2.5">
                     <div className="flex flex-wrap gap-2">
                       <Button size="small" startIcon={<EditRoundedIcon />} onClick={() => openEdit(user)} sx={{ textTransform: "none" }}>Edit</Button>
                       {user.userStatus === "PENDING" ? (
@@ -398,6 +403,15 @@ export default function AdminUsers() {
               ) : null}
             </tbody>
           </table>
+        </div>
+        <div className="px-5 pb-5">
+          <PaginationControls
+            page={page.number}
+            setPage={(next) => setPage((current) => ({ ...current, number: typeof next === "function" ? next(current.number) : next }))}
+            totalPages={page.totalPages}
+            totalItems={page.totalElements}
+            pageSize={10}
+          />
         </div>
       </section>
 

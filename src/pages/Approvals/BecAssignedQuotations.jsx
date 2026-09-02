@@ -4,6 +4,8 @@ import StatusPill from "../../components/StatusPill";
 import { procurementApi } from "../../api/procurementApi";
 import { useAuth } from "../../contexts/AuthContext";
 import { formatDateTime, formatMoney } from "../../services/apiClient";
+import PaginationControls from "../../components/PaginationControls";
+import { toast } from "react-toastify";
 
 const cardClass = "rounded-[28px] border border-[#dce8ef] bg-white p-5 shadow-[0_18px_45px_rgba(15,41,64,0.07)]";
 const inputClass = "w-full rounded-2xl border border-[#dce8ef] bg-white px-4 py-3 text-sm outline-none focus:border-[#166e8c]";
@@ -29,9 +31,14 @@ function parseVendorSpecificationRows(specificationText = "") {
     .filter((row) => row.description || row.requiredSpecification || row.conformity || row.bidderResponse);
 }
 
-function VendorSpecificationTable({ specificationText }) {
-  const rows = parseVendorSpecificationRows(specificationText);
-  if (!rows.length) return <div className="mt-2 text-sm text-slate-600">Vendor specification text is not available.</div>;
+function VendorSpecificationTable({ specificationText, requiredSpecification }) {
+  const parsedRows = parseVendorSpecificationRows(specificationText);
+  const rows = parsedRows.length ? parsedRows : [{
+    description: "Specification",
+    requiredSpecification: requiredSpecification || "Not provided",
+    conformity: "Not provided",
+    bidderResponse: specificationText || "Not provided",
+  }];
 
   return (
     <div className="mt-3 overflow-hidden rounded-xl border border-[#c8dce7]">
@@ -59,6 +66,19 @@ function VendorSpecificationTable({ specificationText }) {
   );
 }
 
+function parseVendorDocuments(value) {
+  if (!value) return [];
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    const documents = Array.isArray(parsed) ? parsed : parsed?.requiredDocuments;
+    return Array.isArray(documents)
+      ? documents.filter((document) => document?.dataUrl || document?.url)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function buildReviewComment(item, decision, approved) {
   return [
     "BEC Member Review",
@@ -72,6 +92,10 @@ function buildReviewComment(item, decision, approved) {
     `Completeness of quotation submission form: ${decision.completeness || "YES"}`,
     `Substantial responsiveness: ${decision.responsiveness || "YES"}`,
     `Accepted for detailed evaluation: ${decision.acceptedForEvaluation || "YES"}`,
+    "",
+    "Vendor Submitted Document Review",
+    `Documents complete: ${decision.documentCompleteness || "YES"}`,
+    `Document review comment: ${decision.documentComment || "No document issues recorded."}`,
     "",
     "Clarifications sought from bidders",
     decision.clarification || "No clarification requested.",
@@ -90,26 +114,58 @@ function buildReviewComment(item, decision, approved) {
   ].join("\n");
 }
 
-export default function BecAssignedQuotations() {
+export default function BecAssignedQuotations({ approvedOnly = false }) {
   const { token, user } = useAuth();
   const isBecMember = user?.mainRole === "FINANCE" && user?.subRole === "BEC";
   const [items, setItems] = useState([]);
   const [decisions, setDecisions] = useState({});
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState("");
+  const [aiLoadingId, setAiLoadingId] = useState("");
+  const [aiReviews, setAiReviews] = useState({});
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [selectedItemId, setSelectedItemId] = useState("");
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const pageSize = 10;
 
-  const pendingItems = useMemo(
-    () => items.filter((item) => item.assignmentStatus === "ASSIGNED" || item.technicalStatus === "PENDING"),
-    [items]
+  const displayItems = useMemo(
+    () => items.filter((item) => {
+      const assignmentStatus = String(item.assignmentStatus || "").toUpperCase();
+      const technicalStatus = String(item.technicalStatus || "").toUpperCase();
+      if (approvedOnly) {
+        return assignmentStatus
+          ? assignmentStatus === "REVIEWED_APPROVED"
+          : technicalStatus === "APPROVED";
+      }
+      return assignmentStatus
+        ? assignmentStatus === "ASSIGNED"
+        : technicalStatus === "PENDING";
+    }),
+    [approvedOnly, items]
   );
+
+  useEffect(() => {
+    if (!displayItems.some((item) => String(item.quotationItemId) === selectedItemId)) {
+      setSelectedItemId("");
+    }
+  }, [displayItems, selectedItemId]);
 
   const loadItems = async () => {
     setLoading(true);
     setError("");
     try {
-      setItems(await procurementApi.quotations.myAssignedBecQuotations(token));
+      if (approvedOnly) {
+        const result = await procurementApi.quotations.myApprovedBecQuotations(token, page, pageSize);
+        setItems(result?.content || []);
+        setTotalPages(Math.max(1, Number(result?.totalPages || 1)));
+        setTotalItems(Number(result?.totalElements || 0));
+      } else {
+        const result = await procurementApi.quotations.myAssignedBecQuotations(token);
+        setItems(Array.isArray(result) ? result : []);
+      }
     } catch (err) {
       setError(err.message || "Could not load assigned quotations.");
     } finally {
@@ -119,7 +175,7 @@ export default function BecAssignedQuotations() {
 
   useEffect(() => {
     if (token && isBecMember) loadItems();
-  }, [token, isBecMember]);
+  }, [token, isBecMember, approvedOnly, page]);
 
   const updateDecision = (itemId, patch) => {
     setDecisions((current) => ({
@@ -128,6 +184,8 @@ export default function BecAssignedQuotations() {
         completeness: "YES",
         responsiveness: "YES",
         acceptedForEvaluation: "YES",
+        documentCompleteness: "YES",
+        documentComment: "",
         clarification: "",
         departure: "",
         comment: "",
@@ -139,6 +197,12 @@ export default function BecAssignedQuotations() {
 
   const reviewItem = async (item, approved) => {
     const decision = decisions[item.quotationItemId] || {};
+    if (decision.documentCompleteness === "NO" && !decision.documentComment?.trim()) {
+      const message = "Document issues mark karaddi missing document / issue comment eka required.";
+      setError(message);
+      toast.error(message, { autoClose: 5000 });
+      return;
+    }
     if (!approved && !decision.comment?.trim()) {
       setError("Reject karaddi item technical decision comment eka required.");
       return;
@@ -152,11 +216,39 @@ export default function BecAssignedQuotations() {
         evaluationComment: buildReviewComment(item, decision, approved),
       });
       setNotice(approved ? "Quotation item approved and sent to BEC Head vendor review list." : "Quotation item rejected and sent back with comment.");
+      toast.success(approved ? "Quotation item approved and sent to BEC Head vendor review list." : "Quotation item rejected and sent back with comment.", { autoClose: 4500 });
       await loadItems();
     } catch (err) {
       setError(err.message || "Could not save BEC review.");
+      toast.error(err.message || "Could not save BEC review.", { autoClose: 5000 });
     } finally {
       setSavingId("");
+    }
+  };
+
+  const runAiReview = async (item) => {
+    if (!item.quotationId) {
+      setError("This assignment does not include a quotation ID for AI review.");
+      return;
+    }
+    setAiLoadingId(String(item.quotationId));
+    setError("");
+    setNotice("");
+    try {
+      const review = await procurementApi.quotations.aiReview(token, item.quotationId);
+      setAiReviews((current) => ({ ...current, [item.quotationId]: review }));
+      const itemSuggestion = (review?.items || []).find(
+        (entry) => String(entry.quotationItemId) === String(item.quotationItemId)
+      );
+      const suggestion = itemSuggestion?.recommendation || itemSuggestion?.summary || itemSuggestion?.reason;
+      if (suggestion) updateDecision(item.quotationItemId, { comment: suggestion });
+      setNotice("AI quotation review generated. Please verify the suggestion before making the final decision.");
+      toast.success("AI quotation review generated. Please verify it before making the final decision.", { autoClose: 4500 });
+    } catch (err) {
+      setError(err.message || "Could not generate the AI quotation review.");
+      toast.error(err.message || "Could not generate the AI quotation review.", { autoClose: 5000 });
+    } finally {
+      setAiLoadingId("");
     }
   };
 
@@ -173,19 +265,67 @@ export default function BecAssignedQuotations() {
     <div className="min-h-screen bg-[#f4f8fb] p-6">
       <PageHero
         eyebrow="BEC Member"
-        title="Assigned Quotation Reviews"
-        description="Review quotation details, specification departures, and responsive bid checks for categories assigned by the BEC Head."
+        title={approvedOnly ? "Approved Quotation Reviews" : "Assigned Quotation Reviews"}
+        description={approvedOnly
+          ? "Review quotation items you have already technically approved."
+          : "Select a pending assigned item to review quotation details, specification departures, and responsive bid checks."}
       />
 
       {notice && <div className="mb-4 rounded-2xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">{notice}</div>}
       {error && <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
       {loading && <div className="mb-4 rounded-2xl bg-white p-4 text-sm font-semibold text-slate-600">Loading assigned quotations...</div>}
-      {!loading && !pendingItems.length && <div className={cardClass}>No pending assigned quotation reviews.</div>}
+      {!loading && !displayItems.length && <div className={cardClass}>{approvedOnly ? "No approved quotation reviews." : "No pending assigned quotation reviews."}</div>}
 
-      <div className="space-y-5">
-        {pendingItems.map((item) => {
+      {!loading && displayItems.length > 0 && (
+        <section className={`${cardClass} mb-5 mt-8`}>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">{approvedOnly ? "Approved items" : "Pending items"}</div>
+            <div className="rounded-full bg-[#edf7fb] px-3 py-1 text-xs font-bold text-[#166e8c]">{approvedOnly ? totalItems : displayItems.length} items</div>
+          </div>
+          {approvedOnly ? (
+            <div className="overflow-x-auto rounded-2xl border border-[#dce8ef]">
+              <table className="w-full min-w-[850px] border-collapse text-sm">
+                <thead className="bg-[#edf7fb] text-left text-[11px] font-black uppercase tracking-[0.14em] text-[#166e8c]"><tr><th className="px-4 py-3">Item</th><th className="px-4 py-3">Vendor</th><th className="px-4 py-3">RFQ</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Reviewed Date / Time</th></tr></thead>
+                <tbody>
+                  {displayItems.map((item) => (
+                    <tr key={item.quotationItemId} onClick={() => { setSelectedItemId(String(item.quotationItemId)); requestAnimationFrame(() => document.getElementById("bec-assignment-details")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} className={`cursor-pointer border-t border-[#e5eef3] transition ${selectedItemId === String(item.quotationItemId) ? "bg-[#e7f5fb]" : "bg-white hover:bg-[#f5fbfe]"}`}>
+                      <td className="px-4 py-3 font-black text-[#10283f]">{item.requisitionItemName || "Quotation item"}</td><td className="px-4 py-3 text-slate-600">{item.vendorName || "Vendor"}</td><td className="px-4 py-3 text-slate-600">{item.rfqNumber || `RFQ ${item.rfqId}`}</td><td className="px-4 py-3 text-slate-600">{item.category || "Not recorded"}</td><td className="px-4 py-3"><StatusPill status={item.technicalStatus || item.assignmentStatus} /></td><td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatDateTime(item.updatedAt || item.submittedAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+          <div className="overflow-hidden rounded-2xl border border-[#dce8ef]">
+            {displayItems.map((item) => (
+              <button
+                key={item.quotationItemId}
+                type="button"
+                onClick={() => {
+                  setSelectedItemId(String(item.quotationItemId));
+                  requestAnimationFrame(() => document.getElementById("bec-assignment-details")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+                }}
+                className={`grid w-full gap-2 border-b border-[#e5eef3] px-4 py-3 text-left text-sm transition last:border-b-0 md:grid-cols-[1.2fr_1fr_0.8fr_0.8fr] md:items-center ${selectedItemId === String(item.quotationItemId) ? "bg-[#e7f5fb]" : "bg-white hover:bg-[#f5fbfe]"}`}
+              >
+                <span className="font-black text-[#10283f]">{item.requisitionItemName || "Quotation item"}</span>
+                <span className="truncate text-slate-600">{item.vendorName || "Vendor"}</span>
+                <span className="text-slate-600">{item.rfqNumber || `RFQ ${item.rfqId}`}</span>
+                <span className="md:text-right"><StatusPill status={item.technicalStatus || item.assignmentStatus} /></span>
+              </button>
+            ))}
+          </div>
+          )}
+          {approvedOnly && <PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} alwaysShow />}
+        </section>
+      )}
+
+      <div id="bec-assignment-details" className="scroll-mt-28 space-y-5">
+        {displayItems.filter((item) => String(item.quotationItemId) === selectedItemId).map((item) => {
           const decision = decisions[item.quotationItemId] || {};
+          const vendorDocuments = parseVendorDocuments(item.quotationDocuments);
           const saving = savingId === String(item.quotationItemId);
+          const aiReview = aiReviews[item.quotationId];
+          const aiLoading = aiLoadingId === String(item.quotationId);
           return (
             <section key={item.quotationItemId} className={cardClass}>
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -199,17 +339,50 @@ export default function BecAssignedQuotations() {
                 <StatusPill status={item.technicalStatus || item.assignmentStatus || "PENDING"} />
               </div>
 
-              <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">University / RR Specification</div>
-                  <div className="mt-2 text-sm leading-7 text-slate-700">{item.requiredSpecification || "No RR specification linked."}</div>
-                  {item.requiredSpecificationDocumentUrl && <a className="mt-3 inline-block text-sm font-bold text-[#166e8c]" href={item.requiredSpecificationDocumentUrl} target="_blank" rel="noreferrer">Open university spec document</a>}
+              <div className="mt-5 rounded-2xl bg-[#edf7fb] p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">University / RR and Vendor Specification Comparison</div>
+                <p className="mt-1 text-xs text-slate-500">The first two columns show the university requirement; the remaining columns show the vendor response.</p>
+                <VendorSpecificationTable specificationText={item.vendorSpecification} requiredSpecification={item.requiredSpecification} />
+                <div className="mt-3 flex flex-wrap gap-4">
+                  {item.requiredSpecificationDocumentUrl && <a className="text-sm font-bold text-[#166e8c]" href={item.requiredSpecificationDocumentUrl} target="_blank" rel="noreferrer">Open university spec document</a>}
+                  {item.specificationDocumentUrl && <a className="text-sm font-bold text-[#166e8c]" href={item.specificationDocumentUrl} target="_blank" rel="noreferrer">Open vendor spec document</a>}
                 </div>
-                <div className="rounded-2xl bg-[#edf7fb] p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Vendor Specification</div>
-                  <VendorSpecificationTable specificationText={item.vendorSpecification} />
-                  {item.specificationDocumentUrl && <a className="mt-3 inline-block text-sm font-bold text-[#166e8c]" href={item.specificationDocumentUrl} target="_blank" rel="noreferrer">Open vendor spec document</a>}
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-[#dce8ef] bg-[#fbfdff] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Vendor Submitted Documents</div>
+                    <p className="mt-1 text-xs text-slate-500">Documents saved by the vendor during quotation submission.</p>
+                  </div>
+                  <span className="rounded-full bg-[#edf7fb] px-3 py-1 text-xs font-bold text-[#166e8c]">{vendorDocuments.length} documents</span>
                 </div>
+                <div className="mt-3 overflow-hidden rounded-xl border border-[#dce8ef] bg-white">
+                  {vendorDocuments.length ? vendorDocuments.map((document, index) => {
+                    const documentUrl = document.dataUrl || document.url;
+                    return (
+                      <div key={`${document.label || document.fileName}-${index}`} className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5eef3] px-4 py-3 last:border-b-0">
+                        <div className="min-w-0">
+                          <div className="font-bold text-[#10283f]">{document.label || `Document ${index + 1}`}</div>
+                          <div className="truncate text-xs text-slate-500">{document.fileName || "Uploaded document"}</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <a href={documentUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-[#166e8c] px-3 py-2 text-xs font-bold text-[#166e8c]">View</a>
+                          <a href={documentUrl} download={document.fileName || `vendor-document-${index + 1}`} className="rounded-xl bg-[#166e8c] px-3 py-2 text-xs font-bold text-white">Download</a>
+                        </div>
+                      </div>
+                    );
+                  }) : <div className="px-4 py-4 text-sm text-slate-500">No reusable vendor documents were saved for this quotation.</div>}
+                </div>
+                {!approvedOnly && (
+                  <div className="mt-4 grid gap-3 lg:grid-cols-[260px_1fr]">
+                    <select className={inputClass} value={decision.documentCompleteness || "YES"} onChange={(e) => updateDecision(item.quotationItemId, { documentCompleteness: e.target.value })}>
+                      <option value="YES">Documents: Complete</option>
+                      <option value="NO">Documents: Has issues</option>
+                    </select>
+                    <textarea className={`${inputClass} min-h-[84px]`} value={decision.documentComment || ""} onChange={(e) => updateDecision(item.quotationItemId, { documentComment: e.target.value })} placeholder="Missing documents, issues, or review comment" />
+                  </div>
+                )}
               </div>
 
               <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -250,7 +423,27 @@ export default function BecAssignedQuotations() {
                 </div>
               </div>
 
-              <div className="mt-5 rounded-2xl border border-[#dce8ef] bg-[#fbfdff] p-4">
+              {!approvedOnly && <div className="mt-5 rounded-2xl border border-[#cfe1eb] bg-[#edf7fb] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">AI-assisted review</div>
+                    <div className="mt-1 text-sm text-slate-600">Compare the quotation with the required specifications using the configured Gemini model.</div>
+                  </div>
+                  <button type="button" disabled={aiLoading || !item.quotationId} onClick={() => runAiReview(item)} className={`${buttonClass} bg-[#166e8c] hover:bg-[#105873]`}>
+                    {aiLoading ? "Running AI Review..." : "Run AI Review"}
+                  </button>
+                </div>
+                {aiReview && (
+                  <div className="mt-4 rounded-xl border border-[#c8dce7] bg-white p-4">
+                    <div className="font-black text-[#10283f]">{aiReview.summary || "AI review completed."}</div>
+                    <div className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      Status {aiReview.overallStatus || "REVIEWED"} | Model {aiReview.model || "Gemini"} | Reviewed {formatDateTime(aiReview.reviewedAt)}
+                    </div>
+                  </div>
+                )}
+              </div>}
+
+              {!approvedOnly && <div className="mt-5 rounded-2xl border border-[#dce8ef] bg-[#fbfdff] p-4">
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Item Technical Decision</div>
                 <textarea className={`${inputClass} mt-3 min-h-[130px]`} value={decision.comment || ""} onChange={(e) => updateDecision(item.quotationItemId, { comment: e.target.value })} placeholder="Add final technical comment" />
                 <div className="mt-4 flex flex-wrap gap-3">
@@ -261,7 +454,7 @@ export default function BecAssignedQuotations() {
                     {saving ? "Saving..." : "Reject Quotation Item"}
                   </button>
                 </div>
-              </div>
+              </div>}
             </section>
           );
         })}

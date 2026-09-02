@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { useAuth } from "../../contexts/AuthContext";
+import { becHeadPath } from "../../utils/roleRoutes";
 import { procurementApi, vendorProcurementApi } from "../../api/procurementApi";
 import { formatDateTime, formatMoney } from "../../services/apiClient";
 import { requestDisplayName, rfqDisplayName, rfqContext } from "../../utils/procurementDisplay";
+import PaginationControls from "../../components/PaginationControls";
+import { toast } from "react-toastify";
 
 const cardClass = "rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]";
 const inputClass = "w-full rounded-2xl border border-[#dce8ef] bg-white px-4 py-3 text-sm outline-none focus:border-[#166e8c]";
@@ -290,7 +293,7 @@ function RfqList({ rfqs, onSelect, selectedId }) {
   );
 }
 
-function DataTable({ rows, columns, empty }) {
+function DataTable({ rows, columns, empty, compact = false }) {
   if (!rows.length) return <EmptyState text={empty} />;
   const rowKey = (row, index) => [
     row.quotationId,
@@ -319,7 +322,7 @@ function DataTable({ rows, columns, empty }) {
           {rows.map((row, index) => (
             <tr key={rowKey(row, index)}>
               {columns.map((column) => (
-                <td key={column.key} className="px-4 py-4 text-slate-700">
+                <td key={column.key} className={`${compact ? "px-3 py-2" : "px-4 py-4"} text-slate-700`}>
                   {column.render ? column.render(row) : row[column.key] ?? "Not set"}
                 </td>
               ))}
@@ -725,8 +728,15 @@ function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false
   const [rfqLookup, setRfqLookup] = useState("");
   const [specRfqs, setSpecRfqs] = useState([]);
   const [publishedRfqs, setPublishedRfqs] = useState([]);
+  const [publishedRfqRows, setPublishedRfqRows] = useState([]);
+  const [rfqPage, setRfqPage] = useState(0);
+  const [rfqTotalPages, setRfqTotalPages] = useState(1);
+  const [rfqTotalItems, setRfqTotalItems] = useState(0);
+  const [rfqSearch, setRfqSearch] = useState("");
+  const [debouncedRfqSearch, setDebouncedRfqSearch] = useState("");
   const [bids, setBids] = useState([]);
   const [quotations, setQuotations] = useState([]);
+  const [sentQuotationIds, setSentQuotationIds] = useState(() => new Set());
   const [objections, setObjections] = useState([]);
   const [reports, setReports] = useState([]);
   const [meetingRecord, setMeetingRecord] = useState(null);
@@ -742,6 +752,24 @@ function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false
   const [recommendation, setRecommendation] = useState({ rfqId: "", bidId: "" });
   const [objectionDecision, setObjectionDecision] = useState({ objectionId: "", status: "RESOLVED", resolutionComment: "" });
   const [offer, setOffer] = useState(initialOffer);
+  const [quotationResultsVisible, setQuotationResultsVisible] = useState(false);
+  const quotationResultsRef = useRef(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setDebouncedRfqSearch(rfqSearch.trim()); setRfqPage(0); }, 350);
+    return () => window.clearTimeout(timer);
+  }, [rfqSearch]);
+
+  useEffect(() => {
+    if (!quotationReviewOnly || activeSection !== "quotations") return;
+    procurementApi.rfqs.publishedForBecPage(token, rfqPage, 10, debouncedRfqSearch)
+      .then((data) => {
+        setPublishedRfqRows(data?.content || []);
+        setRfqTotalPages(Math.max(1, data?.totalPages || 1));
+        setRfqTotalItems(data?.totalElements || 0);
+      })
+      .catch((err) => setError(err.message || "Could not load published RFQs."));
+  }, [token, quotationReviewOnly, activeSection, rfqPage, debouncedRfqSearch, setError]);
 
   const tecRfqs = Array.from(
     new Map([...specRfqs, ...publishedRfqs].filter((rfq) => rfq?.rfqId).map((rfq) => [String(rfq.rfqId), rfq])).values()
@@ -881,7 +909,16 @@ function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false
         setQuotations(getArray(quotationData));
         setSelectedQuotation(null);
         setRfqLookup(targetRfqId);
+        setQuotationResultsVisible(true);
         setMessage("RFQ quotation data loaded.");
+        const openedRfq = tecRfqs.find((rfq) => String(rfq.rfqId) === String(targetRfqId));
+        const openingTime = openedRfq?.submissionDeadline || openedRfq?.bidOpeningDateTime;
+        if (openedRfq && (!openingTime || new Date(openingTime).getTime() <= Date.now())) {
+          toast.info(`${rfqDisplayName(openedRfq)} is open for quotation evaluation.`, { autoClose: 4500 });
+        } else {
+          toast.success("RFQ quotation data loaded.", { autoClose: 3500 });
+        }
+        window.requestAnimationFrame(() => quotationResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
         return;
       }
       const [bidData, quotationData, objectionData, reportData, meetingData] = await Promise.all([
@@ -1119,7 +1156,7 @@ function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false
       setMessage(technicallyQualified ? "Quotation item approved and added to its approved list." : "Quotation item rejected with comment.");
       setQuotationItemDecisions((current) => ({ ...current, [itemId]: { technicallyQualified: true, evaluationComment: "" } }));
       if (quotationReviewOnly && technicallyQualified) {
-        navigate("/approvals/bec/vendor-review");
+        navigate(becHeadPath("vendor-review"));
         return;
       }
       loadRfqWork();
@@ -1323,6 +1360,15 @@ This offer letter is issued for the selected quotation item listed above.`;
   };
 
   const sendQuotationToRelevantBec = async (quotation) => {
+    const quotationKey = String(quotation.quotationId);
+    const existingItems = quotation.items || [];
+    const alreadyAssigned = sentQuotationIds.has(quotationKey) || (existingItems.length > 0 && existingItems.every((item) =>
+      item.assignmentStatus || item.becAssignmentStatus || item.assignedBecUserId || item.becUserId
+    ));
+    if (alreadyAssigned) {
+      toast.info("Already sent to the relevant BEC member.", { autoClose: 4000 });
+      return;
+    }
     const items = quotation.items || [];
     if (!items.length) {
       setError("This quotation has no items to assign.");
@@ -1356,10 +1402,13 @@ This offer letter is issued for the selected quotation item listed above.`;
       await Promise.all(payloads.map(({ item, category, becUserId }) =>
         procurementApi.quotations.assignToBec(token, item.bidItemId, { becUserId, category })
       ));
+      setSentQuotationIds((current) => new Set(current).add(quotationKey));
       await loadRfqWork();
       setMessage("Quotation sent to the relevant BEC member for assigned category review.");
+      toast.success("Quotation sent to the relevant BEC member for assigned category review.", { autoClose: 4500 });
     } catch (err) {
       setError(err.message || "Could not send quotation to relevant BEC member.");
+      toast.error(err.message || "Could not send quotation to relevant BEC member.", { autoClose: 5000 });
     }
   };
 
@@ -1412,10 +1461,10 @@ This offer letter is issued for the selected quotation item listed above.`;
 
   return (
     <div className="space-y-6">
-      <section className={cardClass}>
+      {!quotationReviewOnly && <section className="rounded-2xl border border-[#dce8ef] bg-white p-4 shadow-[0_12px_30px_rgba(15,41,64,0.06)]">
         <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Tender Evaluation</div>
-        <h2 className="mt-3 text-2xl font-black text-[#10283f]">Choose RFQ and evaluation step</h2>
-          <form onSubmit={loadRfqWork} className="mt-6 grid gap-3 md:grid-cols-[1fr_auto]">
+        <h2 className="mt-1 text-xl font-black text-[#10283f]">Choose RFQ and evaluation step</h2>
+          <form onSubmit={loadRfqWork} className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
             <SelectField
               value={rfqLookup}
               onChange={(e) => selectLoadedRfq(e.target.value)}
@@ -1424,7 +1473,7 @@ This offer letter is issued for the selected quotation item listed above.`;
             />
             <button className={buttonClass} type="submit">Load Tender Data</button>
           </form>
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           {sections.map((section) => (
             <button
               key={section.id}
@@ -1438,7 +1487,7 @@ This offer letter is issued for the selected quotation item listed above.`;
             </button>
           ))}
         </div>
-      </section>
+      </section>}
 
       {activeSection === "specs" && (
         <ActionCard eyebrow="Specifications" title="Add Tender Specification">
@@ -1513,9 +1562,22 @@ This offer letter is issued for the selected quotation item listed above.`;
       )}
 
       {activeSection === "quotations" && (
-        <ActionCard eyebrow="RFQ Quotations" title={quotationReviewOnly ? "BEC Vendor Specification Review" : "Check and Evaluate Vendor Quotations"}>
-          <DataTable
-            rows={publishedRfqs}
+        <div className="space-y-6">
+          <section className="rounded-2xl border border-[#dce8ef] bg-white p-4 shadow-[0_12px_30px_rgba(15,41,64,0.06)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Published RFQ</div>
+            <form onSubmit={loadRfqWork} className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+              <SelectField value={rfqLookup} onChange={(e) => selectLoadedRfq(e.target.value)} options={publishedRfqOptions} placeholder="Select published RFQ" required />
+              <button className={`${buttonClass} self-end`} type="submit">Show Quotations</button>
+            </form>
+          </section>
+
+        <div ref={quotationResultsRef} className={`scroll-mt-24 ${quotationReviewOnly && !quotationResultsVisible ? "hidden" : ""}`}>
+        <ActionCard eyebrow={quotationReviewOnly ? "Submitted Quotations" : "RFQ Quotations"} title={quotationReviewOnly ? (selectedRfq ? rfqDisplayName(selectedRfq) : "Vendor Quotations") : "Check and Evaluate Vendor Quotations"}>
+          {!quotationReviewOnly && <div className="mb-4 rounded-xl border border-[#dce8ef] bg-[#f8fcff] p-3">
+            <input value={rfqSearch} onChange={(event) => setRfqSearch(event.target.value)} placeholder="Search RFQ number, title or category" className="w-full rounded-xl border border-[#d3e3eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#166e8c]" />
+          </div>}
+          {!quotationReviewOnly && <DataTable
+            rows={quotationReviewOnly ? publishedRfqRows : publishedRfqs}
             empty="No published RFQs available for quotation checking."
             columns={[
               { key: "title", label: "Quotation Request", render: (row) => rfqDisplayName(row) },
@@ -1523,19 +1585,7 @@ This offer letter is issued for the selected quotation item listed above.`;
               { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
               { key: "bidOpeningDateTime", label: "Closing Time", render: (row) => formatDateTime(row.submissionDeadline || row.bidOpeningDateTime) },
             ]}
-          />
-          <form onSubmit={loadRfqWork} className="grid gap-3 md:grid-cols-[1fr_auto]">
-            <Field label="Published RFQ">
-              <SelectField
-                value={rfqLookup}
-                onChange={(e) => selectLoadedRfq(e.target.value)}
-                options={publishedRfqOptions}
-                placeholder="Select published RFQ"
-                required
-              />
-            </Field>
-            <button className={`${buttonClass} self-end`} type="submit">Show Quotations</button>
-          </form>
+          />}
           {selectedRfq && (
             <div className={`rounded-[24px] p-4 text-sm font-semibold ${isSelectedRfqOpen ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
               {isSelectedRfqOpen
@@ -1545,6 +1595,7 @@ This offer letter is issued for the selected quotation item listed above.`;
           )}
           <DataTable
             rows={quotations}
+            compact
             empty="Select an RFQ and click Show Quotations to see submitted quotations."
             columns={[
               { key: "quotationId", label: "Quotation ID" },
@@ -1558,11 +1609,23 @@ This offer letter is issued for the selected quotation item listed above.`;
               {
                 key: "actions",
                 label: "Details",
-                render: (row) => row.sealed ? "Locked" : (
-                  <button className="rounded-xl bg-[#edf7fb] px-3 py-2 text-xs font-bold text-[#166e8c] hover:bg-[#d9edf5]" type="button" onClick={() => quotationReviewOnly ? sendQuotationToRelevantBec(row) : openQuotationDetails(row)}>
-                    {quotationReviewOnly ? "Send to relevant BEC" : "View Details"}
-                  </button>
-                ),
+                render: (row) => {
+                  if (row.sealed) return "Locked";
+                  const sent = quotationReviewOnly && (
+                    sentQuotationIds.has(String(row.quotationId)) ||
+                    ((row.items || []).length > 0 && (row.items || []).every((item) => item.assignmentStatus || item.becAssignmentStatus || item.assignedBecUserId || item.becUserId))
+                  );
+                  return (
+                    <button
+                      className={`rounded-xl px-3 py-2 text-xs font-bold ${sent ? "cursor-not-allowed bg-slate-100 text-slate-500" : "bg-[#edf7fb] text-[#166e8c] hover:bg-[#d9edf5]"}`}
+                      type="button"
+                      aria-disabled={sent}
+                      onClick={() => quotationReviewOnly ? sendQuotationToRelevantBec(row) : openQuotationDetails(row)}
+                    >
+                      {quotationReviewOnly ? (sent ? "Sent" : "Send to relevant BEC") : "View Details"}
+                    </button>
+                  );
+                },
               },
             ]}
           />
@@ -2132,6 +2195,26 @@ This offer letter is issued for the selected quotation item listed above.`;
             </div>
           )}
         </ActionCard>
+        </div>
+
+        {quotationReviewOnly && <ActionCard eyebrow="RFQ Quotations" title="BEC Vendor Specification Review">
+          <div className="mb-4 rounded-xl border border-[#dce8ef] bg-[#f8fcff] p-3">
+            <input value={rfqSearch} onChange={(event) => setRfqSearch(event.target.value)} placeholder="Search RFQ number, title or category" className="w-full rounded-xl border border-[#d3e3eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#166e8c]" />
+          </div>
+          <DataTable
+            rows={publishedRfqRows}
+            compact
+            empty="No published RFQs available for quotation checking."
+            columns={[
+              { key: "title", label: "Quotation Request", render: (row) => rfqDisplayName(row) },
+              { key: "category", label: "Context", render: (row) => rfqContext(row) || "Not recorded" },
+              { key: "status", label: "Status", render: (row) => <StatusPill status={row.status} /> },
+              { key: "bidOpeningDateTime", label: "Closing Time", render: (row) => formatDateTime(row.submissionDeadline || row.bidOpeningDateTime) },
+            ]}
+          />
+          <PaginationControls page={rfqPage} setPage={setRfqPage} totalPages={rfqTotalPages} totalItems={rfqTotalItems} pageSize={10} alwaysShow />
+        </ActionCard>}
+        </div>
       )}
 
       {activeSection === "objections" && (

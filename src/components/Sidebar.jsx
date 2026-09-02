@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getSidebarItems } from "./sidebars/getSidebarItems";
 import { apiRequest } from "../services/apiClient";
+import { roleScopedNotifications } from "../utils/notificationRoles";
 
 const Sidebar = () => {
   const { user, token, logout } = useAuth();
@@ -15,6 +16,7 @@ const Sidebar = () => {
 
   const isActiveItem = (item) => {
     const currentPath = location.pathname;
+    if ((item?.excludePaths || []).some((path) => currentPath === path || currentPath.startsWith(`${path}/`))) return false;
     const itemPath = item?.path || "/dashboard";
     if (itemPath === "/dashboard") {
       return currentPath === "/" || currentPath === "/dashboard";
@@ -25,8 +27,8 @@ const Sidebar = () => {
 
   const loadUnreadCount = () => {
     if (!token || !hasNotifications) return;
-    apiRequest("/api/notifications/my/unread-count", { token })
-      .then((data) => setUnreadCount(Number(data?.unreadCount || 0)))
+    apiRequest("/api/notifications/my", { token })
+      .then((data) => setUnreadCount(roleScopedNotifications(data, user).filter((item) => !item.read).length))
       .catch(() => setUnreadCount(0));
   };
 
@@ -40,7 +42,7 @@ const Sidebar = () => {
       window.removeEventListener("notifications:changed", loadUnreadCount);
       window.removeEventListener("focus", loadUnreadCount);
     };
-  }, [token, hasNotifications]);
+  }, [token, hasNotifications, user?.mainRole, user?.subRole]);
 
   return (
     <aside className="sticky top-[68px] hidden h-[calc(100vh-68px)] w-[280px] flex-shrink-0 flex-col px-5 py-3 lg:flex xl:w-[290px] xl:px-6">

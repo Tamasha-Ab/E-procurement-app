@@ -9,6 +9,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { getDashboardPath, getUserNotificationsPath, getUserSettingsPath } from "../utils/roleRoutes";
 import { apiRequest } from "../services/apiClient";
+import { toast } from "react-toastify";
+import { roleScopedNotifications } from "../utils/notificationRoles";
 
 const Header = () => {
   const { user, token, switchRole } = useAuth();
@@ -34,8 +36,8 @@ const Header = () => {
   useEffect(() => {
     if (!token) return undefined;
     const loadUnreadCount = () => {
-      apiRequest("/api/notifications/my/unread-count", { token })
-        .then((data) => setUnreadCount(Number(data?.unreadCount || 0)))
+      apiRequest("/api/notifications/my", { token })
+        .then((data) => setUnreadCount(roleScopedNotifications(data, user).filter((item) => !item.read).length))
         .catch(() => setUnreadCount(0));
     };
     loadUnreadCount();
@@ -47,7 +49,7 @@ const Header = () => {
       window.removeEventListener("notifications:changed", loadUnreadCount);
       window.removeEventListener("focus", loadUnreadCount);
     };
-  }, [token]);
+  }, [token, user?.mainRole, user?.subRole]);
 
   useEffect(() => {
     const closeOnOutsideClick = (event) => {
@@ -67,6 +69,8 @@ const Header = () => {
     try {
       const result = await switchRole({ mainRole: role.mainRole, subRole: role.subRole || null });
       setRoleMenuOpen(false);
+      toast.success(`You switched to ${roleLabel(role)}.`, { autoClose: 3000 });
+      window.dispatchEvent(new Event("notifications:changed"));
       navigate(getDashboardPath(result.user), { replace: true });
     } catch (error) {
       setRoleError(error.message || "Could not switch role.");

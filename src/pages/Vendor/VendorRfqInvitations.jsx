@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@mui/material";
 import AddTaskRoundedIcon from "@mui/icons-material/AddTaskRounded";
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { vendorApi } from "../../api/vendorApi";
 import PageHero from "../../components/PageHero";
 import { rfqDisplayName, rfqContext } from "../../utils/procurementDisplay";
+import PaginationControls, { usePagination } from "../../components/PaginationControls";
 
 const cardClass = "rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]";
 
@@ -44,6 +45,8 @@ export default function VendorRfqInvitations() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [selected, setSelected] = useState(null);
+  const detailsRef = useRef(null);
 
   const load = async () => {
     setLoading(true);
@@ -55,8 +58,15 @@ export default function VendorRfqInvitations() {
         vendorApi.quotations.list().catch(() => []),
       ]);
       setProfile(profileData);
-      setRfqs(safeList(rfqList));
-      setQuotations(safeList(quotationList));
+      const invitationList = safeList(rfqList);
+      const vendorQuotations = safeList(quotationList);
+      const submittedIds = new Set(vendorQuotations.map((quotation) => String(quotation.rfqId)));
+      const openInvitations = invitationList.filter(
+        (rfq) => !submittedIds.has(String(rfq.rfqId)) && rfq.status !== "OFFER_LETTER_APPROVED"
+      );
+      setRfqs(openInvitations);
+      if (focusRfqId) setSelected(openInvitations.find((rfq) => String(rfq.rfqId) === String(focusRfqId)) || null);
+      setQuotations(vendorQuotations);
     } catch (loadError) {
       setError(loadError.message || "Could not load RFQ invitations.");
     } finally {
@@ -68,9 +78,10 @@ export default function VendorRfqInvitations() {
     load();
   }, []);
 
-  const submittedRfqIds = useMemo(() => new Set(quotations.map((quotation) => quotation.rfqId)), [quotations]);
+  const submittedRfqIds = useMemo(() => new Set(quotations.map((quotation) => String(quotation.rfqId))), [quotations]);
   const vendorStatus = profile?.vendorStatus || "";
   const canSubmitVendorWork = vendorStatus === "APPROVED";
+  const { page, setPage, totalPages, pageItems, pageSize } = usePagination(rfqs, 10);
 
   const openQuotation = (rfq) => {
     if (!canSubmitVendorWork) {
@@ -78,6 +89,11 @@ export default function VendorRfqInvitations() {
       return;
     }
     navigate(`/vendor/quotation-submission?rfqId=${rfq.rfqId}`);
+  };
+
+  const selectRfq = (rfq) => {
+    setSelected(rfq);
+    window.requestAnimationFrame(() => detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
   return (
@@ -111,65 +127,81 @@ export default function VendorRfqInvitations() {
           </span>
         </div>
 
-        <div className="mt-6 space-y-4">
+        <div className="mt-5 overflow-x-auto">
+          <div className="grid min-w-[1010px] grid-cols-[220px_180px_40px_150px_140px_30px_250px] gap-2 rounded-xl bg-[#f5fbff] px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#166e8c]"><span>RFQ</span><span>Status</span><span aria-hidden="true" /><span>Submission</span><span>Bid Opening</span><span aria-hidden="true" /><span className="text-right">Actions</span></div>
+          <div className="mt-2 space-y-2">
           {loading && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Loading RFQ invitations...</div>}
           {!loading && !rfqs.length && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No RFQ invitations are available right now.</div>}
-          {rfqs.map((rfq) => (
-            <article
+          {pageItems.map((rfq) => (
+            <div
               key={rfq.rfqId}
-              className={`rounded-[24px] border p-5 ${
-                String(rfq.rfqId) === String(focusRfqId)
+              role="button"
+              tabIndex={0}
+              onClick={() => selectRfq(rfq)}
+              onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") selectRfq(rfq); }}
+              className={`grid min-w-[1010px] cursor-pointer grid-cols-[220px_180px_40px_150px_140px_30px_250px] items-center gap-2 rounded-xl border px-3 py-2.5 transition ${
+                String(rfq.rfqId) === String(selected?.rfqId || focusRfqId)
                   ? "border-[#166e8c] bg-[#f5fbff]"
-                  : "border-[#e6eef3] bg-slate-50"
+                  : "border-[#e6eef3] bg-slate-50 hover:bg-[#f8fcff]"
               }`}
             >
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#166e8c]">
-                    {rfqContext(rfq) || "Vendor invitation"}
-                  </div>
-                  <h3 className="mt-2 text-xl font-bold text-[#10283f]">{rfqDisplayName(rfq)}</h3>
-                  <p className="mt-2 max-w-3xl whitespace-pre-line text-sm leading-7 text-slate-600">
-                    {rfq.description || "No RR details provided."}
-                  </p>
-                  <div className="mt-4 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
-                    <span>Submission: {formatDate(rfq.submissionDeadline)}</span>
-                    <span>Bid opening: {formatDate(rfq.bidOpeningDateTime)}</span>
-                    <span>Objection: {formatDate(rfq.objectionDeadline)}</span>
-                  </div>
-                </div>
+                <div className="min-w-0"><h3 className="truncate text-sm font-bold text-[#10283f]">{rfqDisplayName(rfq)}</h3><div className="mt-0.5 truncate text-[10px] font-semibold text-[#166e8c]">{rfqContext(rfq) || "Vendor invitation"}</div></div>
                 <span className={`self-start rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] ${statusClass(rfq.status)}`}>
                   {rfq.status || "Open"}
                 </span>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-3">
+                <span aria-hidden="true" />
+                <span className="whitespace-nowrap text-[10px] text-slate-500">{formatDate(rfq.submissionDeadline)}</span>
+                <span className="whitespace-nowrap text-[10px] text-slate-500">{formatDate(rfq.bidOpeningDateTime)}</span>
+                <span aria-hidden="true" />
+              <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
                 <Button
                   size="small"
                   variant="outlined"
                   startIcon={<PictureAsPdfRoundedIcon />}
                   onClick={() => navigate(`/vendor/rfqs/${rfq.rfqId}/document`)}
-                  sx={{ textTransform: "none", borderColor: "#166e8c", color: "#166e8c" }}
+                  sx={{ textTransform: "none", borderColor: "#166e8c", color: "#166e8c", whiteSpace: "nowrap", flexShrink: 0 }}
                 >
                   View RFQ PDF
                 </Button>
-                {canSubmitVendorWork && !submittedRfqIds.has(rfq.rfqId) && (
+                {canSubmitVendorWork && !submittedRfqIds.has(String(rfq.rfqId)) && (
                   <Button
                     size="small"
                     variant="contained"
                     startIcon={<AddTaskRoundedIcon />}
                     onClick={() => openQuotation(rfq)}
-                    sx={{ textTransform: "none", bgcolor: "#166e8c" }}
+                    sx={{ textTransform: "none", bgcolor: "#166e8c", whiteSpace: "nowrap", flexShrink: 0 }}
                   >
                     Quotation
                   </Button>
                 )}
               </div>
-            </article>
+            </div>
           ))}
+          </div>
         </div>
+        <PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={rfqs.length} pageSize={pageSize} />
       </section>
+
+      {selected && (
+        <section ref={detailsRef} className="scroll-mt-24 rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div><div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">RFQ Details</div><h2 className="mt-2 text-2xl font-black text-[#10283f]">{rfqDisplayName(selected)}</h2><div className="mt-1 text-sm font-semibold text-slate-500">{rfqContext(selected) || "Vendor invitation"}</div></div>
+            <span className={`self-start rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] ${statusClass(selected.status)}`}>{selected.status || "Open"}</span>
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Detail label="Category" value={selected.vendorCategory} />
+            <Detail label="Submission Deadline" value={formatDate(selected.submissionDeadline)} />
+            <Detail label="Bid Opening" value={formatDate(selected.bidOpeningDateTime)} />
+            <Detail label="Objection Deadline" value={formatDate(selected.objectionDeadline)} />
+          </div>
+          <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600 whitespace-pre-line">{selected.description || "No RR details provided."}</div>
+        </section>
+      )}
 
     </div>
   );
+}
+
+function Detail({ label, value }) {
+  return <div className="rounded-xl bg-slate-50 p-4"><div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#166e8c]">{label}</div><div className="mt-1.5 text-sm font-bold text-[#10283f]">{value || "Not set"}</div></div>;
 }

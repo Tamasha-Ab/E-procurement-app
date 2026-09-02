@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { procurementApi } from "../../api/procurementApi";
@@ -19,18 +21,32 @@ const getArray = (data) => {
 const tenderKeyFor = (tender) => String(tender.tenderId || tender.tenderNumber || tender.title || "unknown-tender");
 const tenderLabelFor = (tender) =>
   `${tender.tenderNumber || `Tender ${tender.tenderId || "not recorded"}`} - ${tender.title || "Untitled"}`;
-const itemTenderText = (item) =>
-  [item.tenderNumber, item.tenderTitle, item.rfqName, item.rfqContext, item.rfqId]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+const normalizeTenderValue = (value) => String(value || "").trim().toLowerCase();
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const itemMatchesTender = (item, tender) => {
-  if (!tender) return true;
-  if (item.tenderId && String(item.tenderId) === String(tender.tenderId)) return true;
-  const text = itemTenderText(item);
-  return [tender.tenderNumber, tender.title, tender.tenderId]
-    .filter(Boolean)
-    .some((value) => text.includes(String(value).toLowerCase()));
+  if (!tender) return false;
+
+  // Persisted IDs are authoritative. A non-matching ID must never fall back to
+  // loose text matching (numeric IDs such as "1" previously matched many RFQs).
+  if (item.tenderId && tender.tenderId) {
+    return String(item.tenderId) === String(tender.tenderId);
+  }
+
+  const itemNumber = normalizeTenderValue(item.tenderNumber);
+  const tenderNumber = normalizeTenderValue(tender.tenderNumber);
+  if (itemNumber && tenderNumber) return itemNumber === tenderNumber;
+
+  const itemTitle = normalizeTenderValue(item.tenderTitle);
+  const tenderTitle = normalizeTenderValue(tender.title);
+  if (itemTitle && tenderTitle) return itemTitle === tenderTitle;
+
+  // Compatibility for older session entries that only stored the RFQ label.
+  // Match a complete tender reference, never a bare database ID substring.
+  if (tenderNumber) {
+    const legacyText = normalizeTenderValue([item.rfqName, item.rfqContext].filter(Boolean).join(" "));
+    return new RegExp(`(^|[^a-z0-9])${escapeRegExp(tenderNumber)}([^a-z0-9]|$)`, "i").test(legacyText);
+  }
+  return false;
 };
 const currencyText = (value) => formatMoney(value).replace(/[^\x20-\x7E]/g, "LKR ");
 const reportFileName = (tender, category) =>
@@ -439,15 +455,21 @@ const writeFinalList = (items) => {
 
 export default function BecFinalVendorList() {
   const { token, user } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState(() => readFinalList());
   const [tenders, setTenders] = useState([]);
   const [loadingTenders, setLoadingTenders] = useState(true);
   const [tenderError, setTenderError] = useState("");
-  const [selectedTenderId, setSelectedTenderId] = useState("ALL");
+  const [selectedTenderId, setSelectedTenderId] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [sentItemIds, setSentItemIds] = useState(() => new Set());
+  const [approvedItemIds, setApprovedItemIds] = useState(() => new Set());
+  const [listTab, setListTab] = useState("SELECTION");
   const [report, setReport] = useState(null);
   const [generatingReportKey, setGeneratingReportKey] = useState("");
   const [sendingApproval, setSendingApproval] = useState(false);
   const [notice, setNotice] = useState(null);
+  const reportCardRef = useRef(null);
   const isBecUser = user?.mainRole === "FINANCE" && user?.subRole === "BEC_HEAD";
 
   const loadTenders = useCallback(async () => {
@@ -472,6 +494,11 @@ export default function BecFinalVendorList() {
     if (!token || !isBecUser) return;
     try {
       const data = await procurementApi.offers.selectedVendors(token);
+      setApprovedItemIds(new Set(
+        getArray(data)
+          .filter((offer) => ["APPROVED_BY_AUTHORITY", "SENT_TO_VENDOR", "ACCEPTED_BY_VENDOR"].includes(String(offer.status || "").toUpperCase()))
+          .map((offer) => String(offer.quotationItemId))
+      ));
       const rejectedQuotationItemIds = new Set(
         getArray(data)
           .filter((offer) => offer.status === "REJECTED_BY_VENDOR" && offer.quotationItemId)
@@ -505,13 +532,20 @@ export default function BecFinalVendorList() {
     if (report?.url) URL.revokeObjectURL(report.url);
   }, [report?.url]);
 
+  useEffect(() => {
+    setReport((current) => {
+      if (current?.url) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }, [selectedTenderId, selectedCategory, listTab]);
+
   const selectedTender = useMemo(
     () => tenders.find((tender) => tenderKeyFor(tender) === selectedTenderId),
     [selectedTenderId, tenders]
   );
 
   const filteredItems = useMemo(
-    () => selectedTenderId === "ALL" ? items : items.filter((item) => itemMatchesTender(item, selectedTender)),
+    () => !selectedTenderId ? [] : items.filter((item) => itemMatchesTender(item, selectedTender)),
     [items, selectedTenderId, selectedTender]
   );
 
@@ -521,8 +555,8 @@ export default function BecFinalVendorList() {
   );
 
   useEffect(() => {
-    if (selectedTenderId !== "ALL" && !tenders.some((tender) => tenderKeyFor(tender) === selectedTenderId)) {
-      setSelectedTenderId("ALL");
+    if (selectedTenderId && !tenders.some((tender) => tenderKeyFor(tender) === selectedTenderId)) {
+      setSelectedTenderId("");
     }
   }, [selectedTenderId, tenders]);
 
@@ -536,6 +570,20 @@ export default function BecFinalVendorList() {
     });
     return Array.from(grouped.values()).sort((a, b) => a.category.localeCompare(b.category));
   }, [filteredItems]);
+
+  useEffect(() => {
+    if (!groupedCategories.some((group) => group.category === selectedCategory)) setSelectedCategory("");
+  }, [groupedCategories, selectedCategory]);
+
+  const selectedCategoryGroup = useMemo(
+    () => groupedCategories.find((group) => group.category === selectedCategory),
+    [groupedCategories, selectedCategory]
+  );
+
+  const approvedTenderItems = useMemo(
+    () => filteredItems.filter((item) => approvedItemIds.has(String(item.quotationItemId))),
+    [approvedItemIds, filteredItems]
+  );
 
   const totalValue = useMemo(
     () => filteredItems.reduce((sum, item) => sum + Number(item.quotedTotalPrice || 0), 0),
@@ -571,16 +619,74 @@ export default function BecFinalVendorList() {
     }
   };
 
+  const generateItemReport = async (item) => {
+    if (report?.url) URL.revokeObjectURL(report.url);
+    setGeneratingReportKey(item.selectionKey);
+    try {
+      const blob = await buildBecReportPdfBlob({
+        tender: selectedTender,
+        category: item.category,
+        items: [item],
+        includeDpcMemo: Number(item.quotedTotalPrice || 0) > dpcMemoThreshold,
+      });
+      setReport({
+        url: URL.createObjectURL(blob),
+        fileName: reportFileName(selectedTender, `${item.category}-${item.itemName}`),
+        category: `${item.category} - ${item.itemName}`,
+      });
+      toast.success(`BEC report generated for ${item.itemName}.`);
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+        reportCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }));
+    } catch (error) {
+      toast.error(error.message || "Could not generate the item BEC report.");
+    } finally {
+      setGeneratingReportKey("");
+    }
+  };
+
+  const sendItemToApproval = async (item) => {
+    if (!item.quotationItemId || sentItemIds.has(String(item.quotationItemId))) return;
+    setSendingApproval(true);
+    try {
+      const amount = Number(item.quotedTotalPrice || 0);
+      const reportBlob = await buildBecReportPdfBlob({
+        tender: selectedTender,
+        category: item.category,
+        items: [item],
+        includeDpcMemo: amount > dpcMemoThreshold,
+      });
+      const reportContent = await blobToDataUrl(reportBlob);
+      await procurementApi.quotations.selectItemVendor(token, item.quotationItemId, {
+        selected: true,
+        comment: "Item-wise BEC report submitted to the quotation approval workflow.",
+        offerLetterContent: reportContent,
+        approvalAuthority: amount > dpcMemoThreshold ? "DPC" : "DEAN",
+        approvalAmount: amount,
+      });
+      setSentItemIds((current) => new Set(current).add(String(item.quotationItemId)));
+      toast.success(`${item.itemName} BEC report sent to approval.`);
+    } catch (error) {
+      toast.error(error.message || "Could not send the item BEC report to approval.");
+    } finally {
+      setSendingApproval(false);
+    }
+  };
+
   const generateFinalReport = async () => {
+    if (!approvedTenderItems.length) {
+      toast.info("No authority-approved items are available for the final BEC report.");
+      return;
+    }
     if (report?.url) URL.revokeObjectURL(report.url);
     setGeneratingReportKey("FINAL");
     try {
       const blob = await buildBecReportPdfBlob({
         tender: selectedTender,
         category: selectedTenderId === "ALL" ? "Final BEC Report" : "Final BEC Report - All Categories",
-        items: filteredItems,
-        categorySections: groupedCategories,
-        includeDpcMemo: totalValue > dpcMemoThreshold,
+        items: approvedTenderItems,
+        categorySections: groupedCategories.map((group) => ({ ...group, items: group.items.filter((item) => approvedItemIds.has(String(item.quotationItemId))) })).filter((group) => group.items.length),
+        includeDpcMemo: approvedTenderItems.reduce((sum, item) => sum + Number(item.quotedTotalPrice || 0), 0) > dpcMemoThreshold,
       });
       const url = URL.createObjectURL(blob);
       setReport({
@@ -673,6 +779,14 @@ export default function BecFinalVendorList() {
         </div>
       </PageHero>
 
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        className="w-fit rounded-2xl border border-[#b9d8e4] bg-white px-5 py-3 text-sm font-black text-[#166e8c] shadow-sm hover:bg-[#edf7fb]"
+      >
+        ← Back
+      </button>
+
       <section className={cardClass}>
         {notice && (
           <div className={`mb-5 rounded-[24px] p-4 text-sm font-semibold ${notice.type === "error" ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
@@ -686,8 +800,8 @@ export default function BecFinalVendorList() {
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Tender Filter</div>
               <h2 className="mt-2 text-2xl font-black text-[#10283f]">View categories by tender</h2>
               <div className="mt-2 text-sm leading-7 text-slate-600">
-                {selectedTenderId === "ALL"
-                  ? `${tenders.length} tender${tenders.length === 1 ? "" : "s"} loaded from Tender Directory`
+                {!selectedTenderId
+                  ? `${tenders.length} tender${tenders.length === 1 ? "" : "s"} loaded. Select a tender to continue.`
                   : `${selectedTenderCategoryCount} categor${selectedTenderCategoryCount === 1 ? "y" : "ies"} for ${selectedTender ? tenderLabelFor(selectedTender) : "selected tender"}`}
               </div>
             </div>
@@ -698,7 +812,7 @@ export default function BecFinalVendorList() {
                 onChange={(event) => setSelectedTenderId(event.target.value)}
                 className="mt-2 w-full rounded-[18px] border border-[#dce8ef] bg-white px-4 py-3 text-sm font-bold text-[#10283f] outline-none focus:border-[#166e8c]"
               >
-                <option value="ALL">All tenders</option>
+                <option value="">Select a tender</option>
                 {tenders.map((tender) => (
                   <option key={tenderKeyFor(tender)} value={tenderKeyFor(tender)}>
                     {tenderLabelFor(tender)}
@@ -710,7 +824,7 @@ export default function BecFinalVendorList() {
             </label>
           </div>
 
-          {selectedTenderId !== "ALL" && selectedTender ? (
+          {selectedTenderId && selectedTender ? (
             <div className="mt-4 rounded-[18px] bg-white p-4 text-sm font-semibold text-slate-600">
               {[selectedTender.status, selectedTender.tenderType, selectedTender.procurementMethod]
                 .filter(Boolean)
@@ -719,7 +833,12 @@ export default function BecFinalVendorList() {
           ) : null}
         </div>
 
-        <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        {selectedTenderId && <div className="mt-6 flex flex-wrap gap-3 border-b border-[#dce8ef] pb-4">
+          <button type="button" onClick={() => setListTab("SELECTION")} className={`rounded-xl px-4 py-2 text-sm font-black ${listTab === "SELECTION" ? "bg-[#166e8c] text-white" : "bg-[#edf7fb] text-[#166e8c]"}`}>Category final list</button>
+          <button type="button" onClick={() => setListTab("APPROVED")} className={`rounded-xl px-4 py-2 text-sm font-black ${listTab === "APPROVED" ? "bg-[#166e8c] text-white" : "bg-[#edf7fb] text-[#166e8c]"}`}>Approved items</button>
+        </div>}
+
+        {selectedTenderId && listTab === "SELECTION" && <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Selected Lowest Vendors</div>
             <h2 className="mt-2 text-2xl font-black text-[#10283f]">Category final list</h2>
@@ -727,83 +846,49 @@ export default function BecFinalVendorList() {
               {filteredItems.length} selected item{filteredItems.length === 1 ? "" : "s"} | Total value {formatMoney(totalValue)}
             </div>
           </div>
-          <div className="flex flex-col gap-3 md:items-end">
-            <button
-              type="button"
-              onClick={generateFinalReport}
-              disabled={filteredItems.length === 0 || generatingReportKey === "FINAL"}
-              className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-black text-white hover:bg-[#145f79] disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              {generatingReportKey === "FINAL" ? "Generating..." : "Generate final BEC report"}
-            </button>
-            <button
-              type="button"
-              onClick={sendToApproval}
-              disabled={filteredItems.length === 0 || sendingApproval}
-              className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              {sendingApproval ? "Sending..." : "Send to approval"}
-            </button>
-          </div>
-        </div>
+        </div>}
 
         <div className="mt-6 space-y-5">
-          {report && (
-            <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-5">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">BEC Report Ready</div>
-                  <h3 className="mt-2 text-lg font-black text-[#10283f]">{report.category}</h3>
-                  <div className="mt-1 text-sm font-semibold text-emerald-800">{report.fileName}</div>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <a
-                    href={report.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-[#166e8c] hover:bg-[#edf7fb]"
-                  >
-                    View PDF
-                  </a>
-                  <button
-                    type="button"
-                    onClick={downloadReport}
-                    className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-black text-white hover:bg-[#145f79]"
-                  >
-                    Download PDF
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {items.length === 0 && (
+          {selectedTenderId && items.length === 0 && (
             <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">
               No vendors have been added to the final list yet. Select a category item in Vendor Review and add the lowest price vendor.
             </div>
           )}
 
-          {items.length > 0 && filteredItems.length === 0 && (
+          {selectedTenderId && items.length > 0 && filteredItems.length === 0 && (
             <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">
               No selected lowest vendors found for this tender.
             </div>
           )}
 
-          {groupedCategories.map((group) => (
+          {selectedTenderId && listTab === "SELECTION" && groupedCategories.length > 0 && (
+            <div className="overflow-hidden rounded-[20px] border border-[#dce8ef]">
+              <table className="min-w-full divide-y divide-[#dce8ef] text-left text-sm">
+                <thead className="bg-[#edf7fb] text-xs font-black uppercase tracking-[0.14em] text-[#166e8c]">
+                  <tr><th className="px-4 py-3">Category</th><th className="px-4 py-3">Items</th><th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3 text-right">Action</th></tr>
+                </thead>
+                <tbody className="divide-y divide-[#e8f0f5] bg-white">
+                  {groupedCategories.map((group) => (
+                    <tr key={group.category} className={selectedCategory === group.category ? "bg-[#eaf7fb]" : "hover:bg-[#f8fcff]"}>
+                      <td className="px-4 py-3 font-black text-[#10283f]">{group.category}</td>
+                      <td className="px-4 py-3 text-slate-600">{group.items.length}</td>
+                      <td className="px-4 py-3 text-right font-bold text-[#10283f]">{formatMoney(group.totalValue)}</td>
+                      <td className="px-4 py-3 text-right"><button type="button" onClick={() => { setSelectedCategory(group.category); requestAnimationFrame(() => document.getElementById("bec-category-items")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} className="rounded-xl bg-[#166e8c] px-4 py-2 text-xs font-black text-white">View items</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {listTab === "SELECTION" && selectedCategoryGroup && [selectedCategoryGroup].map((group) => (
             <article key={group.category} className="rounded-[24px] border border-[#dce8ef] bg-[#fbfdff] p-5">
+              <div id="bec-category-items" className="scroll-mt-28" />
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#166e8c]">Category</div>
                   <h3 className="mt-2 text-xl font-black text-[#10283f]">{group.category}</h3>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => generateCategoryReport(group)}
-                  disabled={generatingReportKey === group.category}
-                  className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-black text-white hover:bg-[#145f79]"
-                >
-                  {generatingReportKey === group.category ? "Generating..." : "Generate BEC Report"}
-                </button>
               </div>
 
               <div className="mt-4 overflow-hidden rounded-[20px] border border-[#dce8ef]">
@@ -841,13 +926,10 @@ export default function BecFinalVendorList() {
                           <td className="px-4 py-4 text-right align-top text-base font-black text-[#10283f]">{formatMoney(item.quotedTotalPrice)}</td>
                           <td className="px-4 py-4 align-top"><StatusPill status={item.status || "APPROVED"} /></td>
                           <td className="px-4 py-4 text-right align-top">
-                            <button
-                              type="button"
-                              onClick={() => removeItem(item.selectionKey)}
-                              className="rounded-2xl bg-red-50 px-4 py-2 text-xs font-black text-red-700 hover:bg-red-100"
-                            >
-                              Remove
-                            </button>
+                            <div className="flex min-w-[250px] justify-end gap-2">
+                              <button type="button" onClick={() => generateItemReport(item)} disabled={generatingReportKey === item.selectionKey} className="rounded-xl bg-[#edf7fb] px-3 py-2 text-xs font-black text-[#166e8c] disabled:cursor-not-allowed disabled:opacity-50">{generatingReportKey === item.selectionKey ? "Generating..." : "Generate / View Report"}</button>
+                              <button type="button" onClick={() => sendItemToApproval(item)} disabled={sendingApproval || sentItemIds.has(String(item.quotationItemId))} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">{sentItemIds.has(String(item.quotationItemId)) ? "Sent" : "Send to approval"}</button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -857,6 +939,40 @@ export default function BecFinalVendorList() {
               </div>
             </article>
           ))}
+
+          {report && (
+            <div ref={reportCardRef} className="scroll-mt-28 rounded-[24px] border border-emerald-200 bg-emerald-50 p-5">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">BEC Report Ready</div>
+                  <h3 className="mt-2 text-lg font-black text-[#10283f]">{report.category}</h3>
+                  <div className="mt-1 text-sm font-semibold text-emerald-800">{report.fileName}</div>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <a href={report.url} target="_blank" rel="noreferrer" className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-[#166e8c] hover:bg-[#edf7fb]">View PDF</a>
+                  <button type="button" onClick={downloadReport} className="rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-black text-white hover:bg-[#145f79]">Download PDF</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {selectedTenderId && listTab === "APPROVED" && (
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div><h2 className="text-xl font-black text-[#10283f]">Authority-approved items</h2><p className="mt-1 text-sm text-slate-600">Approved items for the selected tender, grouped by category in the final PDF.</p></div>
+                <button type="button" onClick={generateFinalReport} disabled={!approvedTenderItems.length || generatingReportKey === "FINAL"} className="rounded-xl bg-[#166e8c] px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">{generatingReportKey === "FINAL" ? "Generating..." : "Generate Final BEC Report"}</button>
+              </div>
+              <div className="overflow-hidden rounded-[20px] border border-[#dce8ef]">
+                <table className="min-w-full divide-y divide-[#dce8ef] text-left text-sm">
+                  <thead className="bg-[#edf7fb] text-xs font-black uppercase tracking-[0.12em] text-[#166e8c]"><tr><th className="px-4 py-3">Category</th><th className="px-4 py-3">Item</th><th className="px-4 py-3">Vendor</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3">Status</th></tr></thead>
+                  <tbody className="divide-y divide-[#e8f0f5] bg-white">
+                    {approvedTenderItems.map((item) => <tr key={item.selectionKey}><td className="px-4 py-3 font-bold">{item.category}</td><td className="px-4 py-3">{item.itemName}</td><td className="px-4 py-3">{item.vendorName}</td><td className="px-4 py-3 text-right font-bold">{formatMoney(item.quotedTotalPrice)}</td><td className="px-4 py-3"><StatusPill status="APPROVED" /></td></tr>)}
+                    {!approvedTenderItems.length && <tr><td colSpan="5" className="px-4 py-6 text-center text-slate-500">No approved items are available yet.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </div>

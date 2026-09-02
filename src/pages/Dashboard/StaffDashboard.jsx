@@ -5,6 +5,7 @@ import AddCircleRoundedIcon from "@mui/icons-material/AddCircleRounded";
 import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
 import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
+import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
 import StatusPill from "../../components/StatusPill";
@@ -47,6 +48,7 @@ export default function StaffDashboard() {
     { label: "Draft Requests", value: staffStats.draftRequests, icon: AccessTimeRoundedIcon },
     { label: "In Progress", value: staffStats.inProgressRequests, icon: AccountTreeRoundedIcon },
     { label: "Approved", value: staffStats.approvedRequests, icon: TaskAltRoundedIcon },
+    { label: "Rejected", value: staffStats.rejectedRequests, icon: CancelRoundedIcon },
   ], [staffStats]);
 
   return (
@@ -70,7 +72,7 @@ export default function StaffDashboard() {
             Create Requisition
           </button>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {metrics.map((metric) => {
               const Icon = metric.icon;
               return (
@@ -89,38 +91,38 @@ export default function StaffDashboard() {
       </section>
 
       <section>
-        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="overflow-hidden rounded-[26px] border border-[#dce8ef] bg-white shadow-[0_14px_34px_rgba(15,41,64,0.06)]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e6eef3] px-5 py-3">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Recent Requests</div>
-              <h3 className="mt-2 text-2xl font-bold text-[#10283f]">Your latest requisitions</h3>
+              <h3 className="mt-1 text-lg font-bold text-[#10283f]">Your latest requisitions</h3>
             </div>
             <button type="button" onClick={() => navigate(staffMemberPath("my-requisitions"))} className="rounded-full bg-[#edf7fb] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">
               View All
             </button>
           </div>
 
-          <div className="mt-6 space-y-3">
+          <div className="divide-y divide-slate-100">
             {recentRequests.length > 0 ? (
               recentRequests.slice(0, 4).map((request) => (
                 <button
                   type="button"
                   key={request.rrId}
                   onClick={() => navigate(`${staffMemberPath("my-requisitions")}/${request.rrId}`)}
-                  className="w-full rounded-[22px] border border-[#e4edf2] bg-[#f8fbfd] p-4 text-left transition hover:border-[#166e8c]"
+                  className="w-full px-5 py-2.5 text-left transition hover:bg-[#f8fcff]"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="text-base font-bold text-[#10283f]">{request.title || `RR-${request.rrId}`}</div>
-                      <div className="mt-1 text-sm text-slate-500">{formatDateTime(request.createdAt || request.submittedAt)}</div>
+                      <div className="text-sm font-bold text-[#10283f]">{request.title || `RR-${request.rrId}`}</div>
+                      <div className="mt-0.5 text-xs text-slate-500">{formatDateTime(request.createdAt || request.submittedAt)}</div>
                     </div>
                     <StatusPill status={request.status} />
                   </div>
-                  <div className="mt-3 text-sm font-semibold text-[#166e8c]">{formatMoney(request.estimatedTotalAmount || request.totalAmount)}</div>
+                  <div className="mt-1 text-xs font-semibold text-[#166e8c]">{formatMoney(request.estimatedTotalAmount || request.totalAmount)}</div>
                 </button>
               ))
             ) : (
-              <div className="rounded-[24px] bg-[#f5fbff] p-5">
+              <div className="m-4 rounded-[20px] bg-[#f5fbff] p-4">
                 <div className="text-sm font-semibold text-[#166e8c]">No recent requisitions yet</div>
                 <div className="mt-3 text-4xl font-black text-[#10283f]">{staffStats.totalRequests}</div>
                 <div className="mt-2 text-sm leading-7 text-slate-600">Create your first requisition request to begin the Staff workflow.</div>

@@ -11,7 +11,6 @@ import {
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { useAuth } from "../../contexts/AuthContext";
 import PaginationControls, { usePagination } from "../../components/PaginationControls";
 import { requestDisplayName } from "../../utils/procurementDisplay";
@@ -60,11 +59,24 @@ const formatSentVendors = (entry) => {
 export default function BursarAuditTrail() {
   const { token, user } = useAuth();
   const [entries, setEntries] = useState([]);
-  const [rrId, setRrId] = useState("");
+  const [rrSearch, setRrSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState(null);
   const [expandedIds, setExpandedIds] = useState(() => new Set());
-  const { page, setPage, totalPages, pageItems, pageSize } = usePagination(entries);
+  const filteredEntries = useMemo(() => entries.filter((entry) => {
+    const query = rrSearch.trim().toLowerCase();
+    const matchesRequest = !query
+      || String(entry.rrNumber || "").toLowerCase().includes(query)
+      || String(entry.rrId ?? "").includes(query);
+    if (!matchesRequest) return false;
+    const timestamp = entry.createdAt ? new Date(entry.createdAt).getTime() : null;
+    if (dateFrom && (!timestamp || timestamp < new Date(`${dateFrom}T00:00:00`).getTime())) return false;
+    if (dateTo && (!timestamp || timestamp > new Date(`${dateTo}T23:59:59.999`).getTime())) return false;
+    return true;
+  }), [dateFrom, dateTo, entries, rrSearch]);
+  const { page, setPage, totalPages, pageItems, pageSize } = usePagination(filteredEntries);
   const isFinanceUser = user?.mainRole === "FINANCE";
 
   const authHeaders = useMemo(
@@ -108,23 +120,6 @@ export default function BursarAuditTrail() {
       loadAllAuditEntries();
     }
   }, [isFinanceUser, loadAllAuditEntries]);
-
-  const handleSearchByRequisition = async (event) => {
-    event.preventDefault();
-    if (!rrId) return;
-
-    setLoading(true);
-    setNotice(null);
-    try {
-      const data = await requestJson(`/api/finance/audit-trail/requisition/${rrId}`);
-      setEntries(Array.isArray(data) ? data : []);
-      setNotice({ type: "success", message: `Showing audit trail for request ID ${rrId}.` });
-    } catch (error) {
-      setNotice({ type: "error", message: error.message });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const toggleEntry = (approvalId) => {
     setExpandedIds((current) => {
@@ -184,36 +179,41 @@ export default function BursarAuditTrail() {
         </Alert>
       )}
 
-      <section className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-        <form className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between" onSubmit={handleSearchByRequisition}>
+      <section className="rounded-[22px] border border-[#dce8ef] bg-white p-4 shadow-[0_12px_30px_rgba(15,41,64,0.05)]">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Filter</div>
-            <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Search by internal request ID</h2>
+            <div className="mt-1 text-sm font-semibold text-[#10283f]">Search audit records</div>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[230px_160px_160px_auto]">
             <TextField
-              label="Request ID"
-              type="number"
+              label="RR Number or Internal ID"
+              type="search"
               size="small"
-              value={rrId}
-              onChange={(event) => setRrId(event.target.value)}
-              sx={{ minWidth: 180 }}
+              value={rrSearch}
+              onChange={(event) => setRrSearch(event.target.value)}
+              placeholder="RR-20260830-..."
             />
-            <Button type="submit" variant="contained" startIcon={<SearchRoundedIcon />} sx={primaryButtonSx}>
-              Search
+            <TextField label="From date" type="date" size="small" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+            <TextField label="To date" type="date" size="small" value={dateTo} onChange={(event) => setDateTo(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+            <Button type="button" variant="outlined" onClick={() => { setRrSearch(""); setDateFrom(""); setDateTo(""); }} sx={{ borderColor: "#b9d7e4", color: "#166e8c", borderRadius: "12px", textTransform: "none", fontWeight: 700 }}>
+              Clear
             </Button>
           </div>
-        </form>
+        </div>
       </section>
 
       <section className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-        <div className="mb-5">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
           <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Records</div>
-          <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Approval audit entries</h2>
+          <h2 className="mt-1 text-xl font-bold text-[#10283f]">Approval audit entries</h2>
+          </div>
+          <div className="text-xs font-semibold text-slate-500">{filteredEntries.length} record{filteredEntries.length === 1 ? "" : "s"}</div>
         </div>
 
-        <div className="space-y-4">
-          {entries.length === 0 && !loading && (
+        <div className="space-y-2">
+          {filteredEntries.length === 0 && !loading && (
             <div className="rounded-[24px] border border-dashed border-[#c8dce7] bg-[#f8fbfd] p-6 text-sm leading-7 text-slate-600">
               No audit records found.
             </div>
@@ -223,30 +223,30 @@ export default function BursarAuditTrail() {
             const isExpanded = expandedIds.has(entry.approvalId);
 
             return (
-              <article key={entry.approvalId} className="rounded-[24px] border border-[#e0ebf1] bg-[#fbfdff] p-5">
+              <article key={entry.approvalId} className="rounded-xl border border-[#e0ebf1] bg-white px-3 py-2.5 transition hover:bg-[#f8fcff]">
                 <button
                   type="button"
                   className="w-full text-left"
                   onClick={() => toggleEntry(entry.approvalId)}
                   aria-expanded={isExpanded}
                 >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex gap-4">
-                      <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#edf7fb] text-[#166e8c]">
-                        <HistoryRoundedIcon fontSize="small" />
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex min-w-0 gap-3">
+                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#edf7fb] text-[#166e8c]">
+                        <HistoryRoundedIcon sx={{ fontSize: 17 }} />
                       </span>
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Typography className="!text-lg !font-bold !text-[#10283f]">
+                          <Typography className="!text-sm !font-bold !text-[#10283f]">
                             {formatActionLabel(entry)}
                           </Typography>
-                          <Chip label={entry.actionRole || "ROLE"} size="small" sx={{ bgcolor: "#edf7fb", color: "#166e8c", fontWeight: 700 }} />
+                          <Chip label={entry.actionRole || "ROLE"} size="small" sx={{ height: 22, bgcolor: "#edf7fb", color: "#166e8c", fontSize: 10, fontWeight: 700 }} />
                         </div>
-                        <Typography className="!mt-2 !text-sm !leading-7 !text-slate-600">
+                        <Typography className="!mt-1 !truncate !text-xs !text-slate-600">
                           {requestDisplayName(entry)}{entry.departmentName || entry.facultyName ? ` - ${entry.departmentName || entry.facultyName}` : ""}
                         </Typography>
-                        <Typography className="!mt-1 !text-xs !font-semibold !uppercase !tracking-[0.16em] !text-slate-500">
-                          Requester: {entry.requestedByName || "Not recorded"}
+                        <Typography className="!mt-1 !text-[10px] !font-semibold !uppercase !tracking-[0.12em] !text-slate-500">
+                          RR Number: {entry.rrNumber || "Not recorded"} | Requester: {entry.requestedByName || "Not recorded"}
                         </Typography>
                         {isRfqCreatedEntry(entry) && formatSentVendors(entry) && (
                           <Typography className="!mt-2 !text-sm !font-bold !text-[#166e8c]">
@@ -255,10 +255,10 @@ export default function BursarAuditTrail() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center justify-between gap-4 lg:justify-end lg:text-right">
+                    <div className="flex items-center justify-between gap-3 lg:justify-end lg:text-right">
                       <div>
-                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Timestamp</div>
-                        <div className="mt-1 text-sm font-bold text-[#10283f]">{formatDateTime(entry.createdAt)}</div>
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Timestamp</div>
+                        <div className="mt-0.5 text-xs font-semibold text-[#10283f]">{formatDateTime(entry.createdAt)}</div>
                       </div>
                       <KeyboardArrowDownRoundedIcon
                         className={`text-[#166e8c] transition-transform ${isExpanded ? "rotate-180" : ""}`}
@@ -283,6 +283,8 @@ export default function BursarAuditTrail() {
                     </div>
 
                     <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <DetailBlock label="RR Number" value={entry.rrNumber || "Not recorded"} />
+                      <DetailBlock label="Internal Request ID" value={entry.rrId ?? "Not recorded"} />
                       <DetailBlock label="Quantity" value={`${entry.quantity ?? "Not recorded"}${entry.unitOfMeasure ? ` ${entry.unitOfMeasure}` : ""}`} />
                       <DetailBlock label="Estimated Unit Price" value={formatCurrency(entry.estimatedUnitPrice)} />
                       <DetailBlock label="Estimated Total Price" value={formatCurrency(entry.estimatedTotalPrice)} />
@@ -296,7 +298,7 @@ export default function BursarAuditTrail() {
 
                     {isRfqCreatedEntry(entry) && (
                       <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        <DetailBlock label="Quotation Request" value={entry.rfqNumber || requestDisplayName(entry)} />
+                        <DetailBlock label="RFQ Number" value={entry.rfqNumber || "Not recorded"} />
                         <DetailBlock label="Sent Vendors" value={formatSentVendors(entry) || "No vendors recorded"} />
                       </div>
                     )}
@@ -328,7 +330,7 @@ export default function BursarAuditTrail() {
             );
           })}
         </div>
-        <PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={entries.length} pageSize={pageSize} />
+        <PaginationControls page={page} setPage={setPage} totalPages={totalPages} totalItems={filteredEntries.length} pageSize={pageSize} />
       </section>
 
       {loading && (
@@ -340,14 +342,6 @@ export default function BursarAuditTrail() {
     </div>
   );
 }
-
-const primaryButtonSx = {
-  bgcolor: "#166e8c",
-  borderRadius: "14px",
-  textTransform: "none",
-  fontWeight: 800,
-  "&:hover": { bgcolor: "#145f79" },
-};
 
 function DetailBlock({ label, value }) {
   return (

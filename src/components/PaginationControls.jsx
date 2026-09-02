@@ -17,8 +17,8 @@ export function usePagination(items = [], pageSize = 10) {
   };
 }
 
-export default function PaginationControls({ page, setPage, totalPages, totalItems, pageSize = 10 }) {
-  if (totalItems <= pageSize) return null;
+export default function PaginationControls({ page, setPage, totalPages, totalItems, pageSize = 10, alwaysShow = false }) {
+  if (!alwaysShow && totalItems <= pageSize) return null;
 
   return (
     <div className="mt-5 flex flex-col gap-3 border-t border-[#e6eef3] pt-5 sm:flex-row sm:items-center sm:justify-between">

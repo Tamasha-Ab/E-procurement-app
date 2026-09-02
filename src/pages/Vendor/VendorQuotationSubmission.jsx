@@ -9,6 +9,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import PageHero from "../../components/PageHero";
 import { vendorApi } from "../../api/vendorApi";
 import { rfqDisplayName, rfqContext } from "../../utils/procurementDisplay";
+import { toast } from "react-toastify";
 
 const cardClass = "rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]";
 const inputClass = "w-full rounded-2xl border border-[#dce8ef] bg-white px-4 py-3 text-sm outline-none focus:border-[#166e8c]";
@@ -91,7 +92,7 @@ function createItemForms(rfq) {
       quantity: item.quantity || 1,
       quotedUnitPrice: "",
       specificationRows: buildItemSpecificationRows(rr, item),
-      specificationDocumentName: "",
+      specificationDocuments: [],
       specificationDocumentUrl: "",
     })));
 }
@@ -101,6 +102,7 @@ export default function VendorQuotationSubmission() {
   const location = useLocation();
   const documentInputRefs = useRef({});
   const itemInputRefs = useRef({});
+  const selectedRrRef = useRef(null);
   const [searchParams] = useSearchParams();
   const isItemPage = location.pathname.endsWith("/items");
   const isSelectionPage = location.pathname.endsWith("/rfq-selection");
@@ -130,16 +132,21 @@ export default function VendorQuotationSubmission() {
       vendorApi.rfqs.list().catch(() => []),
       vendorApi.profile.quotationDocuments().catch(() => ""),
       requestedRfqId ? vendorApi.rfqs.detail(requestedRfqId).catch(() => null) : Promise.resolve(null),
+      vendorApi.quotations.list().catch(() => []),
     ])
-      .then(([rfqData, storedDocuments, requestedRfq]) => {
+      .then(([rfqData, storedDocuments, requestedRfq, quotationData]) => {
         if (cancelled) return;
         const list = safeList(rfqData);
         const mergedList = requestedRfq
           ? [requestedRfq, ...list.filter((rfq) => String(rfq.rfqId) !== String(requestedRfq.rfqId))]
           : list;
-        setRfqs(mergedList);
+        const submittedRfqIds = new Set(safeList(quotationData).map((quotation) => String(quotation.rfqId)));
+        const availableRfqs = mergedList.filter(
+          (rfq) => !submittedRfqIds.has(String(rfq.rfqId)) && rfq.status !== "OFFER_LETTER_APPROVED"
+        );
+        setRfqs(availableRfqs);
         setDocuments(parseStoredDocuments(storedDocuments));
-        setSelectedRfqId((current) => current || requestedRfqId || (mergedList[0]?.rfqId ? String(mergedList[0].rfqId) : ""));
+        setSelectedRfqId((current) => availableRfqs.some((rfq) => String(rfq.rfqId) === String(current)) ? current : "");
       })
       .catch((loadError) => {
         if (!cancelled) setError(loadError.message || "Could not load quotation submission data.");
@@ -179,8 +186,11 @@ export default function VendorQuotationSubmission() {
     try {
       await vendorApi.profile.saveQuotationDocuments(JSON.stringify({ requiredDocuments: documents }));
       setNotice("Vendor documents saved successfully.");
+      toast.success("Vendor documents saved successfully.", { autoClose: 3000 });
     } catch (saveError) {
-      setError(saveError.message || "Could not save vendor documents.");
+      const message = saveError.message || "Could not save vendor documents.";
+      setError(message);
+      toast.error(message, { autoClose: 4000 });
     } finally {
       setSavingDocs(false);
     }
@@ -193,6 +203,13 @@ export default function VendorQuotationSubmission() {
 
   const openRfqSelection = () => {
     navigate(`/vendor/quotation-submission/rfq-selection${selectedRfqId ? `?rfqId=${selectedRfqId}` : ""}`);
+  };
+
+  const selectRfq = (rfqId) => {
+    setSelectedRfqId(rfqId);
+    if (rfqId) {
+      window.requestAnimationFrame(() => selectedRrRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
   };
 
   const setItemValue = (index, field, value) => {
@@ -214,16 +231,26 @@ export default function VendorQuotationSubmission() {
     )));
   };
 
-  const setItemFile = async (index, file) => {
-    const dataUrl = await fileToDataUrl(file);
+  const setItemFiles = async (index, fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    const specificationDocuments = await Promise.all(files.map(async (file) => ({
+      name: file.name,
+      dataUrl: await fileToDataUrl(file),
+    })));
+    const links = specificationDocuments.map((document) => (
+      `<li style="margin:12px 0"><a href="${document.dataUrl}" download="${document.name.replace(/"/g, "&quot;")}">${document.name.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</a></li>`
+    )).join("");
+    const bundleHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Specification documents</title></head><body style="font-family:Arial,sans-serif;padding:32px"><h2>Submitted specification documents</h2><ul>${links}</ul></body></html>`;
+    const specificationDocumentUrl = `data:text/html;charset=utf-8,${encodeURIComponent(bundleHtml)}`;
     setItemForms((current) => current.map((item, itemIndex) => (
-      itemIndex === index ? { ...item, specificationDocumentName: file?.name || "", specificationDocumentUrl: dataUrl } : item
+      itemIndex === index ? { ...item, specificationDocuments, specificationDocumentUrl } : item
     )));
   };
 
   const clearItemFile = (index) => {
     setItemForms((current) => current.map((item, itemIndex) => (
-      itemIndex === index ? { ...item, specificationDocumentName: "", specificationDocumentUrl: "" } : item
+      itemIndex === index ? { ...item, specificationDocuments: [], specificationDocumentUrl: "" } : item
     )));
     if (itemInputRefs.current[index]) {
       itemInputRefs.current[index].value = "";
@@ -271,9 +298,12 @@ export default function VendorQuotationSubmission() {
         })),
       });
 
+      toast.success("Quotation submitted successfully.", { autoClose: 3000 });
       navigate("/vendor/quotations");
     } catch (submitError) {
-      setError(submitError.message || "Could not submit quotation.");
+      const message = submitError.message || "Could not submit quotation.";
+      setError(message);
+      toast.error(message, { autoClose: 4000 });
     } finally {
       setSubmitting(false);
     }
@@ -309,11 +339,6 @@ export default function VendorQuotationSubmission() {
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Documents and Instructions to Vendors</div>
                 <h2 className="mt-2 text-2xl font-black text-[#10283f]">Documents vendors must submit</h2>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button variant="contained" startIcon={<SaveRoundedIcon />} onClick={saveDocuments} disabled={savingDocs} sx={{ textTransform: "none", bgcolor: "#166e8c", borderRadius: "14px", fontWeight: 800 }}>
-                  {savingDocs ? "Saving..." : "Save Documents"}
-                </Button>
               </div>
             </div>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -358,6 +383,11 @@ export default function VendorQuotationSubmission() {
                 </div>
               ))}
             </div>
+            <div className="mt-5 flex justify-end">
+              <Button variant="contained" startIcon={<SaveRoundedIcon />} onClick={saveDocuments} disabled={savingDocs} sx={{ textTransform: "none", bgcolor: "#166e8c", borderRadius: "14px", fontWeight: 800 }}>
+                {savingDocs ? "Saving..." : "Save Documents"}
+              </Button>
+            </div>
             <div className="mt-6 flex justify-end">
               <Button variant="outlined" onClick={openRfqSelection} sx={{ textTransform: "none", borderColor: "#166e8c", color: "#166e8c", borderRadius: "14px", fontWeight: 800 }}>
                 Next
@@ -367,13 +397,13 @@ export default function VendorQuotationSubmission() {
         </>
       ) : isSelectionPage ? (
         <form onSubmit={submit} className="space-y-6">
-          <section className={cardClass}>
+          <section className="rounded-2xl border border-[#dce8ef] bg-white p-4 shadow-[0_12px_30px_rgba(15,41,64,0.06)]">
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">RFQ Selection</div>
-            <h2 className="mt-2 text-2xl font-black text-[#10283f]">RFQ Invitation</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
-              <label className="block space-y-2">
+            <h2 className="mt-1 text-xl font-black text-[#10283f]">RFQ Invitation</h2>
+            <div className="mt-3">
+              <label className="block max-w-3xl space-y-2">
                 <span className="text-sm font-bold text-[#10283f]">Select RR / RFQ</span>
-                <select className={inputClass} value={selectedRfqId} onChange={(event) => setSelectedRfqId(event.target.value)} required>
+                <select className={inputClass} value={selectedRfqId} onChange={(event) => selectRfq(event.target.value)} required>
                   <option value="">{loading ? "Loading RFQs..." : "Select RFQ"}</option>
                   {rfqs.map((rfq) => (
                     <option key={rfq.rfqId} value={rfq.rfqId}>
@@ -382,17 +412,22 @@ export default function VendorQuotationSubmission() {
                   ))}
                 </select>
               </label>
-              <div className="rounded-[22px] bg-slate-50 p-5 text-sm leading-7 text-slate-600">
+            </div>
+          </section>
+
+          {selectedRfq ? (
+            <section ref={selectedRrRef} className="scroll-mt-24 rounded-2xl border border-[#dce8ef] bg-white p-4 shadow-[0_12px_30px_rgba(15,41,64,0.06)]">
+              <div className="rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Selected RR</div>
-                <div className="mt-2 text-lg font-black text-[#10283f]">
+                <div className="mt-1 text-base font-black text-[#10283f]">
                   {selectedRfq ? rfqDisplayName(selectedRfq) : "Select an RFQ invitation"}
                 </div>
-                <div className="mt-2 whitespace-pre-line">
+                <div className="mt-1 whitespace-pre-line">
                   {selectedRfq?.description || selectedRfq?.title || "Choose an RFQ invitation to open the RR item quotation page."}
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
+          ) : null}
 
           {selectedRfq ? (
             <>
@@ -451,17 +486,16 @@ export default function VendorQuotationSubmission() {
                         </div>
                         <div className="md:col-span-2 rounded-[18px] border border-[#dce8ef] bg-white p-4">
                           <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Specification document</span>
-                          <input ref={(element) => { itemInputRefs.current[index] = element; }} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" onChange={(event) => setItemFile(index, event.target.files?.[0] || null)} className="sr-only" />
+                          <input ref={(element) => { itemInputRefs.current[index] = element; }} type="file" multiple accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" onChange={(event) => setItemFiles(index, event.target.files)} className="sr-only" />
                           <div className="mt-3 flex flex-wrap gap-2">
                             <Button size="small" variant="outlined" startIcon={item.specificationDocumentUrl ? <EditRoundedIcon /> : <SaveRoundedIcon />} onClick={() => itemInputRefs.current[index]?.click()} sx={{ textTransform: "none", borderColor: "#166e8c", color: "#166e8c", borderRadius: "12px", fontWeight: 800 }}>
-                              {item.specificationDocumentUrl ? "Edit Document" : "Upload Document"}
+                              {item.specificationDocumentUrl ? "Replace Documents" : "Upload Documents"}
                             </Button>
                             <Button size="small" startIcon={<DeleteRoundedIcon />} onClick={() => clearItemFile(index)} disabled={!item.specificationDocumentUrl} sx={{ textTransform: "none", color: "#b42318", borderRadius: "12px", fontWeight: 800 }}>
                               Delete
                             </Button>
                           </div>
-                          {item.specificationDocumentName && <span className="mt-2 block text-xs font-semibold text-slate-500">{item.specificationDocumentName}</span>}
-                          {item.specificationDocumentUrl ? <a href={item.specificationDocumentUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-bold text-[#166e8c] hover:underline">Open current document</a> : null}
+                          {item.specificationDocuments?.length ? <div className="mt-3 flex flex-wrap gap-2">{item.specificationDocuments.map((document) => <a key={document.name} href={document.dataUrl} target="_blank" rel="noreferrer" className="rounded-lg bg-[#edf7fb] px-3 py-1.5 text-xs font-bold text-[#166e8c] hover:underline">{document.name}</a>)}</div> : null}
                         </div>
                       </div>
                     </div>
@@ -559,17 +593,16 @@ export default function VendorQuotationSubmission() {
                     </div>
                     <div className="md:col-span-2 rounded-[18px] border border-[#dce8ef] bg-white p-4">
                       <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Specification document</span>
-                      <input ref={(element) => { itemInputRefs.current[index] = element; }} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" onChange={(event) => setItemFile(index, event.target.files?.[0] || null)} className="sr-only" />
+                      <input ref={(element) => { itemInputRefs.current[index] = element; }} type="file" multiple accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" onChange={(event) => setItemFiles(index, event.target.files)} className="sr-only" />
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Button size="small" variant="outlined" startIcon={item.specificationDocumentUrl ? <EditRoundedIcon /> : <SaveRoundedIcon />} onClick={() => itemInputRefs.current[index]?.click()} sx={{ textTransform: "none", borderColor: "#166e8c", color: "#166e8c", borderRadius: "12px", fontWeight: 800 }}>
-                          {item.specificationDocumentUrl ? "Edit Document" : "Upload Document"}
+                          {item.specificationDocumentUrl ? "Replace Documents" : "Upload Documents"}
                         </Button>
                         <Button size="small" startIcon={<DeleteRoundedIcon />} onClick={() => clearItemFile(index)} disabled={!item.specificationDocumentUrl} sx={{ textTransform: "none", color: "#b42318", borderRadius: "12px", fontWeight: 800 }}>
                           Delete
                         </Button>
                       </div>
-                      {item.specificationDocumentName && <span className="mt-2 block text-xs font-semibold text-slate-500">{item.specificationDocumentName}</span>}
-                      {item.specificationDocumentUrl ? <a href={item.specificationDocumentUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-bold text-[#166e8c] hover:underline">Open current document</a> : null}
+                      {item.specificationDocuments?.length ? <div className="mt-3 flex flex-wrap gap-2">{item.specificationDocuments.map((document) => <a key={document.name} href={document.dataUrl} target="_blank" rel="noreferrer" className="rounded-lg bg-[#edf7fb] px-3 py-1.5 text-xs font-bold text-[#166e8c] hover:underline">{document.name}</a>)}</div> : null}
                     </div>
                   </div>
                 </div>

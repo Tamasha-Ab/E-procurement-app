@@ -4,6 +4,7 @@ import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { vendorApi } from "../../api/vendorApi";
 import { rfqDisplayName, rfqContext } from "../../utils/procurementDisplay";
+import { toast } from "react-toastify";
 
 const inputClass = "w-full rounded-2xl border border-[#dce8ef] bg-white px-4 py-3 text-sm outline-none focus:border-[#166e8c]";
 const buttonClass = "rounded-2xl bg-[#166e8c] px-5 py-3 text-sm font-bold text-white hover:bg-[#145f79] disabled:opacity-60";
@@ -69,6 +70,7 @@ export default function VendorObjections() {
     setMessage("");
     if (deadlineClosed) {
       setError("The objection period for this RFQ has ended.");
+      toast.warning("The objection period for this RFQ has ended.", { autoClose: 3500 });
       return;
     }
     try {
@@ -77,9 +79,12 @@ export default function VendorObjections() {
         documentUrl: form.documentUrl,
       });
       setMessage("Objection submitted to TEC.");
+      toast.success("Objection submitted to TEC.", { autoClose: 3000 });
       setForm((current) => ({ ...current, reason: "", documentUrl: "" }));
     } catch (err) {
-      setError(err.message || "Could not submit objection.");
+      const message = err.message || "Could not submit objection.";
+      setError(message);
+      toast.error(message, { autoClose: 4000 });
     }
   };
 

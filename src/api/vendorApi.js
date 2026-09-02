@@ -77,6 +77,7 @@ export const vendorApi = {
   },
   quotations: {
     list: () => vendorRequest(`${basePath}/quotations`),
+    listPage: (page = 0, size = 10) => vendorRequest(`${basePath}/quotations/paged?page=${page}&size=${size}`),
     submitRequestedDocument: (quotationId, payload) =>
       vendorRequest(`${basePath}/quotations/${quotationId}/requested-document`, { method: "PATCH", body: payload }),
   },
