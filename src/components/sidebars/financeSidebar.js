@@ -48,7 +48,12 @@ export const becHeadSidebarItems = [
   { label: "Category Lists", icon: ReceiptLongRoundedIcon, path: becHeadPath("category-lists") },
   { label: "BEC Category Assignment", icon: ManageAccountsRoundedIcon, path: becHeadPath("category-assignment") },
   { label: "Quotation Review", icon: PlaylistAddCheckRoundedIcon, path: becHeadPath("quotation-review") },
-  { label: "Vendor Review", icon: RuleFolderRoundedIcon, path: becHeadPath("vendor-review") },
+  {
+    label: "Vendor Review",
+    icon: RuleFolderRoundedIcon,
+    path: becHeadPath("vendor-review"),
+    activePaths: [becHeadPath("vendor-final-list")],
+  },
   { label: "Selected Vendors", icon: PlaylistAddCheckRoundedIcon, path: becHeadPath("selected-vendors") },
   { label: "Role Requests", icon: ManageAccountsRoundedIcon, path: becHeadPath("role-requests") },
   { label: "Audit Trail", icon: ReceiptLongRoundedIcon, path: becHeadPath("audit-trail") },

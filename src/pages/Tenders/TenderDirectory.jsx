@@ -29,6 +29,8 @@ export default function TenderDirectory() {
   const [tenders, setTenders] = useState([]);
   const [selectedId, setSelectedId] = useState(tenderId || "");
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const detailsRef = useRef(null);
@@ -39,8 +41,14 @@ export default function TenderDirectory() {
     try {
       const data = await procurementApi.tenders.list(token);
       const list = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : [];
-      const visibleList = visibleTendersForUser(list, user);
-      setTenders(list);
+      const newestFirst = [...list].sort((left, right) => {
+        const rightTime = new Date(right.createdAt || right.dateOfPublication || 0).getTime() || 0;
+        const leftTime = new Date(left.createdAt || left.dateOfPublication || 0).getTime() || 0;
+        if (rightTime !== leftTime) return rightTime - leftTime;
+        return Number(right.tenderId || 0) - Number(left.tenderId || 0);
+      });
+      const visibleList = visibleTendersForUser(newestFirst, user);
+      setTenders(newestFirst);
       setSelectedId((current) => {
         if (tenderId && visibleList.some((tender) => String(tender.tenderId) === String(tenderId))) return tenderId;
         if (visibleList.some((tender) => String(tender.tenderId) === String(current))) return current;
@@ -63,17 +71,21 @@ export default function TenderDirectory() {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const visibleTenders = visibleTendersForUser(tenders, user);
-    if (!term) return visibleTenders;
-    return visibleTenders.filter((tender) =>
-      [tender.tenderNumber, tender.title, tender.tenderType, tender.procurementMethod, tender.fundingSource]
-        .some((value) => String(value || "").toLowerCase().includes(term))
-    );
-  }, [search, tenders, user]);
+    const fromTime = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : null;
+    const toTime = dateTo ? new Date(`${dateTo}T23:59:59.999`).getTime() : null;
+    return visibleTendersForUser(tenders, user).filter((tender) => {
+      const matchesSearch = !term || [tender.tenderNumber, tender.title, tender.tenderType, tender.procurementMethod, tender.fundingSource]
+        .some((value) => String(value || "").toLowerCase().includes(term));
+      const tenderTime = new Date(tender.createdAt || tender.dateOfPublication || 0).getTime();
+      const matchesFrom = fromTime === null || (Number.isFinite(tenderTime) && tenderTime >= fromTime);
+      const matchesTo = toTime === null || (Number.isFinite(tenderTime) && tenderTime <= toTime);
+      return matchesSearch && matchesFrom && matchesTo;
+    });
+  }, [dateFrom, dateTo, search, tenders, user]);
 
   const { page, setPage, totalPages, pageItems, pageSize } = usePagination(filtered, 10);
 
-  useEffect(() => { setPage(0); }, [search, setPage]);
+  useEffect(() => { setPage(0); }, [dateFrom, dateTo, search, setPage]);
 
   const selected = filtered.find((tender) => String(tender.tenderId) === String(selectedId)) || filtered[0] || null;
   const view = selected ? buildTenderViewModel(selected) : null;
@@ -102,13 +114,23 @@ export default function TenderDirectory() {
 
       <section className="space-y-6">
         <div className="rounded-[30px] border border-[#dce8ef] bg-white p-5 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search tenders"
-            className="w-full rounded-2xl border border-[#dce8ef] px-4 py-3 text-sm outline-none focus:border-[#166e8c]"
-          />
+          <div className="grid gap-3 lg:grid-cols-[minmax(280px,1fr)_190px_190px]">
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search tender number, title, type or method"
+              className="w-full rounded-2xl border border-[#dce8ef] px-4 py-3 text-sm outline-none focus:border-[#166e8c]"
+            />
+            <label className="flex items-center gap-2 rounded-2xl border border-[#dce8ef] bg-white px-3">
+              <span className="whitespace-nowrap text-xs font-bold text-[#166e8c]">From</span>
+              <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => setDateFrom(event.target.value)} className="min-w-0 flex-1 py-3 text-sm outline-none" />
+            </label>
+            <label className="flex items-center gap-2 rounded-2xl border border-[#dce8ef] bg-white px-3">
+              <span className="whitespace-nowrap text-xs font-bold text-[#166e8c]">To</span>
+              <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} className="min-w-0 flex-1 py-3 text-sm outline-none" />
+            </label>
+          </div>
           <div className="mt-4 overflow-x-auto">
             <div className="grid min-w-[930px] grid-cols-[190px_minmax(230px,1fr)_150px_165px_150px_85px] gap-2 rounded-xl bg-[#f5fbff] px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#166e8c]">
               <span>Tender</span><span>Title</span><span>Type</span><span>Status</span><span>Date / Time</span><span>Action</span>

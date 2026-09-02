@@ -66,6 +66,19 @@ function VendorSpecificationTable({ specificationText, requiredSpecification }) 
   );
 }
 
+function parseVendorDocuments(value) {
+  if (!value) return [];
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    const documents = Array.isArray(parsed) ? parsed : parsed?.requiredDocuments;
+    return Array.isArray(documents)
+      ? documents.filter((document) => document?.dataUrl || document?.url)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function buildReviewComment(item, decision, approved) {
   return [
     "BEC Member Review",
@@ -79,6 +92,10 @@ function buildReviewComment(item, decision, approved) {
     `Completeness of quotation submission form: ${decision.completeness || "YES"}`,
     `Substantial responsiveness: ${decision.responsiveness || "YES"}`,
     `Accepted for detailed evaluation: ${decision.acceptedForEvaluation || "YES"}`,
+    "",
+    "Vendor Submitted Document Review",
+    `Documents complete: ${decision.documentCompleteness || "YES"}`,
+    `Document review comment: ${decision.documentComment || "No document issues recorded."}`,
     "",
     "Clarifications sought from bidders",
     decision.clarification || "No clarification requested.",
@@ -167,6 +184,8 @@ export default function BecAssignedQuotations({ approvedOnly = false }) {
         completeness: "YES",
         responsiveness: "YES",
         acceptedForEvaluation: "YES",
+        documentCompleteness: "YES",
+        documentComment: "",
         clarification: "",
         departure: "",
         comment: "",
@@ -178,6 +197,12 @@ export default function BecAssignedQuotations({ approvedOnly = false }) {
 
   const reviewItem = async (item, approved) => {
     const decision = decisions[item.quotationItemId] || {};
+    if (decision.documentCompleteness === "NO" && !decision.documentComment?.trim()) {
+      const message = "Document issues mark karaddi missing document / issue comment eka required.";
+      setError(message);
+      toast.error(message, { autoClose: 5000 });
+      return;
+    }
     if (!approved && !decision.comment?.trim()) {
       setError("Reject karaddi item technical decision comment eka required.");
       return;
@@ -297,6 +322,7 @@ export default function BecAssignedQuotations({ approvedOnly = false }) {
       <div id="bec-assignment-details" className="scroll-mt-28 space-y-5">
         {displayItems.filter((item) => String(item.quotationItemId) === selectedItemId).map((item) => {
           const decision = decisions[item.quotationItemId] || {};
+          const vendorDocuments = parseVendorDocuments(item.quotationDocuments);
           const saving = savingId === String(item.quotationItemId);
           const aiReview = aiReviews[item.quotationId];
           const aiLoading = aiLoadingId === String(item.quotationId);
@@ -321,6 +347,42 @@ export default function BecAssignedQuotations({ approvedOnly = false }) {
                   {item.requiredSpecificationDocumentUrl && <a className="text-sm font-bold text-[#166e8c]" href={item.requiredSpecificationDocumentUrl} target="_blank" rel="noreferrer">Open university spec document</a>}
                   {item.specificationDocumentUrl && <a className="text-sm font-bold text-[#166e8c]" href={item.specificationDocumentUrl} target="_blank" rel="noreferrer">Open vendor spec document</a>}
                 </div>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-[#dce8ef] bg-[#fbfdff] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#166e8c]">Vendor Submitted Documents</div>
+                    <p className="mt-1 text-xs text-slate-500">Documents saved by the vendor during quotation submission.</p>
+                  </div>
+                  <span className="rounded-full bg-[#edf7fb] px-3 py-1 text-xs font-bold text-[#166e8c]">{vendorDocuments.length} documents</span>
+                </div>
+                <div className="mt-3 overflow-hidden rounded-xl border border-[#dce8ef] bg-white">
+                  {vendorDocuments.length ? vendorDocuments.map((document, index) => {
+                    const documentUrl = document.dataUrl || document.url;
+                    return (
+                      <div key={`${document.label || document.fileName}-${index}`} className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5eef3] px-4 py-3 last:border-b-0">
+                        <div className="min-w-0">
+                          <div className="font-bold text-[#10283f]">{document.label || `Document ${index + 1}`}</div>
+                          <div className="truncate text-xs text-slate-500">{document.fileName || "Uploaded document"}</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <a href={documentUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-[#166e8c] px-3 py-2 text-xs font-bold text-[#166e8c]">View</a>
+                          <a href={documentUrl} download={document.fileName || `vendor-document-${index + 1}`} className="rounded-xl bg-[#166e8c] px-3 py-2 text-xs font-bold text-white">Download</a>
+                        </div>
+                      </div>
+                    );
+                  }) : <div className="px-4 py-4 text-sm text-slate-500">No reusable vendor documents were saved for this quotation.</div>}
+                </div>
+                {!approvedOnly && (
+                  <div className="mt-4 grid gap-3 lg:grid-cols-[260px_1fr]">
+                    <select className={inputClass} value={decision.documentCompleteness || "YES"} onChange={(e) => updateDecision(item.quotationItemId, { documentCompleteness: e.target.value })}>
+                      <option value="YES">Documents: Complete</option>
+                      <option value="NO">Documents: Has issues</option>
+                    </select>
+                    <textarea className={`${inputClass} min-h-[84px]`} value={decision.documentComment || ""} onChange={(e) => updateDecision(item.quotationItemId, { documentComment: e.target.value })} placeholder="Missing documents, issues, or review comment" />
+                  </div>
+                )}
               </div>
 
               <div className="mt-5 grid gap-4 lg:grid-cols-2">

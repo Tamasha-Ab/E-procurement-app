@@ -71,7 +71,7 @@ import BecMemberAuditTrail from "./pages/Approvals/BecMemberAuditTrail.jsx";
 import Footer from "./components/Footer.jsx";
 import CallOutlinedIcon from "@mui/icons-material/CallOutlined";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
-import { adminPath, becHeadPath, becPath, deanPath, divisionHeadPath, getDashboardPath, isStaffMember, seniorAssistantBursarPath, staffMemberPath, vcPath, vendorPath } from "./utils/roleRoutes.js";
+import { adminPath, becHeadPath, becPath, deanPath, divisionHeadPath, dpcPath, getDashboardPath, isStaffMember, seniorAssistantBursarPath, staffMemberPath, vcPath, vendorPath } from "./utils/roleRoutes.js";
 
 function LandingPage({ onOpenLogin, onOpenRegister }) {
 const featureCards = [
@@ -392,6 +392,16 @@ const App = () => {
             <Route path={adminPath("notifications")} element={<NotificationsPage />} />
             <Route path={`${adminPath("notifications")}/:notificationId`} element={<NotificationsPage />} />
             <Route path={adminPath("settings")} element={<UserSettings />} />
+            <Route path={dpcPath("dashboard")} element={<DpcDashboard />} />
+            <Route path={dpcPath("tenders")} element={<TenderDirectory />} />
+            <Route path={`${dpcPath("tenders")}/:tenderId`} element={<TenderDirectory />} />
+            <Route path={dpcPath("vendors")} element={<DpcVendorWorkspace />} />
+            <Route path={dpcPath("vendors/blacklist")} element={<DpcVendorWorkspace fixedStatus="BLACK_LISTED" />} />
+            <Route path={dpcPath("quotation-approvals")} element={<QuotationAuthorityApprovals />} />
+            <Route path={dpcPath("notifications")} element={<NotificationsPage />} />
+            <Route path={`${dpcPath("notifications")}/:notificationId`} element={<NotificationsPage />} />
+            <Route path={dpcPath("audit-trail")} element={<DpcAuditTrail />} />
+            <Route path={dpcPath("settings")} element={<UserSettings />} />
             <Route path="/bursar/budgets" element={<BursarBudgetWorkspace />} />
             <Route path="/finance/category-rr/:rrId" element={<FinanceCategoryRrDetails />} />
             <Route path="/finance/received-rr-lists" element={<ReceivedRrLists />} />
@@ -435,6 +445,7 @@ const App = () => {
             <Route path={vendorPath("settings")} element={<UserSettings />} />
             <Route path="/vendor/quotations" element={<VendorQuotations />} />
             <Route path={vendorPath("offer-letters")} element={<VendorOfferLetters />} />
+            <Route path={vendorPath("purchase-orders")} element={<VendorPurchaseOrderDetails />} />
             <Route path="/vendor/objections" element={<VendorObjections />} />
             <Route path="/vendor/rfq-invitations" element={<VendorRfqInvitations />} />
             <Route path="/vendor/quotation-submission" element={<VendorQuotationSubmission />} />

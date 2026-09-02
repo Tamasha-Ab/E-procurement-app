@@ -55,23 +55,33 @@ export default function DpcVendorWorkspace({ fixedStatus = "" }) {
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [documentIssues, setDocumentIssues] = useState(emptyDocumentIssues);
   const [decisionRemarks, setDecisionRemarks] = useState("");
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
+  const pageSize = 10;
 
   const loadVendors = () => {
     setLoading(true);
     setError("");
-    dpcApi.vendors.list(token, { status: fixedStatus || status, search })
+    dpcApi.vendors.list(token, { status: fixedStatus || status, search, page, size: pageSize })
       .then((list) => {
-        const next = Array.isArray(list) ? list : [];
+        const next = Array.isArray(list) ? list : Array.isArray(list?.content) ? list.content : [];
         setVendors(next);
-        setSelectedId((current) => next.some((vendor) => vendor.userId === current) ? current : next[0]?.userId || null);
+        setTotalPages(Math.max(Number(list?.totalPages || 1), 1));
+        setTotalElements(Number(list?.totalElements ?? next.length));
+        setSelectedId((current) => next.some((vendor) => vendor.userId === current) ? current : null);
       })
-      .catch((err) => setError(err.message || "Could not load vendors."))
+      .catch((err) => {
+        const errorMessage = err.message || "Could not load vendors.";
+        setError(errorMessage);
+        toast.error(errorMessage, { toastId: "dpc-vendors-load-error", autoClose: 5000 });
+      })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     if (token) loadVendors();
-  }, [token, fixedStatus, status]);
+  }, [token, fixedStatus, status, page]);
 
   useEffect(() => {
     if (!fixedStatus) {
@@ -132,20 +142,20 @@ export default function DpcVendorWorkspace({ fixedStatus = "" }) {
       >
         <div className="rounded-[24px] bg-white/10 p-5 text-right backdrop-blur">
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-100">Vendors</div>
-          <div className="mt-2 text-3xl font-black">{vendors.length}</div>
+          <div className="mt-2 text-3xl font-black">{totalElements}</div>
         </div>
       </PageHero>
 
       {error && <div className="rounded-[24px] bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
-      <section className="grid gap-4 md:grid-cols-4">
+      {!fixedStatus && <section className="grid gap-4 md:grid-cols-4">
         {["PENDING", "APPROVED", "REJECTED", "BLACK_LISTED"].map((item) => (
           <div key={item} className="rounded-[24px] border border-[#dce8ef] bg-white p-4">
             <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{statusLabel(item)}</div>
             <div className="mt-2 text-2xl font-black text-[#10283f]">{counts[item] || 0}</div>
           </div>
         ))}
-      </section>
+      </section>}
 
       <section className="space-y-6">
         <div className="rounded-[30px] border border-[#dce8ef] bg-white p-5 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
@@ -154,12 +164,12 @@ export default function DpcVendorWorkspace({ fixedStatus = "" }) {
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && loadVendors()}
+              onKeyDown={(event) => { if (event.key === "Enter") { setPage(0); loadVendors(); } }}
               placeholder="Search vendors"
               className="rounded-2xl border border-[#dce8ef] px-4 py-2 text-sm outline-none focus:border-[#166e8c]"
             />
             {!fixedStatus && (
-              <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-2xl border border-[#dce8ef] px-4 py-2 text-sm outline-none focus:border-[#166e8c]">
+              <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(0); }} className="rounded-2xl border border-[#dce8ef] px-4 py-2 text-sm outline-none focus:border-[#166e8c]">
                 <option value="">All statuses</option>
                 <option value="PENDING">Pending</option>
                 <option value="APPROVED">Approved</option>
@@ -168,36 +178,34 @@ export default function DpcVendorWorkspace({ fixedStatus = "" }) {
               </select>
             )}
           </div>
-          <button type="button" onClick={loadVendors} className="mt-3 rounded-2xl bg-[#edf7fb] px-4 py-2 text-sm font-bold text-[#166e8c] hover:bg-[#d9edf5]">
+          <button type="button" onClick={() => { setPage(0); loadVendors(); }} className="mt-3 rounded-2xl bg-[#edf7fb] px-4 py-2 text-sm font-bold text-[#166e8c] hover:bg-[#d9edf5]">
             Refresh
           </button>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-5 overflow-hidden rounded-2xl border border-[#dce8ef]">
             {loading && <div className="rounded-[20px] bg-slate-50 p-4 text-sm text-slate-600">Loading vendors...</div>}
             {!loading && vendors.length === 0 && <div className="rounded-[20px] bg-slate-50 p-4 text-sm text-slate-600">No vendors found.</div>}
             {vendors.map((vendor) => (
               <button
                 type="button"
                 key={vendor.userId}
-                onClick={() => setSelectedId(vendor.userId)}
-                className={`w-full rounded-[22px] border p-4 text-left transition ${selectedId === vendor.userId ? "border-[#166e8c] bg-[#f5fbff]" : "border-[#edf3f7] bg-white hover:bg-slate-50"}`}
+                onClick={() => { setSelectedId(vendor.userId); requestAnimationFrame(() => document.getElementById("dpc-vendor-details")?.scrollIntoView({ behavior: "smooth", block: "start" })); }}
+                className={`grid w-full gap-2 border-b border-[#e8f0f5] px-4 py-3 text-left text-sm transition last:border-b-0 md:grid-cols-[1.2fr_1.2fr_1fr_auto] md:items-center ${selectedId === vendor.userId ? "bg-[#eaf7fb]" : "bg-white hover:bg-[#f7fbfd]"}`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-black text-[#10283f]">{displayVendor(vendor)}</div>
-                    <div className="mt-1 text-sm text-slate-600">{vendor.email || vendor.vendorEmail}</div>
-                  </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-black ${statusTone[vendor.vendorStatus] || statusTone.PENDING}`}>
-                    {statusLabel(vendor.vendorStatus || "PENDING")}
-                  </span>
-                </div>
-                <div className="mt-2 line-clamp-2 text-xs text-slate-500">{vendor.vendorCategory || "No category selected"}</div>
+                <span className="font-black text-[#10283f]">{displayVendor(vendor)}</span>
+                <span className="truncate text-slate-600">{vendor.email || vendor.vendorEmail}</span>
+                <span className="truncate text-xs text-slate-500">{vendor.vendorCategory || "No category selected"}</span>
+                <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${statusTone[vendor.vendorStatus] || statusTone.PENDING}`}>{statusLabel(vendor.vendorStatus || "PENDING")}</span>
               </button>
             ))}
           </div>
+          <div className="mt-4 flex items-center justify-between gap-3 text-sm">
+            <span className="font-semibold text-slate-500">Page {page + 1} of {totalPages} · {totalElements} vendors</span>
+            <div className="flex gap-2"><button type="button" disabled={page === 0} onClick={() => setPage((value) => Math.max(value - 1, 0))} className="rounded-xl bg-[#edf7fb] px-4 py-2 font-black text-[#166e8c] disabled:opacity-40">Previous</button><button type="button" disabled={page + 1 >= totalPages} onClick={() => setPage((value) => value + 1)} className="rounded-xl bg-[#166e8c] px-4 py-2 font-black text-white disabled:opacity-40">Next</button></div>
+          </div>
         </div>
 
-        <div className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
+        <div id="dpc-vendor-details" className="scroll-mt-28 rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
           {!selected ? (
             <div className="rounded-[22px] bg-slate-50 p-5 text-sm text-slate-600">Select a vendor to review details.</div>
           ) : (

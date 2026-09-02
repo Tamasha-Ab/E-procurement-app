@@ -16,6 +16,7 @@ const Sidebar = () => {
 
   const isActiveItem = (item) => {
     const currentPath = location.pathname;
+    if ((item?.excludePaths || []).some((path) => currentPath === path || currentPath.startsWith(`${path}/`))) return false;
     const itemPath = item?.path || "/dashboard";
     if (itemPath === "/dashboard") {
       return currentPath === "/" || currentPath === "/dashboard";

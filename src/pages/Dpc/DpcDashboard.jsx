@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import PageHero from "../../components/PageHero";
 import { useAuth } from "../../contexts/AuthContext";
 import { dpcApi } from "../../api/dpcApi";
+import { toast } from "react-toastify";
 
 export default function DpcDashboard() {
   const { token } = useAuth();
@@ -19,8 +20,12 @@ export default function DpcDashboard() {
     if (!token) return;
     setLoading(true);
     dpcApi.vendors.list(token)
-      .then((list) => setVendors(Array.isArray(list) ? list : []))
-      .catch((err) => setError(err.message || "Could not load DPC overview."))
+      .then((list) => setVendors(Array.isArray(list) ? list : Array.isArray(list?.content) ? list.content : []))
+      .catch((err) => {
+        const errorMessage = err.message || "Could not load DPC overview.";
+        setError(errorMessage);
+        toast.error(errorMessage, { toastId: "dpc-dashboard-load-error", autoClose: 5000 });
+      })
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -36,6 +41,10 @@ export default function DpcDashboard() {
     { label: "Approved", value: counts.APPROVED || 0, icon: CheckCircleRoundedIcon, path: "/dpc/vendors?status=APPROVED" },
     { label: "Black Listed", value: counts.BLACK_LISTED || 0, icon: BlockRoundedIcon, path: "/dpc/vendors/blacklist" },
   ];
+
+  const recentVendors = useMemo(() => [...vendors]
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+    .slice(0, 5), [vendors]);
 
   return (
     <div className="space-y-8">
@@ -62,6 +71,27 @@ export default function DpcDashboard() {
             </button>
           );
         })}
+      </section>
+
+      <section className="overflow-hidden rounded-[26px] border border-[#dce8ef] bg-white shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
+        <div className="flex flex-col gap-3 border-b border-[#e5eef3] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Recent activity</div>
+            <h2 className="mt-1 text-xl font-black text-[#10283f]">Latest vendor registrations</h2>
+          </div>
+          <button type="button" onClick={() => navigate("/dpc/vendors")} className="w-fit rounded-xl bg-[#edf7fb] px-4 py-2 text-sm font-black text-[#166e8c] hover:bg-[#d9edf5]">View all</button>
+        </div>
+        <div className="divide-y divide-[#e8f0f5]">
+          {!loading && recentVendors.map((vendor) => (
+            <button key={vendor.userId || vendor.vendorId} type="button" onClick={() => navigate("/dpc/vendors")} className="grid w-full gap-2 px-5 py-3 text-left text-sm hover:bg-[#f7fbfd] sm:grid-cols-[1.2fr_1fr_0.8fr] sm:items-center">
+              <span className="font-black text-[#10283f]">{vendor.vendorName || vendor.username || vendor.email || "Vendor"}</span>
+              <span className="text-slate-600">{vendor.vendorCategory || "Category not recorded"}</span>
+              <span className="font-bold text-[#166e8c] sm:text-right">{String(vendor.vendorStatus || "PENDING").replaceAll("_", " ")}</span>
+            </button>
+          ))}
+          {loading && <div className="px-5 py-5 text-sm text-slate-500">Loading recent registrations...</div>}
+          {!loading && recentVendors.length === 0 && <div className="px-5 py-5 text-sm text-slate-500">No vendor registrations available.</div>}
+        </div>
       </section>
     </div>
   );

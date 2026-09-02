@@ -4,9 +4,10 @@ import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import VerifiedRoundedIcon from "@mui/icons-material/VerifiedRounded";
 import { useAuth } from "../../contexts/AuthContext";
-import { apiRequest, statusLabel } from "../../services/apiClient";
+import { apiRequest, formatDateTime, formatMoney, statusLabel } from "../../services/apiClient";
 import { bursarFeatureCards } from "./dashboardConfig";
 import { getSeniorAssistantBursarPath } from "../../utils/roleRoutes";
+import StatusPill from "../../components/StatusPill";
 
 const bursarWorkspaceRoles = ["BURSAR", "ASSISTANT_BURSAR", "SENIOR_ASSISTANT_BURSAR"];
 
@@ -23,6 +24,7 @@ export default function FinanceDashboard() {
     finalRrs: 0,
     unreadNotifications: 0,
   });
+  const [recentReceivedRrs, setRecentReceivedRrs] = useState([]);
 
   const metrics = useMemo(() => {
     if (isProcurementOfficer) {
@@ -45,14 +47,17 @@ export default function FinanceDashboard() {
       apiRequest("/api/notifications/my/unread-count", { token }),
     ])
       .then(([pending, finalList, unread]) => {
+        const pendingList = Array.isArray(pending) ? pending : [];
         setSummary({
-          pendingRrs: Array.isArray(pending) ? pending.length : 0,
+          pendingRrs: pendingList.length,
           finalRrs: Array.isArray(finalList) ? finalList.length : 0,
           unreadNotifications: Number(unread?.unreadCount || 0),
         });
+        setRecentReceivedRrs([...pendingList].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0)).slice(0, 5));
       })
       .catch(() => {
         setSummary({ pendingRrs: 0, finalRrs: 0, unreadNotifications: 0 });
+        setRecentReceivedRrs([]);
       });
   }, [token, isBursarWorkspace]);
 
@@ -107,17 +112,17 @@ export default function FinanceDashboard() {
       </section>
 
       {isBursarWorkspace && (
-        <section className="rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]">
+        <section className="rounded-[24px] border border-[#dce8ef] bg-white p-4 shadow-[0_14px_34px_rgba(15,41,64,0.06)]">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Bursar Workspace Summary</div>
-              <h2 className="mt-2 text-2xl font-bold text-[#10283f]">Finance review overview</h2>
+              <h2 className="mt-1 text-xl font-bold text-[#10283f]">Finance review overview</h2>
             </div>
             <div className="rounded-full bg-[#edf7fb] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">
               {statusLabel(displayRole)}
             </div>
           </div>
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
             <SummaryTile
               label="Received RR Lists"
               value={summary.pendingRrs}
@@ -136,6 +141,23 @@ export default function FinanceDashboard() {
               helper="Unread workspace notices"
               onClick={() => navigate(rolePath("notifications", "/notifications"))}
             />
+          </div>
+        </section>
+      )}
+
+      {isBursarWorkspace && (
+        <section className="rounded-[24px] border border-[#dce8ef] bg-white p-4 shadow-[0_14px_34px_rgba(15,41,64,0.06)]">
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Recent Received RRs</div><h2 className="mt-1 text-xl font-bold text-[#10283f]">Latest finance submissions</h2></div><button type="button" onClick={() => navigate(rolePath("received-rr-lists", "/finance/received-rr-lists"))} className="rounded-xl bg-[#edf7fb] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#166e8c] hover:bg-[#d9edf5]">View all</button></div>
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[#dce8ef]">
+            {!recentReceivedRrs.length && <div className="px-4 py-4 text-sm text-slate-600">No received requisitions are available.</div>}
+            {recentReceivedRrs.map((rr) => (
+              <button key={rr.rrId} type="button" onClick={() => navigate(`${rolePath("received-rr", "/finance/category-rr")}/${rr.rrId}`)} className="grid w-full gap-2 border-b border-[#e5eef3] px-4 py-3 text-left text-sm last:border-b-0 hover:bg-[#f5fbfe] md:grid-cols-[1.2fr_1fr_0.8fr_0.8fr] md:items-center">
+                <span><span className="block truncate font-black text-[#10283f]">{rr.title || rr.requestTitle || "Requisition request"}</span><span className="mt-0.5 block text-[10px] font-semibold text-[#166e8c]">{rr.rrNumber || `RR-${rr.rrId}`}</span></span>
+                <span className="truncate text-slate-600">{rr.vendorCategories || rr.category || rr.divisionName || "Category not recorded"}</span>
+                <span className="font-bold text-[#10283f]">{formatMoney(rr.estimatedTotalAmount || rr.totalEstimatedCost || rr.totalAmount)}</span>
+                <span className="flex items-center justify-between gap-2 md:justify-end"><StatusPill status={rr.status || "SUBMITTED_TO_BURSAR"} /><span className="whitespace-nowrap text-[10px] text-slate-500">{formatDateTime(rr.updatedAt || rr.createdAt)}</span></span>
+              </button>
+            ))}
           </div>
         </section>
       )}
@@ -178,11 +200,11 @@ function SummaryTile({ label, value, helper, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="rounded-[24px] border border-[#e0ebf1] bg-[#fbfdff] p-5 text-left transition hover:-translate-y-1 hover:border-[#166e8c] hover:shadow-[0_18px_45px_rgba(15,41,64,0.10)] focus:outline-none focus:ring-2 focus:ring-[#166e8c]/30"
+      className="rounded-2xl border border-[#e0ebf1] bg-[#fbfdff] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#166e8c] hover:shadow-[0_12px_30px_rgba(15,41,64,0.09)] focus:outline-none focus:ring-2 focus:ring-[#166e8c]/30"
     >
       <div className="text-sm font-semibold text-[#166e8c]">{label}</div>
-      <div className="mt-4 text-4xl font-black text-[#10283f]">{value}</div>
-      <div className="mt-2 text-sm leading-6 text-slate-600">{helper}</div>
+      <div className="mt-2 text-2xl font-black text-[#10283f]">{value}</div>
+      <div className="mt-1 text-xs leading-5 text-slate-600">{helper}</div>
     </button>
   );
 }

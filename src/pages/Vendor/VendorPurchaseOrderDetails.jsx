@@ -1,58 +1,94 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { vendorApi } from "../../api/vendorApi";
 import { formatDateTime, formatMoney } from "../../services/apiClient";
 
-const cardClass = "rounded-[30px] border border-[#dce8ef] bg-white p-6 shadow-[0_18px_45px_rgba(15,41,64,0.06)]";
+const cardClass = "rounded-[26px] border border-[#dce8ef] bg-white p-5 shadow-[0_18px_45px_rgba(15,41,64,0.06)]";
+
+function parseSpecificationRows(requiredText = "", vendorText = "") {
+  const vendorRows = String(vendorText || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+    const clean = line.replace(/^\d+\.\s*/, "");
+    const [description = "", rest = ""] = clean.split(/\s+-\s+Required:\s*/);
+    const [required = "", conformityRest = ""] = rest.split(/\s+\|\s+Conformity:\s*/);
+    const [conformity = "", response = ""] = conformityRest.split(/\s+\|\s+Bidder Response:\s*/);
+    return { description, required, conformity, response };
+  });
+  if (vendorRows.length && vendorRows.some((row) => row.required || row.response)) return vendorRows;
+  return [{ description: "Specification", required: requiredText || "Not provided", conformity: "Not recorded", response: vendorText || "Not provided" }];
+}
 
 export default function VendorPurchaseOrderDetails() {
   const { poId } = useParams();
   const navigate = useNavigate();
   const [purchaseOrder, setPurchaseOrder] = useState(null);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
+  const loadList = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      setPurchaseOrder(await vendorApi.purchaseOrders.detail(poId));
+      const result = await vendorApi.purchaseOrders.list();
+      setPurchaseOrders(Array.isArray(result) ? result : result?.content || []);
     } catch (loadError) {
-      setError(loadError.message || "Could not load purchase order.");
+      setError(loadError.message || "Could not load purchase orders.");
     } finally {
       setLoading(false);
     }
-  }, [poId]);
+  }, []);
+
+  const selectPurchaseOrder = useCallback(async (selectedPoId, shouldScroll = true) => {
+    setError("");
+    try {
+      const detail = await vendorApi.purchaseOrders.detail(selectedPoId);
+      setPurchaseOrder(detail);
+      if (String(poId || "") !== String(selectedPoId)) navigate(`/vendor/purchase-orders/${selectedPoId}`, { replace: false });
+      if (shouldScroll) requestAnimationFrame(() => document.getElementById("purchase-order-details")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    } catch (loadError) {
+      setError(loadError.message || "Could not load purchase order details.");
+    }
+  }, [navigate, poId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadList();
+  }, [loadList]);
+
+  useEffect(() => {
+    if (poId) selectPurchaseOrder(poId, true);
+  }, [poId]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <PageHero
         eyebrow="Vendor"
-        title="Purchase Order"
-        description="View the purchase order issued for your selected quotation."
+        title="Received Purchase Orders"
+        description="View every purchase order issued to your vendor account and select one to inspect its approved quotation details."
       />
 
-      <button
-        type="button"
-        onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-2 rounded-2xl border border-[#dce8ef] bg-white px-4 py-2 text-sm font-bold text-[#10283f] hover:bg-slate-50"
-      >
-        <ArrowBackRoundedIcon fontSize="small" />
-        Back
-      </button>
-
       {error && <div className="rounded-[24px] bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
-      {loading && <section className={cardClass}>Loading purchase order...</section>}
+      {loading && <section className={cardClass}>Loading purchase orders...</section>}
+
+      {!loading && <section className={cardClass}>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div><div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#166e8c]">Purchase Order Inbox</div><h2 className="mt-1 text-xl font-black text-[#10283f]">All received purchase orders</h2></div>
+          <span className="rounded-full bg-[#edf7fb] px-3 py-1 text-xs font-bold text-[#166e8c]">{purchaseOrders.length} received</span>
+        </div>
+        <div className="overflow-x-auto rounded-2xl border border-[#dce8ef]">
+          <table className="w-full min-w-[850px] table-fixed border-collapse text-sm">
+            <thead className="bg-[#edf7fb] text-left text-[11px] font-black uppercase tracking-[0.14em] text-[#166e8c]"><tr><th className="w-[18%] px-4 py-3">PO Number</th><th className="w-[24%] px-4 py-3">Item / RR</th><th className="w-[18%] px-4 py-3">Amount</th><th className="w-[16%] px-4 py-3">Status</th><th className="w-[24%] px-4 py-3 text-right">Issued Date / Time</th></tr></thead>
+            <tbody>
+              {purchaseOrders.map((order) => <tr key={order.poId} onClick={() => selectPurchaseOrder(order.poId)} className={`cursor-pointer border-t border-[#e5eef3] transition ${String(purchaseOrder?.poId) === String(order.poId) ? "bg-[#e7f5fb]" : "bg-white hover:bg-[#f5fbfe]"}`}><td className="px-4 py-3 font-black text-[#10283f]">{order.poNumber || `PO ${order.poId}`}</td><td className="truncate px-4 py-3 text-slate-600">{order.requisitionItemName || order.rrNumber || "Purchase order"}</td><td className="px-4 py-3 font-bold text-[#10283f]">{formatMoney(order.totalAmount || order.quotedTotalPrice)}</td><td className="px-4 py-3"><StatusPill status={order.status || "ISSUED"} /></td><td className="whitespace-nowrap px-4 py-3 text-right text-slate-600">{formatDateTime(order.createdAt)}</td></tr>)}
+              {!purchaseOrders.length && <tr><td colSpan="5" className="px-4 py-8 text-center text-slate-500">No purchase orders received yet.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>}
 
       {!loading && purchaseOrder && (
-        <section className={cardClass}>
+        <section id="purchase-order-details" className={`${cardClass} scroll-mt-28`}>
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">{purchaseOrder.poNumber || `PO ${purchaseOrder.poId}`}</div>
@@ -101,18 +137,7 @@ export default function VendorPurchaseOrderDetails() {
             </div>
           </div>
 
-          <div className="mt-7 grid gap-4 lg:grid-cols-2">
-            <SpecCard
-              title="University / RR Specification"
-              text={purchaseOrder.requiredSpecification || "No university specification recorded."}
-              documentUrl={purchaseOrder.requiredSpecificationDocumentUrl}
-            />
-            <SpecCard
-              title="Vendor Specification"
-              text={purchaseOrder.vendorSpecification || "No vendor specification submitted."}
-              documentUrl={purchaseOrder.specificationDocumentUrl}
-            />
-          </div>
+          <SpecificationComparison purchaseOrder={purchaseOrder} />
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <DetailTile label="BEC Technical Comment" value={purchaseOrder.technicalComment || "Approved"} />
@@ -124,16 +149,14 @@ export default function VendorPurchaseOrderDetails() {
   );
 }
 
-function SpecCard({ title, text, documentUrl }) {
+function SpecificationComparison({ purchaseOrder }) {
+  const rows = parseSpecificationRows(purchaseOrder.requiredSpecification, purchaseOrder.vendorSpecification);
   return (
-    <div className="rounded-[24px] border border-[#e0ebf1] bg-[#fbfdff] p-5">
-      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#166e8c]">{title}</div>
-      <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{text}</div>
-      {documentUrl && (
-        <a href={documentUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-2xl bg-[#edf7fb] px-4 py-2 text-sm font-bold text-[#166e8c] hover:bg-[#d9edf5]">
-          View Document
-        </a>
-      )}
+    <div className="mt-7 rounded-[24px] border border-[#e0ebf1] bg-[#fbfdff] p-5">
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#166e8c]">Specification Comparison</div>
+      <p className="mt-1 text-xs text-slate-500">The first two columns show the University / RR Specification. The remaining columns show the Vendor Specification.</p>
+      <div className="mt-3 overflow-x-auto rounded-xl border border-[#c8dce7] bg-white"><table className="w-full min-w-[800px] table-fixed border-collapse text-sm"><thead className="bg-[#edf7fb] text-[#10283f]"><tr><th className="w-[24%] border border-[#c8dce7] px-3 py-2 text-left">Description</th><th className="w-[34%] border border-[#c8dce7] px-3 py-2 text-left">University / RR Specification</th><th className="w-[14%] border border-[#c8dce7] px-3 py-2 text-center">Conformity</th><th className="w-[28%] border border-[#c8dce7] px-3 py-2 text-left">Vendor Specification</th></tr></thead><tbody>{rows.map((row, index) => <tr key={index}><td className="break-words border border-[#c8dce7] px-3 py-2 align-top">{row.description || "Specification"}</td><td className="break-words border border-[#c8dce7] px-3 py-2 align-top">{row.required || purchaseOrder.requiredSpecification || "Not provided"}</td><td className="break-words border border-[#c8dce7] px-3 py-2 text-center align-top font-bold">{row.conformity || "Not recorded"}</td><td className="break-words border border-[#c8dce7] px-3 py-2 align-top">{row.response || purchaseOrder.vendorSpecification || "Not provided"}</td></tr>)}</tbody></table></div>
+      <div className="mt-3 flex flex-wrap gap-3">{purchaseOrder.requiredSpecificationDocumentUrl && <a href={purchaseOrder.requiredSpecificationDocumentUrl} target="_blank" rel="noreferrer" className="rounded-xl bg-[#edf7fb] px-3 py-2 text-xs font-bold text-[#166e8c]">View University Document</a>}{purchaseOrder.specificationDocumentUrl && <a href={purchaseOrder.specificationDocumentUrl} target="_blank" rel="noreferrer" className="rounded-xl bg-[#edf7fb] px-3 py-2 text-xs font-bold text-[#166e8c]">View Vendor Document</a>}</div>
     </div>
   );
 }

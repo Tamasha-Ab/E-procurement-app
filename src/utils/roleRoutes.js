@@ -7,6 +7,7 @@ export const BEC_BASE = "/bec";
 export const VC_BASE = "/vc";
 export const ADMIN_BASE = "/admin";
 export const VENDOR_BASE = "/vendor";
+export const DPC_BASE = "/dpc";
 
 export const isSeniorAssistantBursar = (user) =>
   user?.mainRole === "FINANCE" && user?.subRole === "SENIOR_ASSISTANT_BURSAR";
@@ -30,12 +31,15 @@ export const isAdmin = (user) =>
   user?.mainRole === "ADMIN" || user?.mainRole === "SUPER_ADMIN";
 
 export const isVendor = (user) => user?.mainRole === "VENDOR";
+export const isDpc = (user) => user?.mainRole === "DPC";
 
 export const isStaffMember = (user) =>
   user?.mainRole === "FACULTY_STAFF" && !isDivisionHead(user) && !isDean(user);
 
 export const getDashboardPath = (user) =>
-  isAdmin(user)
+  isDpc(user)
+    ? `${DPC_BASE}/dashboard`
+    : isAdmin(user)
     ? `${ADMIN_BASE}/dashboard`
     : isSeniorAssistantBursar(user)
     ? `${SENIOR_ASSISTANT_BURSAR_BASE}/dashboard`
@@ -82,11 +86,16 @@ export const adminPath = (page = "") =>
 export const vendorPath = (page = "") =>
   `${VENDOR_BASE}${page ? `/${page}` : ""}`;
 
+export const dpcPath = (page = "") =>
+  `${DPC_BASE}${page ? `/${page}` : ""}`;
+
 export const getSeniorAssistantBursarPath = (user, page, fallback) =>
   isSeniorAssistantBursar(user) ? seniorAssistantBursarPath(page) : fallback;
 
 export const getUserSettingsPath = (user) =>
-  isAdmin(user)
+  isDpc(user)
+    ? dpcPath("settings")
+    : isAdmin(user)
     ? adminPath("settings")
     : isVendor(user)
       ? vendorPath("settings")
@@ -107,7 +116,9 @@ export const getUserSettingsPath = (user) =>
       : getDashboardPath(user);
 
 export const getUserNotificationsPath = (user) =>
-  isAdmin(user)
+  isDpc(user)
+    ? dpcPath("notifications")
+    : isAdmin(user)
     ? adminPath("notifications")
     : isVendor(user)
       ? vendorPath("notifications")
@@ -128,6 +139,7 @@ export const getUserNotificationsPath = (user) =>
       : "/notifications";
 
 export const getRolePagePath = (user, page, fallback) => {
+  if (isDpc(user)) return dpcPath(page);
   if (isAdmin(user)) return adminPath(page);
   if (isVendor(user)) return vendorPath(page);
   if (isSeniorAssistantBursar(user)) return seniorAssistantBursarPath(page);

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import { toast } from "react-toastify";
 import PageHero from "../../components/PageHero";
 import StatusPill from "../../components/StatusPill";
 import { procurementApi } from "../../api/procurementApi";
@@ -27,7 +28,7 @@ const authorityForUser = (user) => {
 const thresholdText = (authority) => {
   if (authority === "DEAN") return "First approval for all selected quotations";
   if (authority === "VC") return "After Dean approval above LKR 500,000";
-  if (authority === "DPC") return "After Dean and VC approval above LKR 1,000,000";
+  if (authority === "DPC") return "Direct DPC approval above LKR 1,000,000";
   return "Price based approval";
 };
 
@@ -154,6 +155,11 @@ export default function QuotationAuthorityApprovals() {
   const [report, setReport] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [activeTab, setActiveTab] = useState("PENDING");
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
+  const [selectedId, setSelectedId] = useState("");
   const authority = authorityForUser(user);
 
   const load = useCallback(async () => {
@@ -161,14 +167,19 @@ export default function QuotationAuthorityApprovals() {
     setLoading(true);
     setError("");
     try {
-      const data = await procurementApi.offers.pendingAuthority(token);
+      const data = await procurementApi.offers.pendingAuthority(token, activeTab, page, 10);
       setOffers(getArray(data));
+      setTotalPages(Math.max(Number(data?.totalPages || 1), 1));
+      setTotalElements(Number(data?.totalElements ?? getArray(data).length));
+      setSelectedId((current) => getArray(data).some((offer) => String(offer.offerLetterId) === current) ? current : "");
     } catch (loadError) {
-      setError(loadError.message || "Could not load quotation approvals.");
+      const errorMessage = loadError.message || "Could not load quotation approvals.";
+      setError(errorMessage);
+      toast.error(errorMessage, { toastId: `quotation-approvals-load-${authority}`, autoClose: 5000 });
     } finally {
       setLoading(false);
     }
-  }, [token, authority]);
+  }, [token, authority, activeTab, page]);
 
   useEffect(() => {
     load();
@@ -187,6 +198,7 @@ export default function QuotationAuthorityApprovals() {
     const comment = comments[offer.offerLetterId] || "";
     if (decision === "REJECTED" && !comment.trim()) {
       setError("Rejection comment is required.");
+      toast.error("Rejection comment is required.", { autoClose: 4500 });
       return;
     }
     setSubmittingId(String(offer.offerLetterId));
@@ -197,15 +209,22 @@ export default function QuotationAuthorityApprovals() {
         decision,
         comment: comment || `${authority} ${decision.toLowerCase()} quotation approval`,
       });
-      setMessage(decision === "APPROVED" ? "Quotation approval saved. Higher value quotations will move to the next authority." : "Quotation approval rejected.");
+      const successMessage = decision === "APPROVED" ? "Quotation approval saved successfully." : "Quotation approval rejected.";
+      setMessage(successMessage);
+      toast.success(successMessage, { autoClose: 4500 });
       setComments((current) => ({ ...current, [offer.offerLetterId]: "" }));
       setOffers((current) => current.map((currentOffer) =>
         currentOffer.offerLetterId === offer.offerLetterId
           ? { ...currentOffer, ...updatedOffer, status: updatedOffer?.status || (decision === "APPROVED" ? "APPROVED_BY_AUTHORITY" : "REJECTED_BY_AUTHORITY") }
           : currentOffer
       ));
+      setSelectedId("");
+      setPage(0);
+      setActiveTab(decision === "APPROVED" ? "APPROVED" : "REJECTED");
     } catch (decisionError) {
-      setError(decisionError.message || "Could not save approval decision.");
+      const errorMessage = decisionError.message || "Could not save approval decision.";
+      setError(errorMessage);
+      toast.error(errorMessage, { autoClose: 5000 });
     } finally {
       setSubmittingId("");
     }
@@ -258,7 +277,7 @@ export default function QuotationAuthorityApprovals() {
       >
         <div className="rounded-[24px] bg-white/10 p-5 text-right backdrop-blur">
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-100">{thresholdText(authority)}</div>
-          <div className="mt-2 text-3xl font-black">{offers.length}</div>
+          <div className="mt-2 text-3xl font-black">{totalElements}</div>
         </div>
       </PageHero>
 
@@ -266,12 +285,17 @@ export default function QuotationAuthorityApprovals() {
       {message && <div className="rounded-[24px] bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">{message}</div>}
 
       <section className={cardClass}>
+        <div className="mb-5 flex flex-wrap gap-3 border-b border-[#dce8ef] pb-4">
+          {[{ key: "PENDING", label: "Pending Authority Approval" }, { key: "APPROVED", label: "Approved Items" }, { key: "REJECTED", label: "Rejected Items" }].map((tab) => (
+            <button key={tab.key} type="button" onClick={() => { setActiveTab(tab.key); setPage(0); setSelectedId(""); }} className={`rounded-xl px-4 py-2 text-sm font-black ${activeTab === tab.key ? "bg-[#166e8c] text-white" : "bg-[#edf7fb] text-[#166e8c]"}`}>{tab.label}</button>
+          ))}
+        </div>
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Pending Authority Approval</div>
-            <h2 className="mt-2 text-2xl font-black text-[#10283f]">Selected vendor quotations</h2>
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">{activeTab === "PENDING" ? "Pending Authority Approval" : activeTab === "APPROVED" ? "Approved Items" : "Rejected Items"}</div>
+            <h2 className="mt-2 text-2xl font-black text-[#10283f]">{activeTab === "PENDING" ? "Selected vendor quotations" : activeTab === "APPROVED" ? "Approved vendor quotations" : "Rejected vendor quotations"}</h2>
             <div className="mt-2 text-sm leading-7 text-slate-600">
-              {offers.length} quotation{offers.length === 1 ? "" : "s"} | Total value {formatMoney(totalValue)}
+              {totalElements} quotation{totalElements === 1 ? "" : "s"} | Page value {formatMoney(totalValue)}
             </div>
           </div>
           <button type="button" onClick={load} className="inline-flex items-center gap-2 rounded-2xl bg-[#edf7fb] px-4 py-2 text-sm font-bold text-[#166e8c] hover:bg-[#d9edf5]">
@@ -283,7 +307,11 @@ export default function QuotationAuthorityApprovals() {
         <div className="mt-6 space-y-4">
           {loading && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">Loading quotation approvals...</div>}
           {!loading && offers.length === 0 && <div className="rounded-[24px] bg-slate-50 p-5 text-sm text-slate-600">No vendor quotations are waiting for your approval.</div>}
-          {offers.map((offer) => {
+          {!loading && offers.length > 0 && <div className="overflow-hidden rounded-2xl border border-[#dce8ef]">
+            {offers.map((offer) => <button key={offer.offerLetterId} type="button" onClick={() => { setSelectedId(String(offer.offerLetterId)); requestAnimationFrame(() => document.getElementById("authority-approval-details")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} className={`grid w-full gap-2 border-b border-[#e8f0f5] px-4 py-3 text-left text-sm last:border-b-0 md:grid-cols-[1.1fr_1.2fr_1fr_0.8fr_auto] md:items-center ${selectedId === String(offer.offerLetterId) ? "bg-[#eaf7fb]" : "bg-white hover:bg-[#f7fbfd]"}`}><span className="font-black text-[#10283f]">{offer.letterNumber || `Offer ${offer.offerLetterId}`}</span><span className="truncate text-slate-700">{offer.requisitionItemName || offer.rfqNumber || "Selected quotation"}</span><span className="truncate text-slate-600">{offer.vendorName || "Vendor not recorded"}</span><span className="font-bold text-[#10283f] md:text-right">{formatMoney(offer.offerAmount)}</span><StatusPill status={offer.status || "SUBMITTED_TO_APPROVAL"} /></button>)}
+          </div>}
+          <div className="flex items-center justify-between gap-3"><span className="text-sm font-semibold text-slate-500">Page {page + 1} of {totalPages}</span><div className="flex gap-2"><button type="button" disabled={page === 0} onClick={() => setPage((value) => Math.max(value - 1, 0))} className="rounded-xl bg-[#edf7fb] px-4 py-2 text-sm font-black text-[#166e8c] disabled:opacity-40">Previous</button><button type="button" disabled={page + 1 >= totalPages} onClick={() => setPage((value) => value + 1)} className="rounded-xl bg-[#166e8c] px-4 py-2 text-sm font-black text-white disabled:opacity-40">Next</button></div></div>
+          {offers.filter((offer) => String(offer.offerLetterId) === selectedId).map((offer) => {
             const isSubmitting = submittingId === String(offer.offerLetterId);
             const isActionable = offer.status === "SUBMITTED_TO_APPROVAL" && (offer.approvalAuthority || authority) === authority;
             const isFinalized = !isActionable || offer.status === "APPROVED_BY_AUTHORITY" || offer.status === "REJECTED_BY_AUTHORITY";
@@ -293,7 +321,7 @@ export default function QuotationAuthorityApprovals() {
                 ? "recommended and sent to the next approval authority"
                 : "approved";
             return (
-              <article key={offer.offerLetterId} className="rounded-[24px] border border-[#e0ebf1] bg-[#fbfdff] p-5">
+              <article id="authority-approval-details" key={offer.offerLetterId} className="scroll-mt-28 rounded-[24px] border border-[#e0ebf1] bg-[#fbfdff] p-5">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#166e8c]">{offer.letterNumber || `Offer ${offer.offerLetterId}`}</div>
@@ -336,7 +364,7 @@ export default function QuotationAuthorityApprovals() {
                 </div>
 
                 {isFinalized ? (
-                  <div className="mt-5 rounded-[18px] bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
+                  <div className={`mt-5 rounded-[18px] p-4 text-sm font-bold ${offer.status === "REJECTED_BY_AUTHORITY" ? "bg-orange-50 text-orange-700" : "bg-emerald-50 text-emerald-700"}`}>
                     This quotation is {finalizedText}.
                   </div>
                 ) : (

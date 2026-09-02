@@ -14,6 +14,7 @@ export const vendorSidebarItems = [
   { label: "Quotation Submission", icon: RequestQuoteRoundedIcon, path: vendorPath("quotation-submission") },
   { label: "Submitted Quotations", icon: ReceiptLongRoundedIcon, path: vendorPath("quotations") },
   { label: "Received Offer Letters", icon: LocalOfferRoundedIcon, path: vendorPath("offer-letters") },
+  { label: "Received Purchase Orders", icon: ReceiptLongRoundedIcon, path: vendorPath("purchase-orders") },
   { label: "Objections", icon: ReportProblemRoundedIcon, path: vendorPath("objections") },
   { label: "Notification", icon: NotificationsRoundedIcon, path: vendorPath("notifications") },
   { label: "Settings", icon: SettingsRoundedIcon, path: vendorPath("settings") },

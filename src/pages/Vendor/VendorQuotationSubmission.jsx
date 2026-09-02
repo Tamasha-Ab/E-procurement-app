@@ -340,11 +340,6 @@ export default function VendorQuotationSubmission() {
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Documents and Instructions to Vendors</div>
                 <h2 className="mt-2 text-2xl font-black text-[#10283f]">Documents vendors must submit</h2>
               </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button variant="contained" startIcon={<SaveRoundedIcon />} onClick={saveDocuments} disabled={savingDocs} sx={{ textTransform: "none", bgcolor: "#166e8c", borderRadius: "14px", fontWeight: 800 }}>
-                  {savingDocs ? "Saving..." : "Save Documents"}
-                </Button>
-              </div>
             </div>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               {documents.map((document, index) => (
@@ -387,6 +382,11 @@ export default function VendorQuotationSubmission() {
                   ) : null}
                 </div>
               ))}
+            </div>
+            <div className="mt-5 flex justify-end">
+              <Button variant="contained" startIcon={<SaveRoundedIcon />} onClick={saveDocuments} disabled={savingDocs} sx={{ textTransform: "none", bgcolor: "#166e8c", borderRadius: "14px", fontWeight: 800 }}>
+                {savingDocs ? "Saving..." : "Save Documents"}
+              </Button>
             </div>
             <div className="mt-6 flex justify-end">
               <Button variant="outlined" onClick={openRfqSelection} sx={{ textTransform: "none", borderColor: "#166e8c", color: "#166e8c", borderRadius: "14px", fontWeight: 800 }}>

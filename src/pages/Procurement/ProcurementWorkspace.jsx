@@ -8,6 +8,7 @@ import { procurementApi, vendorProcurementApi } from "../../api/procurementApi";
 import { formatDateTime, formatMoney } from "../../services/apiClient";
 import { requestDisplayName, rfqDisplayName, rfqContext } from "../../utils/procurementDisplay";
 import PaginationControls from "../../components/PaginationControls";
+import { toast } from "react-toastify";
 
 const cardClass = "rounded-[34px] border border-[#dce8ef] bg-white p-6 shadow-[0_24px_55px_rgba(15,41,64,0.08)]";
 const inputClass = "w-full rounded-2xl border border-[#dce8ef] bg-white px-4 py-3 text-sm outline-none focus:border-[#166e8c]";
@@ -735,6 +736,7 @@ function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false
   const [debouncedRfqSearch, setDebouncedRfqSearch] = useState("");
   const [bids, setBids] = useState([]);
   const [quotations, setQuotations] = useState([]);
+  const [sentQuotationIds, setSentQuotationIds] = useState(() => new Set());
   const [objections, setObjections] = useState([]);
   const [reports, setReports] = useState([]);
   const [meetingRecord, setMeetingRecord] = useState(null);
@@ -909,6 +911,13 @@ function TecWorkspace({ token, setError, setMessage, quotationReviewOnly = false
         setRfqLookup(targetRfqId);
         setQuotationResultsVisible(true);
         setMessage("RFQ quotation data loaded.");
+        const openedRfq = tecRfqs.find((rfq) => String(rfq.rfqId) === String(targetRfqId));
+        const openingTime = openedRfq?.submissionDeadline || openedRfq?.bidOpeningDateTime;
+        if (openedRfq && (!openingTime || new Date(openingTime).getTime() <= Date.now())) {
+          toast.info(`${rfqDisplayName(openedRfq)} is open for quotation evaluation.`, { autoClose: 4500 });
+        } else {
+          toast.success("RFQ quotation data loaded.", { autoClose: 3500 });
+        }
         window.requestAnimationFrame(() => quotationResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
         return;
       }
@@ -1351,6 +1360,15 @@ This offer letter is issued for the selected quotation item listed above.`;
   };
 
   const sendQuotationToRelevantBec = async (quotation) => {
+    const quotationKey = String(quotation.quotationId);
+    const existingItems = quotation.items || [];
+    const alreadyAssigned = sentQuotationIds.has(quotationKey) || (existingItems.length > 0 && existingItems.every((item) =>
+      item.assignmentStatus || item.becAssignmentStatus || item.assignedBecUserId || item.becUserId
+    ));
+    if (alreadyAssigned) {
+      toast.info("Already sent to the relevant BEC member.", { autoClose: 4000 });
+      return;
+    }
     const items = quotation.items || [];
     if (!items.length) {
       setError("This quotation has no items to assign.");
@@ -1384,10 +1402,13 @@ This offer letter is issued for the selected quotation item listed above.`;
       await Promise.all(payloads.map(({ item, category, becUserId }) =>
         procurementApi.quotations.assignToBec(token, item.bidItemId, { becUserId, category })
       ));
+      setSentQuotationIds((current) => new Set(current).add(quotationKey));
       await loadRfqWork();
       setMessage("Quotation sent to the relevant BEC member for assigned category review.");
+      toast.success("Quotation sent to the relevant BEC member for assigned category review.", { autoClose: 4500 });
     } catch (err) {
       setError(err.message || "Could not send quotation to relevant BEC member.");
+      toast.error(err.message || "Could not send quotation to relevant BEC member.", { autoClose: 5000 });
     }
   };
 
@@ -1440,7 +1461,7 @@ This offer letter is issued for the selected quotation item listed above.`;
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-[#dce8ef] bg-white p-4 shadow-[0_12px_30px_rgba(15,41,64,0.06)]">
+      {!quotationReviewOnly && <section className="rounded-2xl border border-[#dce8ef] bg-white p-4 shadow-[0_12px_30px_rgba(15,41,64,0.06)]">
         <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#166e8c]">Tender Evaluation</div>
         <h2 className="mt-1 text-xl font-black text-[#10283f]">Choose RFQ and evaluation step</h2>
           <form onSubmit={loadRfqWork} className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
@@ -1466,7 +1487,7 @@ This offer letter is issued for the selected quotation item listed above.`;
             </button>
           ))}
         </div>
-      </section>
+      </section>}
 
       {activeSection === "specs" && (
         <ActionCard eyebrow="Specifications" title="Add Tender Specification">
@@ -1588,11 +1609,23 @@ This offer letter is issued for the selected quotation item listed above.`;
               {
                 key: "actions",
                 label: "Details",
-                render: (row) => row.sealed ? "Locked" : (
-                  <button className="rounded-xl bg-[#edf7fb] px-3 py-2 text-xs font-bold text-[#166e8c] hover:bg-[#d9edf5]" type="button" onClick={() => quotationReviewOnly ? sendQuotationToRelevantBec(row) : openQuotationDetails(row)}>
-                    {quotationReviewOnly ? "Send to relevant BEC" : "View Details"}
-                  </button>
-                ),
+                render: (row) => {
+                  if (row.sealed) return "Locked";
+                  const sent = quotationReviewOnly && (
+                    sentQuotationIds.has(String(row.quotationId)) ||
+                    ((row.items || []).length > 0 && (row.items || []).every((item) => item.assignmentStatus || item.becAssignmentStatus || item.assignedBecUserId || item.becUserId))
+                  );
+                  return (
+                    <button
+                      className={`rounded-xl px-3 py-2 text-xs font-bold ${sent ? "cursor-not-allowed bg-slate-100 text-slate-500" : "bg-[#edf7fb] text-[#166e8c] hover:bg-[#d9edf5]"}`}
+                      type="button"
+                      aria-disabled={sent}
+                      onClick={() => quotationReviewOnly ? sendQuotationToRelevantBec(row) : openQuotationDetails(row)}
+                    >
+                      {quotationReviewOnly ? (sent ? "Sent" : "Send to relevant BEC") : "View Details"}
+                    </button>
+                  );
+                },
               },
             ]}
           />

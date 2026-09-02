@@ -82,7 +82,8 @@ export const procurementApi = {
   offers: {
     create: (token, rfqId, payload) =>
       apiRequest(`${procurementBase}/rfqs/${rfqId}/offer-letters`, { token, method: "POST", body: payload }),
-    pendingAuthority: (token) => apiRequest(`${procurementBase}/offer-letters/pending-authority`, { token }),
+    pendingAuthority: (token, tab = "PENDING", page = 0, size = 10) =>
+      apiRequest(`${procurementBase}/offer-letters/pending-authority?tab=${tab}&page=${page}&size=${size}`, { token }),
     decideAuthority: (token, offerLetterId, payload) =>
       apiRequest(`${procurementBase}/offer-letters/${offerLetterId}/authority-decision`, { token, method: "PATCH", body: payload }),
     selectedVendors: (token) => apiRequest(`${procurementBase}/offer-letters/selected-vendors`, { token }),

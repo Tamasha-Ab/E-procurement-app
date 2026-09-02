@@ -23,7 +23,6 @@ import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
-import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { downloadRequisitionForm } from "../../utils/requisitionDocument";
@@ -543,12 +542,6 @@ export default function BursarBudgetWorkspace() {
           {notice.message}
         </Alert>
       )}
-
-      <section className="mx-auto flex max-w-7xl justify-end">
-        <Button variant="outlined" startIcon={<FolderOpenRoundedIcon />} onClick={() => navigate("/senior-assistant-bursar/tender-drafts")} sx={{ borderRadius: "12px", textTransform: "none", fontWeight: 800 }}>
-          Saved Tender Drafts
-        </Button>
-      </section>
 
       <section className="mx-auto max-w-7xl">
         <Panel title="Create Tender" eyebrow="Tender Details">
