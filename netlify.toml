@@ -4,7 +4,7 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "http://localhost:8081/api/:splat"
+  to = "https://e-procument-app-backend.onrender.com/api/:splat"
   status = 200
   force = true
 
